@@ -133,12 +133,37 @@ Constraints the Trainee must follow (statistical methods, figure standards, data
 ### 6. MANUSCRIPT PLANNING
 Which paper sections should be written or updated? Map specific findings to specific sections. Indicate priority order.
 
-### 7. STATUS
+### 7. EXPERT CONSULTANTS (Optional)
+You may invite domain experts for a one-time consultation. This is useful when the project touches areas outside your expertise, or you want a critical review from a specialist.
+
+To invite an expert, use `autolab_record` to update the project state with an `experts` list. Each expert should have:
+- `name` — a plausible name (e.g., "Dr. Lee")
+- `role` — their specialty (e.g., "Immunologist", "Statistician", "Bioethicist")
+- `avatar` — one of: reviewer, bioethicist, science_writer, grant_reviewer, immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic
+- `thought` — a key insight or question from that expert
+
+If you don't need expert consultation this turn, skip this section.
+
+### 8. PROGRESS
+Assess overall project progress from 0-100. This drives the progress bar in the monitoring UI. Consider:
+- 0-10: Project planning / initial literature review
+- 10-30: Core analyses running, preliminary results
+- 30-50: Key results obtained, figures being refined
+- 50-70: Paper drafting underway, results solidified
+- 70-90: Paper mostly complete, polishing figures/writing
+- 90-100: Ready for submission
+
+Output: `PROGRESS: <number>`
+
+### 9. BIOMNI TOOLS (Optional)
+If Biomni is available in this environment (check via `autolab_biomni_status`), you may suggest using its curated biomedical tools and databases for specific tasks (e.g., ADMET prediction, CRISPR screen planning, scRNA-seq annotation). The Trainee should import Biomni tools directly in their scripts: `from biomni.tools.<name> import *`. Use `autolab_biomni_tools` to see what's available. Only mention if genuinely useful — do not force it.
+
+### 10. STATUS
 Output exactly one of:
 - `STATUS: continue` -- if more work is needed
 - `STATUS: ready_for_review` -- if the paper is complete and ready for the user to review
 
-You MUST produce ALL 7 sections. Do not skip any.
+You MUST produce sections 1-6, 8, and 10. Sections 7 and 9 are optional.
 """
     return prompt
 
@@ -236,6 +261,8 @@ For each task:
 
 Use the Shell tool to run your scripts. Use the file editing tools to write LaTeX.
 
+**Biomni Integration:** If the PI suggests using Biomni tools, and Biomni is available (check with `autolab_biomni_status`), import the relevant tools directly in your scripts: `from biomni.tools.<tool_name> import *`. Use `autolab_biomni_tools` to see what's available. Do NOT instantiate the Biomni A1 agent. If Biomni is not installed, proceed without it — all core work can be done with standard tools.
+
 ### 3. RESULTS
 Key findings with exact numbers and statistics. Do not omit p-values, confidence intervals, effect sizes, or sample sizes where relevant.
 
@@ -262,20 +289,19 @@ You MUST produce ALL 7 sections. Do not skip any. Execute real code and produce 
 # ---------------------------------------------------------------------------
 # Reviewer prompt builder
 # ---------------------------------------------------------------------------
-def build_reviewer_prompt(
+def build_submission_prompt(
     paper_progress: dict,
     file_listings: dict,
     meeting_history: str,
 ) -> str:
     """
-    Build the Reviewer prompt for when the PI declares ready_for_review.
-
-    Compiles the paper and presents it to the user.
+    Build the prompt for the PI to prepare a cover letter and final manuscript
+    when STATUS: ready_for_review is set.
     """
     progress_str = _format_paper_progress(paper_progress)
     files_str = _format_file_listings(file_listings)
 
-    prompt = f"""The PI has declared the paper ready for review. Your task is to compile and present the full paper to the user for editorial review.
+    prompt = f"""The manuscript is ready for submission. As PI, you must now prepare a formal cover letter and a final manuscript summary.
 
 ## Paper Progress
 
@@ -291,17 +317,221 @@ def build_reviewer_prompt(
 
 ## Your Task
 
-1. Read ALL paper sections from `paper/sections/` (abstract.tex, introduction.tex, methods.tex, results.tex, discussion.tex)
-2. Read the references from `paper/references.bib`
-3. List all figures in `figures/` and `paper/figures/`
-4. Present to the user:
-   - **Title and Abstract** (full text)
-   - **All Figures** (list with descriptions)
-   - **Key Findings** (bullet points)
-   - **Manuscript Structure** (section summaries)
-   - **Ask the user**: Accept / Minor Revision / Major Revision?
+1. Read ALL paper sections from `paper/sections/` and compile them mentally.
+2. Read the references from `paper/references.bib`.
+3. Review all figures in `figures/`.
 
-Format your presentation as a clear, structured summary that the user can review as a journal editor.
+4. Write a **Cover Letter** addressed to the Editor, containing:
+   - Title of the manuscript
+   - Brief summary of the work (2-3 paragraphs)
+   - Key findings and significance
+   - Why this is suitable for a top-tier journal
+   - Suggested reviewer areas of expertise (but NOT specific names)
+   - Any conflicts of interest or special considerations
+
+5. Produce a **Manuscript Summary** for the editor:
+   - Title and author list
+   - Abstract (full text)
+   - List of all figures with one-line descriptions
+   - Key statistics and results
+   - Word counts per section
+
+6. Call `autolab_record` with role="pi", status="ready_for_review", and the cover letter + summary as content. Include `PROGRESS: 95` to reflect the near-complete state.
+
+The cover letter and manuscript will be presented to the Editor (the user) for their decision.
+"""
+    return prompt
+
+
+def build_reviewer_prompt(
+    reviewer: dict,
+    paper_progress: dict,
+    file_listings: dict,
+    cover_letter: str,
+    round_number: int = 1,
+) -> str:
+    """
+    Build a prompt for an individual peer reviewer.
+
+    reviewer: {"id": "reviewer_1", "name": "Dr. X", "role": "Immunologist", ...}
+    """
+    progress_str = _format_paper_progress(paper_progress)
+    files_str = _format_file_listings(file_listings)
+
+    prompt = f"""You are now acting as **{reviewer.get('name', 'Anonymous Reviewer')}**, an invited peer reviewer with expertise in **{reviewer.get('role', 'the relevant field')}**.
+
+This is **Review Round {round_number}**.
+
+## Your Reviewer Profile
+
+You are a rigorous, constructive peer reviewer. You evaluate manuscripts based on:
+- Scientific rigor and novelty
+- Statistical validity and reproducibility
+- Clarity of presentation
+- Quality of figures and data
+- Significance to the field
+- Appropriate discussion of limitations
+
+You provide specific, actionable feedback. You are fair but thorough.
+
+## Manuscript Information
+
+### Paper Progress
+
+{progress_str}
+
+### Project Files
+
+{files_str}
+
+### Cover Letter from PI
+
+{cover_letter}
+
+## Your Task
+
+1. Read ALL paper sections from `paper/sections/` (abstract.tex, introduction.tex, methods.tex, results.tex, discussion.tex)
+2. Review the references in `paper/references.bib`
+3. Examine all figures in `figures/`
+
+4. Produce a structured **Peer Review Report** with ALL of the following:
+
+### SUMMARY
+A brief summary (2-3 sentences) of the manuscript and its main contributions.
+
+### STRENGTHS
+Numbered list of specific strengths of the manuscript (at least 3).
+
+### WEAKNESSES
+Numbered list of specific weaknesses or concerns (at least 3). Be specific — cite section names, figure numbers, and exact claims.
+
+### MAJOR CONCERNS
+Issues that MUST be addressed for the paper to be acceptable. These could include:
+- Flawed methodology or statistics
+- Missing controls or validations
+- Unsupported claims
+- Missing comparisons to prior work
+
+### MINOR CONCERNS
+Smaller issues that should be fixed but are not critical:
+- Typos, formatting issues
+- Suggested additional analyses
+- Clarification requests
+
+### QUESTIONS FOR AUTHORS
+3-5 specific questions that the authors must address.
+
+### RECOMMENDATION
+One of:
+- `RECOMMENDATION: Accept` — Publishable as-is
+- `RECOMMENDATION: Minor Revision` — Minor fixes needed, no re-review required
+- `RECOMMENDATION: Major Revision` — Significant changes needed, re-review required
+- `RECOMMENDATION: Reject` — Fundamental flaws that cannot be addressed
+
+### CONFIDENCE SCORE
+Rate your confidence in this review on a scale of 1-5:
+- 1: Not in my area of expertise
+- 3: Partially in my expertise
+- 5: Core area of expertise
+
+You MUST produce ALL sections. Be specific and constructive. Reference exact sections, figures, and claims.
+"""
+    return prompt
+
+
+def build_revision_prompt(
+    idea: str,
+    profile: dict,
+    reviews: dict,
+    editorial_decision: str,
+    editorial_feedback: str,
+    meeting_history: str,
+    file_listings: dict,
+    round_number: int = 1,
+) -> str:
+    """
+    Build the PI prompt for handling reviewer feedback and editorial decision.
+    """
+    files_str = _format_file_listings(file_listings)
+    personality = "\n".join(f"- {p}" for p in profile.get("personality", []))
+
+    # Format reviews
+    reviews_text = ""
+    for reviewer_id, review in reviews.items():
+        reviews_text += f"\n### {reviewer_id.replace('_', ' ').title()}\n"
+        reviews_text += f"**Recommendation:** {review.get('recommendation', 'N/A')}\n"
+        reviews_text += f"**Confidence:** {review.get('confidence', 'N/A')}/5\n\n"
+        reviews_text += review.get("report", "(no report)")
+        reviews_text += "\n"
+
+    prompt = f"""You are now acting as the **Principal Investigator (PI)** responding to peer review.
+
+## Your Identity
+
+**Title:** {profile.get('title', 'Principal Investigator')}
+**Expertise:** {profile.get('expertise', 'running a research lab')}
+**Personality:**
+{personality}
+
+## Project Idea
+
+{idea}
+
+## Review Round {round_number}
+
+## Editorial Decision
+
+**Decision:** {editorial_decision.upper().replace('_', ' ')}
+
+**Editor's Feedback:**
+{editorial_feedback if editorial_feedback else "(No additional feedback from editor)"}
+
+## Reviewer Reports
+
+{reviews_text}
+
+## Project Files
+
+{files_str}
+
+## Recent Meeting History
+
+{meeting_history}
+
+## Your Task
+
+{"The paper has been REJECTED. Review the feedback carefully. You may:" if editorial_decision == "reject" else "The editor has requested revisions. You must:"}
+
+### 1. RESPONSE TO REVIEWERS
+For EACH reviewer, address EVERY concern point by point. For each point, state one of:
+- **Addressed**: What you changed and where
+- **Rebutted**: Why the reviewer is incorrect (with evidence)
+- **Acknowledged**: Limitations you accept but cannot fully address
+
+### 2. REVISION PLAN
+Specific changes to make:
+- Which sections need rewriting
+- Which figures need updating
+- Which new analyses are needed
+- Which new references to add
+
+### 3. AGENDA FOR TRAINEE
+Clear instructions for the Trainee to implement the revisions. Be specific about:
+- Exact code changes or new analyses
+- Figure modifications
+- LaTeX section updates
+- New results needed
+
+### 4. COVER LETTER DRAFT (for resubmission)
+A point-by-point response letter to the editor summarising all changes.
+
+### 5. PROGRESS
+Update progress: `PROGRESS: <number>` (typically drops after revision request)
+
+### 6. STATUS
+Output: `STATUS: continue`
+
+You MUST produce ALL sections. Be thorough — a well-addressed revision is often stronger than the original.
 """
     return prompt
 

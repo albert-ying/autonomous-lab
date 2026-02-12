@@ -11,8 +11,10 @@ from .state import (
     get_paper_progress,
     init_project,
     load_state,
+    parse_meeting_log,
     save_state,
     scan_project_files,
+    store_user_feedback,
 )
 
 __all__ = [
@@ -21,6 +23,8 @@ __all__ = [
     "get_paper_progress",
     "init_project",
     "load_state",
+    "parse_meeting_log",
     "save_state",
     "scan_project_files",
+    "store_user_feedback",
 ]

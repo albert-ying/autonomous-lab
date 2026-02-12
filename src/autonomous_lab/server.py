@@ -604,6 +604,7 @@ async def autolab_init(
     Creates .autolab/ directory with state, profiles, and meeting log.
     Creates paper/ directory with LaTeX template.
     Creates working directories: data/, scripts/, figures/, results/.
+    Opens the game-style monitoring UI in the browser.
 
     Call this once at the start of a new research project.
 
@@ -627,13 +628,34 @@ async def autolab_init(
         state = init_project(project_directory, idea)
         create_paper_structure(project_directory, title)
 
+        # Start the monitoring web UI (non-blocking)
+        lab_url = ""
+        try:
+            import time
+
+            from .web.main import get_web_ui_manager
+
+            manager = get_web_ui_manager()
+            manager.lab_project_dir = project_directory
+
+            if manager.server_thread is None or not manager.server_thread.is_alive():
+                manager.start_server()
+                time.sleep(1)
+
+            lab_url = f"{manager.get_server_url()}/lab"
+            manager.open_browser(lab_url)
+        except Exception as e:
+            debug_log(f"Failed to start lab UI: {e}")
+            lab_url = "(failed to start)"
+
         return (
             f"Autonomous Lab initialized in {project_directory}\n\n"
             f"Created:\n"
             f"  .autolab/ -- state, profiles, meeting log\n"
             f"  paper/ -- LaTeX template ({title})\n"
             f"  scripts/, figures/, results/ -- working directories\n\n"
-            f"State: iteration={state['iteration']}, next_role={state['next_role']}\n\n"
+            f"State: iteration={state['iteration']}, next_role={state['next_role']}\n"
+            f"Monitoring UI: {lab_url}\n\n"
             f"Next step: Call autolab_next to get the PI's first prompt."
         )
     except Exception as e:
@@ -661,8 +683,15 @@ async def autolab_next(
     Returns:
         str: The role prompt to follow
     """
-    from .lab.prompts import build_pi_prompt, build_reviewer_prompt, build_trainee_prompt
+    from .lab.prompts import (
+        build_pi_prompt,
+        build_reviewer_prompt,
+        build_revision_prompt,
+        build_submission_prompt,
+        build_trainee_prompt,
+    )
     from .lab.state import (
+        get_editorial,
         get_meeting_summaries,
         get_paper_progress,
         get_recent_meetings,
@@ -686,18 +715,87 @@ async def autolab_next(
     meeting_history = get_recent_meetings(project_directory, n=3)
     summaries = get_meeting_summaries(project_directory)
     file_listings = scan_project_files(project_directory)
+    editorial = state.get("editorial", {})
 
-    # Check if paper review is needed
-    if state.get("status") == "ready_for_review":
+    # --- Editorial workflow routing ---
+
+    # 1. PI is preparing submission (ready_for_review)
+    if state.get("status") == "ready_for_review" and editorial.get("phase", "none") == "none":
         paper_progress = get_paper_progress(project_directory)
-        prompt = build_reviewer_prompt(paper_progress, file_listings, meeting_history)
+        prompt = build_submission_prompt(paper_progress, file_listings, meeting_history)
         return (
-            f"[AUTOLAB] REVIEWER MODE -- Paper Review\n"
+            f"[AUTOLAB] SUBMISSION MODE -- Iteration {iteration}\n\n"
+            f"{prompt}"
+        )
+
+    # 2. Waiting for editor (submitted / reviews_complete)
+    if state.get("status") in ("submitted_to_editor", "reviews_complete"):
+        phase = editorial.get("phase", "none")
+        if phase == "submitted":
+            return (
+                f"[AUTOLAB] AWAITING EDITOR -- Iteration {iteration}\n\n"
+                f"The manuscript has been submitted to the Editor.\n"
+                f"The Editor (user) will now decide: Desk Reject or Invite Reviewers.\n\n"
+                f"Waiting for editorial action via the monitoring UI...\n"
+                f"Call autolab_next again after the editor acts."
+            )
+        if phase == "reviews_complete":
+            return (
+                f"[AUTOLAB] AWAITING EDITORIAL DECISION -- Iteration {iteration}\n\n"
+                f"All reviewer reports are in.\n"
+                f"The Editor (user) will now decide: Accept / Minor Revision / Major Revision / Reject.\n\n"
+                f"Waiting for editorial decision via the monitoring UI...\n"
+                f"Call autolab_next again after the editor acts."
+            )
+
+    # 3. Reviewer turn
+    if role.startswith("reviewer_"):
+        paper_progress = get_paper_progress(project_directory)
+        reviewers = editorial.get("reviewers", [])
+        reviewer = next((r for r in reviewers if r["id"] == role), None)
+        if not reviewer:
+            return f"ERROR: Reviewer {role} not found in editorial state."
+
+        cover_letter = editorial.get("cover_letter", "")
+        round_num = editorial.get("round", 1)
+        prompt = build_reviewer_prompt(
+            reviewer=reviewer,
+            paper_progress=paper_progress,
+            file_listings=file_listings,
+            cover_letter=cover_letter,
+            round_number=round_num,
+        )
+        return (
+            f"[AUTOLAB] REVIEWER TURN -- {reviewer['name']} ({reviewer['role']})\n"
+            f"Iteration: {iteration}, Round: {round_num}\n\n"
+            f"{prompt}"
+        )
+
+    # 4. PI handling revision
+    if state.get("status") in ("revision_requested", "rejected"):
+        profile = load_profile(project_directory, "pi")
+        reviews = editorial.get("reviews", {})
+        decision = editorial.get("decision", "")
+        decision_fb = editorial.get("decision_feedback", "")
+        round_num = editorial.get("round", 1)
+        prompt = build_revision_prompt(
+            idea=idea,
+            profile=profile,
+            reviews=reviews,
+            editorial_decision=decision,
+            editorial_feedback=decision_fb,
+            meeting_history=meeting_history,
+            file_listings=file_listings,
+            round_number=round_num,
+        )
+        return (
+            f"[AUTOLAB] REVISION MODE -- Round {round_num}\n"
+            f"Decision: {decision.upper().replace('_', ' ')}\n"
             f"Iteration: {iteration}\n\n"
             f"{prompt}"
         )
 
-    # Build role-specific prompt
+    # --- Normal lab workflow ---
     profile = load_profile(project_directory, role)
 
     if role == "pi":
@@ -734,17 +832,17 @@ async def autolab_record(
     summary: Annotated[str, Field(description="Brief summary of what was done this turn")] = "",
     content: Annotated[str, Field(description="Full content of the turn (review, agenda, results, etc.)")] = "",
     status: Annotated[str, Field(description="Status: 'continue' or 'ready_for_review'")] = "continue",
-    timeout: Annotated[int, Field(description="Timeout in seconds for user feedback")] = 600,
+    progress: Annotated[int, Field(description="PI overall project progress 0-100 (set only by PI)")] = -1,
 ) -> str:
-    """Record a completed turn and show the monitoring UI for user feedback.
+    """Record a completed turn. Non-blocking — updates state and returns immediately.
+
+    The monitoring UI (opened by autolab_init) auto-refreshes to show progress.
+    User feedback is optional and picked up in the next autolab_next call.
 
     This tool:
     1. Saves the turn to meeting_log.md
     2. Updates state.json (advance iteration, flip role, store status)
     3. Compresses old meetings every 6 turns
-    4. Opens the web feedback UI with a rich dashboard summary
-    5. Waits for user feedback (or timeout = auto-continue)
-    6. Stores user feedback in state.json for the next turn
 
     Call this AFTER completing your role actions (as PI or Trainee).
 
@@ -754,7 +852,7 @@ async def autolab_record(
         summary: Brief summary of actions taken
         content: Full structured content of the turn
         status: 'continue' to keep iterating, 'ready_for_review' when paper is done
-        timeout: Seconds to wait for user feedback (default 600)
+        progress: PI's assessment of overall project progress 0-100 (only PI should set this)
 
     Returns:
         str: User feedback text, or empty string if auto-continued
@@ -762,17 +860,19 @@ async def autolab_record(
     from .lab.state import (
         append_meeting_log,
         compress_old_meetings,
-        get_paper_progress,
         load_state,
+        record_review,
         save_state,
-        scan_project_files,
+        submit_manuscript,
         COMPRESS_EVERY,
     )
 
     project_directory = os.path.abspath(project_directory)
 
-    if role not in ("pi", "trainee"):
-        return "ERROR: role must be 'pi' or 'trainee'"
+    # Validate role — allow pi, trainee, and reviewer_N
+    valid_roles = role in ("pi", "trainee") or role.startswith("reviewer_")
+    if not valid_roles:
+        return "ERROR: role must be 'pi', 'trainee', or 'reviewer_N'"
 
     try:
         state = load_state(project_directory)
@@ -784,71 +884,80 @@ async def autolab_record(
     # 1. Append to meeting log
     append_meeting_log(project_directory, role, iteration, summary, content)
 
-    # 2. Update state
+    # --- Reviewer turn handling ---
+    if role.startswith("reviewer_"):
+        # Extract recommendation from content
+        import re
+        rec_match = re.search(r"RECOMMENDATION:\s*(\w[\w\s]*)", content)
+        conf_match = re.search(r"CONFIDENCE[^:]*:\s*(\d)", content)
+        recommendation = rec_match.group(1).strip().lower().replace(" ", "_") if rec_match else "major_revision"
+        confidence = int(conf_match.group(1)) if conf_match else 3
+
+        review_data = {
+            "recommendation": recommendation,
+            "confidence": confidence,
+            "report": content,
+        }
+        editorial = record_review(project_directory, role, review_data)
+        remaining = [r["id"] for r in editorial.get("reviewers", [])
+                     if r["id"] not in editorial.get("reviews", {})]
+
+        if remaining:
+            return (
+                f"Review by {role} recorded.\n"
+                f"Next reviewer: {remaining[0]}.\n"
+                f"Call autolab_next to continue."
+            )
+        else:
+            return (
+                f"Review by {role} recorded. All reviews complete.\n"
+                f"Waiting for editorial decision from the Editor (user).\n"
+                f"Call autolab_next to check status."
+            )
+
+    # --- PI submission handling ---
+    if role == "pi" and status == "ready_for_review":
+        submit_manuscript(project_directory, content)
+        if progress >= 0:
+            st = load_state(project_directory)
+            st["progress"] = max(0, min(100, progress))
+            save_state(project_directory, st)
+        return (
+            f"Manuscript submitted to Editor.\n"
+            f"Cover letter and manuscript summary recorded.\n"
+            f"Waiting for editorial action via the monitoring UI.\n"
+            f"Call autolab_next to check status."
+        )
+
+    # --- Normal turn handling ---
     next_role = "trainee" if role == "pi" else "pi"
     new_iteration = iteration + (1 if role == "trainee" else 0)
+    state = load_state(project_directory)  # reload in case reviewer updated it
     state["iteration"] = new_iteration
     state["next_role"] = next_role
-    state["status"] = status
-    state["user_feedback"] = ""  # Clear previous feedback
+    state["status"] = status if status != "ready_for_review" else "active"
+    # PI can set overall progress (0-100)
+    if progress >= 0 and role == "pi":
+        state["progress"] = max(0, min(100, progress))
     save_state(project_directory, state)
 
-    # 3. Compress old meetings periodically
+    # Compress old meetings periodically
     if new_iteration > 0 and new_iteration % COMPRESS_EVERY == 0:
         compress_old_meetings(project_directory)
 
-    # 4. Build dashboard summary for the web UI
-    file_listings = scan_project_files(project_directory)
-    paper_progress = get_paper_progress(project_directory)
+    # Check if user left feedback via the web UI
+    user_feedback = state.get("user_feedback", "").strip()
 
-    # Build a rich markdown summary for the feedback UI
-    figures_list = file_listings.get("figures", [])
-    figures_str = "\n".join(f"- {f}" for f in figures_list[:20]) if figures_list else "None yet"
+    if user_feedback:
+        return (
+            f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n\n"
+            f"User feedback pending:\n{user_feedback}"
+        )
 
-    paper_str_parts = []
-    for section, info in paper_progress.items():
-        if info["exists"] and info["words"] > 0:
-            paper_str_parts.append(f"  {section}: {info['words']} words")
-        else:
-            paper_str_parts.append(f"  {section}: --")
-    paper_str = "\n".join(paper_str_parts)
-
-    dashboard_summary = (
-        f"[AUTOLAB]\n\n"
-        f"# Autonomous Lab — Iteration {new_iteration}\n\n"
-        f"**Completed:** {role.upper()} turn\n"
-        f"**Next:** {next_role.upper()} turn\n"
-        f"**Status:** {status}\n\n"
-        f"## Turn Summary\n\n{summary}\n\n"
-        f"## Figures\n\n{figures_str}\n\n"
-        f"## Paper Progress\n\n{paper_str}\n\n"
-        f"---\n\n"
-        f"*Provide feedback below, or leave empty and submit to continue.*"
+    return (
+        f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n"
+        f"Call autolab_next to continue."
     )
-
-    # 5. Launch the feedback UI (reusing mcp-feedback-enhanced's web UI)
-    try:
-        result = await launch_web_feedback_ui(project_directory, dashboard_summary, timeout)
-
-        user_feedback_text = ""
-        if result and result.get("interactive_feedback"):
-            user_feedback_text = result["interactive_feedback"].strip()
-
-        # 6. Store feedback in state
-        state = load_state(project_directory)
-        state["user_feedback"] = user_feedback_text
-        save_state(project_directory, state)
-
-        if user_feedback_text:
-            return f"User feedback received:\n\n{user_feedback_text}"
-        else:
-            return "No user feedback. Continuing to next turn."
-
-    except TimeoutError:
-        return "Feedback timeout. Continuing to next turn."
-    except Exception as e:
-        debug_log(f"Feedback UI error: {e}")
-        return f"Feedback UI error: {e}. Continuing to next turn."
 
 
 @mcp.tool()
@@ -919,6 +1028,169 @@ async def autolab_status(
         report += f"\n## Pending User Feedback\n\n{state['user_feedback']}\n"
 
     return report
+
+
+# ===== Biomni Integration MCP Tools =====
+
+@mcp.tool()
+async def autolab_biomni_status(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """Check Biomni integration status.
+
+    Returns whether Biomni is installed, its version, whether it is enabled
+    for this project, and datalake availability.
+
+    Biomni (https://github.com/snap-stanford/Biomni) is an optional
+    integration that provides 100+ biomedical tools and workflows.
+    It is NOT bundled with Autonomous Lab — users must opt in.
+
+    Args:
+        project_directory: Path to the project directory
+
+    Returns:
+        str: JSON status report
+    """
+    from .integrations.biomni import get_status
+    project_directory = os.path.abspath(project_directory)
+    status = get_status(project_directory)
+    return json.dumps(status, indent=2)
+
+
+@mcp.tool()
+async def autolab_biomni_install(
+    from_source: Annotated[bool, Field(description="Install from GitHub (True) or PyPI (False)")] = True,
+) -> str:
+    """Install Biomni from GitHub or PyPI.
+
+    This downloads and installs the Biomni package at runtime.
+    Biomni is Apache 2.0 licensed, but some of its integrated tools
+    may have more restrictive licenses — review before commercial use.
+
+    NOTE: The full datalake (~11 GB) is downloaded on first agent use.
+    Set skip_datalake=True in config to skip it.
+
+    Args:
+        from_source: If True, install latest from GitHub main. If False, use PyPI.
+
+    Returns:
+        str: Installation result
+    """
+    from .integrations.biomni import install_biomni
+    result = install_biomni(from_source=from_source)
+    if result["success"]:
+        return f"SUCCESS: {result['message']}"
+    else:
+        return f"FAILED: {result['message']}"
+
+
+@mcp.tool()
+async def autolab_biomni_configure(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    enabled: Annotated[bool, Field(description="Enable Biomni integration")] = True,
+    data_path: Annotated[str, Field(description="Path to Biomni datalake")] = "./data",
+    skip_datalake: Annotated[bool, Field(description="Skip downloading the 11GB datalake")] = False,
+) -> str:
+    """Configure Biomni integration for this project.
+
+    Saves settings to .autolab/biomni_config.json.
+    Biomni must be installed separately (use autolab_biomni_install).
+
+    NOTE: Biomni is used as a tool/database library only — we do NOT
+    instantiate the Biomni A1 agent or use their LLM pipeline.
+
+    Args:
+        project_directory: Path to the project directory
+        enabled: Whether to enable Biomni for this project
+        data_path: Path for Biomni's data/datalake
+        skip_datalake: If True, skip the ~11GB datalake download
+
+    Returns:
+        str: Saved configuration
+    """
+    from .integrations.biomni import save_biomni_config
+    project_directory = os.path.abspath(project_directory)
+    cfg = save_biomni_config(
+        project_directory,
+        enabled=enabled,
+        data_path=data_path,
+        skip_datalake=skip_datalake,
+    )
+    return f"Biomni config saved:\n{json.dumps(cfg, indent=2)}"
+
+
+@mcp.tool()
+async def autolab_biomni_tools(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """List available Biomni tools and databases.
+
+    Biomni provides curated biomedical tools (ADMET prediction,
+    scRNA-seq analysis, CRISPR screen planning, etc.) and database
+    connectors.  This lists what's available for import in scripts.
+
+    NOTE: We use Biomni as a tool/database library, NOT as an agent.
+    The Trainee imports and calls individual functions directly in
+    their Python scripts.
+
+    Returns:
+        str: Available tools and databases, or installation instructions
+    """
+    from .integrations.biomni import (
+        is_biomni_available,
+        list_available_databases,
+        list_available_tools,
+    )
+    if not is_biomni_available():
+        return (
+            "Biomni is not installed.\n"
+            "Install with: autolab_biomni_install()\n"
+            "See: https://github.com/snap-stanford/Biomni"
+        )
+    tools = list_available_tools()
+    dbs = list_available_databases()
+
+    lines = ["## Available Biomni Tools\n"]
+    if tools:
+        for t in tools:
+            desc = f" — {t['description']}" if t.get('description') else ""
+            lines.append(f"  - **{t['name']}** (`{t['module']}`){desc}")
+    else:
+        lines.append("  (no tools detected)")
+
+    lines.append("\n## Available Biomni Databases\n")
+    if dbs:
+        for d in dbs:
+            desc = f" — {d['description']}" if d.get('description') else ""
+            lines.append(f"  - **{d['name']}** (`{d['module']}`){desc}")
+    else:
+        lines.append("  (no databases detected)")
+
+    lines.append(
+        "\n## Usage\n"
+        "Import tools directly in scripts:\n"
+        "```python\n"
+        "from biomni.tools.<tool_name> import *\n"
+        "```\n"
+        "Do NOT instantiate the Biomni A1 agent."
+    )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def autolab_biomni_env(
+) -> str:
+    """Check Biomni environment details.
+
+    Shows which Biomni sub-packages are available, the active conda
+    environment, datalake status, and Python path.
+
+    Returns:
+        str: Environment report
+    """
+    from .integrations.biomni import check_environment
+    env = check_environment()
+    return json.dumps(env, indent=2)
 
 
 # ===== Main entry point =====

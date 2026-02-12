@@ -7,12 +7,13 @@
 """
 
 import json
+import mimetypes
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 
 from ... import __version__
 from ...debug import web_debug_log as debug_log
@@ -48,6 +49,16 @@ def load_user_layout_settings() -> str:
 # 使用統一的訊息代碼系統
 # 從 ..constants 導入的 get_msg_code 函數會處理所有訊息代碼
 # 舊的 key 會自動映射到新的常量
+
+
+def _guess_language(suffix: str) -> str:
+    """Map file extension to a display language label."""
+    return {
+        ".py": "python", ".tex": "latex", ".bib": "bibtex",
+        ".r": "r", ".R": "r", ".sh": "bash", ".json": "json",
+        ".yaml": "yaml", ".yml": "yaml", ".csv": "csv",
+        ".tsv": "tsv", ".md": "markdown", ".txt": "text",
+    }.get(suffix, "text")
 
 
 def setup_routes(manager: "WebUIManager"):
@@ -255,18 +266,35 @@ def setup_routes(manager: "WebUIManager"):
                 },
             )
 
-    # ===== Autonomous Lab API =====
+    # ===== Autonomous Lab API & Game UI =====
+
+    @manager.app.get("/lab", response_class=HTMLResponse)
+    async def lab_page(request: Request):
+        """Serve the game-style lab monitoring UI"""
+        return manager.templates.TemplateResponse(
+            request,
+            "lab.html",
+            {
+                "title": "Autonomous Lab",
+                "version": __version__,
+            },
+        )
+
     @manager.app.get("/api/autolab/state")
     async def get_autolab_state():
         """Get Autonomous Lab project state for the dashboard"""
         try:
-            current_session = manager.get_current_session()
-            if not current_session:
+            # Use lab_project_dir if set, else fall back to current session
+            project_dir = getattr(manager, "lab_project_dir", None)
+            if not project_dir:
+                current_session = manager.get_current_session()
+                if current_session:
+                    project_dir = current_session.project_directory
+
+            if not project_dir:
                 return JSONResponse(content={"active": False})
 
-            project_dir = current_session.project_directory
             autolab_dir = Path(project_dir) / ".autolab"
-
             if not autolab_dir.exists():
                 return JSONResponse(content={"active": False})
 
@@ -280,21 +308,225 @@ def setup_routes(manager: "WebUIManager"):
             file_listings = scan_project_files(project_dir)
             paper_progress = get_paper_progress(project_dir)
 
-            # Collect figure paths for gallery
             figures = file_listings.get("figures", [])
+
+            # Biomni integration status (lightweight check)
+            biomni_info = {"installed": False}
+            try:
+                from ...integrations.biomni import get_status
+                biomni_info = get_status(project_dir)
+            except Exception:
+                pass
+
+            editorial = state.get("editorial", {"phase": "none"})
 
             return JSONResponse(content={
                 "active": True,
                 "iteration": state.get("iteration", 0),
                 "next_role": state.get("next_role", "pi"),
                 "status": state.get("status", "active"),
+                "user_feedback": state.get("user_feedback", ""),
+                "progress": state.get("progress", 0),
+                "experts": state.get("experts", []),
+                "editorial": editorial,
                 "figures": figures,
                 "paper_progress": paper_progress,
                 "file_counts": {k: len(v) for k, v in file_listings.items()},
+                "files": file_listings,
+                "biomni": biomni_info,
             })
         except Exception as e:
             debug_log(f"Autolab state API error: {e}")
             return JSONResponse(content={"active": False, "error": str(e)})
+
+    @manager.app.get("/api/autolab/meeting-log")
+    async def get_meeting_log():
+        """Get parsed meeting log turns for the game UI conversation panel"""
+        try:
+            project_dir = getattr(manager, "lab_project_dir", None)
+            if not project_dir:
+                return JSONResponse(content={"turns": []})
+
+            from ...lab.state import parse_meeting_log
+
+            turns = parse_meeting_log(project_dir)
+            return JSONResponse(content={"turns": turns})
+        except Exception as e:
+            debug_log(f"Meeting log API error: {e}")
+            return JSONResponse(content={"turns": [], "error": str(e)})
+
+    @manager.app.get("/api/autolab/file")
+    async def get_autolab_file(path: str = ""):
+        """Serve a file from the project directory (images, code, paper sections).
+
+        Security: only serves files under allowed subdirectories.
+        """
+        project_dir = getattr(manager, "lab_project_dir", None)
+        if not project_dir:
+            return JSONResponse(status_code=400, content={"error": "No active project"})
+
+        if not path:
+            return JSONResponse(status_code=400, content={"error": "path required"})
+
+        ALLOWED_DIRS = {"data", "scripts", "figures", "results", "paper"}
+        top_dir = path.split("/")[0] if "/" in path else path
+        if top_dir not in ALLOWED_DIRS:
+            return JSONResponse(status_code=403, content={"error": "Access denied"})
+
+        full_path = Path(project_dir) / path
+        resolved = full_path.resolve()
+        project_resolved = Path(project_dir).resolve()
+
+        # Path traversal protection
+        if not str(resolved).startswith(str(project_resolved)):
+            return JSONResponse(status_code=403, content={"error": "Access denied"})
+
+        if not resolved.is_file():
+            return JSONResponse(status_code=404, content={"error": "File not found"})
+
+        # Determine if it's a text or binary file
+        mime_type, _ = mimetypes.guess_type(str(resolved))
+        TEXT_EXTENSIONS = {
+            ".py", ".tex", ".txt", ".md", ".csv", ".tsv", ".json",
+            ".yaml", ".yml", ".r", ".R", ".sh", ".bib", ".log",
+        }
+
+        suffix = resolved.suffix.lower()
+        if suffix in TEXT_EXTENSIONS:
+            try:
+                content = resolved.read_text(encoding="utf-8", errors="replace")
+                return JSONResponse(content={
+                    "type": "text",
+                    "path": path,
+                    "name": resolved.name,
+                    "content": content[:50000],  # cap at 50KB text
+                    "size": len(content),
+                    "language": _guess_language(suffix),
+                })
+            except Exception as e:
+                return JSONResponse(status_code=500, content={"error": str(e)})
+        else:
+            # Binary file (images, PDFs) — serve directly
+            return FileResponse(
+                path=str(resolved),
+                media_type=mime_type or "application/octet-stream",
+                filename=resolved.name,
+            )
+
+    # ---- Editorial workflow API ----
+
+    @manager.app.get("/api/autolab/editorial")
+    async def get_editorial_state():
+        """Get current editorial phase and data"""
+        project_dir = getattr(manager, "lab_project_dir", None)
+        if not project_dir:
+            return JSONResponse(content={"phase": "none"})
+        try:
+            from ...lab.state import get_editorial
+            editorial = get_editorial(project_dir)
+            return JSONResponse(content=editorial)
+        except Exception as e:
+            debug_log(f"Editorial state error: {e}")
+            return JSONResponse(content={"phase": "none", "error": str(e)})
+
+    @manager.app.post("/api/autolab/editorial/invite-reviewers")
+    async def invite_reviewers_api(request: Request):
+        """Editor invites peer reviewers (2-3 from available pool)"""
+        project_dir = getattr(manager, "lab_project_dir", None)
+        if not project_dir:
+            return JSONResponse(status_code=400, content={"error": "No active project"})
+        try:
+            data = await request.json()
+            reviewers = data.get("reviewers", [])
+            if not reviewers or len(reviewers) < 1:
+                return JSONResponse(status_code=400, content={"error": "Select at least 1 reviewer"})
+            if len(reviewers) > 5:
+                return JSONResponse(status_code=400, content={"error": "Maximum 5 reviewers"})
+
+            # Assign IDs
+            for i, r in enumerate(reviewers):
+                r["id"] = f"reviewer_{i + 1}"
+
+            from ...lab.state import invite_reviewers
+            editorial = invite_reviewers(project_dir, reviewers)
+            debug_log(f"Reviewers invited: {[r['name'] for r in reviewers]}")
+            return JSONResponse(content={"status": "ok", "editorial": editorial})
+        except Exception as e:
+            debug_log(f"Invite reviewers error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    @manager.app.post("/api/autolab/editorial/decision")
+    async def editorial_decision_api(request: Request):
+        """Editor makes a decision on the manuscript"""
+        project_dir = getattr(manager, "lab_project_dir", None)
+        if not project_dir:
+            return JSONResponse(status_code=400, content={"error": "No active project"})
+        try:
+            data = await request.json()
+            decision = data.get("decision", "")
+            feedback = data.get("feedback", "")
+
+            valid = ("accept", "minor_revision", "major_revision", "reject")
+            if decision not in valid:
+                return JSONResponse(status_code=400, content={
+                    "error": f"Invalid decision. Must be one of: {', '.join(valid)}"
+                })
+
+            from ...lab.state import record_editorial_decision
+            editorial = record_editorial_decision(project_dir, decision, feedback)
+            debug_log(f"Editorial decision: {decision}")
+            return JSONResponse(content={"status": "ok", "editorial": editorial})
+        except Exception as e:
+            debug_log(f"Editorial decision error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    @manager.app.post("/api/autolab/editorial/desk-reject")
+    async def desk_reject_api(request: Request):
+        """Editor desk-rejects without sending to reviewers"""
+        project_dir = getattr(manager, "lab_project_dir", None)
+        if not project_dir:
+            return JSONResponse(status_code=400, content={"error": "No active project"})
+        try:
+            data = await request.json()
+            feedback = data.get("feedback", "Desk rejected by editor.")
+
+            from ...lab.state import record_editorial_decision
+            editorial = record_editorial_decision(project_dir, "reject", feedback)
+            debug_log("Manuscript desk-rejected")
+            return JSONResponse(content={"status": "ok", "editorial": editorial})
+        except Exception as e:
+            debug_log(f"Desk reject error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    @manager.app.post("/api/autolab/feedback")
+    async def submit_lab_feedback(request: Request):
+        """Store user feedback from the game UI (non-blocking, async)"""
+        try:
+            data = await request.json()
+            project_dir = getattr(manager, "lab_project_dir", None)
+            if not project_dir:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "No active lab project"},
+                )
+
+            from ...lab.state import store_user_feedback
+
+            feedback_text = data.get("text", "").strip()
+            target_role = data.get("target", "")
+
+            if not feedback_text:
+                return JSONResponse(content={"status": "empty"})
+
+            store_user_feedback(project_dir, feedback_text, target_role)
+            debug_log(f"Lab feedback stored: target={target_role}, len={len(feedback_text)}")
+            return JSONResponse(content={"status": "ok"})
+        except Exception as e:
+            debug_log(f"Lab feedback error: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)},
+            )
 
     @manager.app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket, lang: str = "zh-TW"):

@@ -104,6 +104,8 @@ def init_project(
         "next_role": "pi",
         "status": "active",
         "user_feedback": "",
+        "progress": 0,
+        "experts": [],
         "created_at": now,
         "last_updated": now,
     }
@@ -339,3 +341,209 @@ def load_config(project_dir: str) -> dict:
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+# ---------------------------------------------------------------------------
+# Meeting log parsing (for frontend)
+# ---------------------------------------------------------------------------
+def parse_meeting_log(project_dir: str) -> list[dict]:
+    """
+    Parse meeting_log.md into structured turns for the game UI.
+
+    Returns a list of dicts:
+        [{"iteration": 0, "role": "pi", "date": "...", "summary": "...", "content": "..."}, ...]
+    """
+    import re
+
+    log_path = _autolab_path(project_dir) / MEETING_LOG
+    if not log_path.exists():
+        return []
+
+    text = log_path.read_text(encoding="utf-8")
+    sections = text.split("\n---\n")
+
+    turns: list[dict] = []
+    header_re = re.compile(
+        r"##\s+Iteration\s+(\d+)\s+.+?\s+(PI|TRAINEE|REVIEWER\S*)\s+Turn",
+        re.IGNORECASE,
+    )
+    date_re = re.compile(r"\*\*Date:\*\*\s*(.+)")
+    summary_re = re.compile(r"###\s+Summary\s*\n([\s\S]*?)(?=###|\Z)")
+    details_re = re.compile(r"###\s+Details\s*\n([\s\S]*)")
+
+    for section in sections:
+        hdr = header_re.search(section)
+        if not hdr:
+            continue
+        iteration = int(hdr.group(1))
+        role = hdr.group(2).lower()
+
+        date_match = date_re.search(section)
+        date_str = date_match.group(1).strip() if date_match else ""
+
+        summary_match = summary_re.search(section)
+        summary = summary_match.group(1).strip() if summary_match else ""
+
+        details_match = details_re.search(section)
+        content = details_match.group(1).strip() if details_match else ""
+
+        turns.append(
+            {
+                "iteration": iteration,
+                "role": role,
+                "date": date_str,
+                "summary": summary,
+                "content": content,
+            }
+        )
+
+    return turns
+
+
+def store_user_feedback(project_dir: str, feedback: str, target: str = "") -> None:
+    """Store user feedback from the web UI into state.json."""
+    state = load_state(project_dir)
+    if target:
+        state["user_feedback"] = f"[To {target.upper()}] {feedback}"
+    else:
+        state["user_feedback"] = feedback
+    save_state(project_dir, state)
+
+
+# ---------------------------------------------------------------------------
+# Editorial workflow state
+# ---------------------------------------------------------------------------
+EDITORIAL_PHASES = (
+    "none",               # Normal lab mode
+    "submitted",          # PI submitted manuscript + cover letter
+    "reviewers_invited",  # Editor invited reviewers
+    "under_review",       # Reviewers generating reports
+    "reviews_complete",   # All reviews in, awaiting editorial decision
+    "decision_made",      # Editor made decision, returning to PI
+)
+
+
+def get_editorial(project_dir: str) -> dict:
+    """Return the editorial state (initialising if absent)."""
+    state = load_state(project_dir)
+    return state.get("editorial", _default_editorial())
+
+
+def _default_editorial() -> dict:
+    return {
+        "phase": "none",
+        "cover_letter": "",
+        "reviewers": [],
+        "reviews": {},
+        "decision": "",
+        "decision_feedback": "",
+        "round": 0,          # revision round counter
+    }
+
+
+def update_editorial(project_dir: str, **fields: object) -> dict:
+    """Merge *fields* into editorial state and save."""
+    state = load_state(project_dir)
+    editorial = state.get("editorial", _default_editorial())
+    editorial.update(fields)
+    state["editorial"] = editorial
+    save_state(project_dir, state)
+    return editorial
+
+
+def submit_manuscript(project_dir: str, cover_letter: str) -> dict:
+    """PI submits manuscript.  Moves phase to 'submitted'."""
+    state = load_state(project_dir)
+    editorial = state.get("editorial", _default_editorial())
+    editorial["phase"] = "submitted"
+    editorial["cover_letter"] = cover_letter
+    editorial["reviewers"] = []
+    editorial["reviews"] = {}
+    editorial["decision"] = ""
+    editorial["decision_feedback"] = ""
+    editorial["round"] = editorial.get("round", 0) + 1
+    state["editorial"] = editorial
+    state["status"] = "submitted_to_editor"
+    save_state(project_dir, state)
+    return editorial
+
+
+def invite_reviewers(project_dir: str, reviewers: list[dict]) -> dict:
+    """
+    Editor invites reviewers.
+
+    Each reviewer dict: {"id": "reviewer_1", "name": "Dr. X",
+                         "role": "Immunologist", "avatar": "immunologist"}
+    """
+    state = load_state(project_dir)
+    editorial = state.get("editorial", _default_editorial())
+    editorial["phase"] = "reviewers_invited"
+    editorial["reviewers"] = reviewers
+    # Set next_role to first reviewer
+    if reviewers:
+        state["next_role"] = reviewers[0]["id"]
+    state["editorial"] = editorial
+    state["status"] = "under_review"
+    save_state(project_dir, state)
+    return editorial
+
+
+def record_review(project_dir: str, reviewer_id: str, report: dict) -> dict:
+    """
+    Record a reviewer's report and advance to next reviewer or completion.
+
+    report: {"score": 7, "recommendation": "minor_revision", "report": "..."}
+    """
+    state = load_state(project_dir)
+    editorial = state.get("editorial", _default_editorial())
+    editorial["reviews"][reviewer_id] = report
+
+    # Determine next reviewer or complete
+    reviewer_ids = [r["id"] for r in editorial.get("reviewers", [])]
+    reviewed = set(editorial["reviews"].keys())
+    remaining = [rid for rid in reviewer_ids if rid not in reviewed]
+
+    if remaining:
+        state["next_role"] = remaining[0]
+        editorial["phase"] = "under_review"
+    else:
+        editorial["phase"] = "reviews_complete"
+        state["status"] = "reviews_complete"
+        state["next_role"] = "editor"  # signal UI to show decision panel
+
+    state["editorial"] = editorial
+    save_state(project_dir, state)
+    return editorial
+
+
+def record_editorial_decision(
+    project_dir: str,
+    decision: str,
+    feedback: str,
+) -> dict:
+    """
+    Editor makes a decision.
+
+    decision: "accept" | "minor_revision" | "major_revision" | "reject"
+    feedback: free-form editorial feedback text
+    """
+    state = load_state(project_dir)
+    editorial = state.get("editorial", _default_editorial())
+    editorial["phase"] = "decision_made"
+    editorial["decision"] = decision
+    editorial["decision_feedback"] = feedback
+    state["editorial"] = editorial
+
+    if decision == "reject":
+        state["status"] = "rejected"
+        state["next_role"] = "pi"
+    elif decision == "accept":
+        state["status"] = "accepted"
+        state["next_role"] = "pi"
+    else:
+        # Revision requested → back to PI
+        state["status"] = "revision_requested"
+        state["next_role"] = "pi"
+
+    save_state(project_dir, state)
+    return editorial

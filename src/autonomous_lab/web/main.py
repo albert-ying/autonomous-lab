@@ -114,6 +114,9 @@ class WebUIManager:
         self.current_session: WebFeedbackSession | None = None
         self.sessions: dict[str, WebFeedbackSession] = {}  # 保留用於向後兼容
 
+        # Autonomous Lab: active project directory (set by autolab_init)
+        self.lab_project_dir: str | None = None
+
         # 全局標籤頁狀態管理 - 跨會話保持
         self.global_active_tabs: dict[str, dict] = {}
 

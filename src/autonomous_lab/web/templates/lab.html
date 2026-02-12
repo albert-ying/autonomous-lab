@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="/static/css/lab.css?v={{ version }}">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+</head>
+<body>
+    <!-- Top Bar -->
+    <header id="top-bar">
+        <div class="top-left">
+            <span class="lab-icon">&#x2697;&#xFE0F;</span>
+            <h1>AUTONOMOUS LAB</h1>
+        </div>
+        <div class="top-center" id="status-badge">
+            <span class="badge-label">Iteration</span>
+            <span class="badge-value" id="iteration-num">0</span>
+            <span class="divider">|</span>
+            <span class="badge-label">Next</span>
+            <span class="badge-value" id="next-role">PI</span>
+            <span class="divider">|</span>
+            <span class="status-dot" id="status-dot"></span>
+            <span class="badge-value" id="status-text">Initializing</span>
+        </div>
+        <div class="top-right">
+            <button class="editorial-btn" id="btn-open-editorial" title="Open Editorial Office">&#x1F4EC; Editorial Office</button>
+            <span class="version">v{{ version }}</span>
+        </div>
+    </header>
+
+    <!-- Main 3-Column Layout -->
+    <main id="main-grid">
+        <!-- Left Column: Characters -->
+        <aside id="characters-panel">
+            <div class="char-card" id="pi-card" data-role="pi">
+                <div class="char-header">
+                    <span class="char-role-icon">&#x1F52C;</span>
+                    <span class="char-name">Professor</span>
+                </div>
+                <div class="char-sprite-wrap">
+                    <canvas id="pi-sprite" width="40" height="64"></canvas>
+                    <div class="thought-bubble" id="pi-thought"></div>
+                </div>
+                <div class="char-status" id="pi-status">
+                    <span class="status-indicator idle"></span>
+                    <span class="status-label">Idle</span>
+                </div>
+            </div>
+            <div class="char-card" id="trainee-card" data-role="trainee">
+                <div class="char-header">
+                    <span class="char-role-icon">&#x1F9EA;</span>
+                    <span class="char-name">Trainee</span>
+                </div>
+                <div class="char-sprite-wrap">
+                    <canvas id="trainee-sprite" width="40" height="64"></canvas>
+                    <div class="thought-bubble" id="trainee-thought"></div>
+                </div>
+                <div class="char-status" id="trainee-status">
+                    <span class="status-indicator idle"></span>
+                    <span class="status-label">Idle</span>
+                </div>
+            </div>
+            <!-- Expert consultants (dynamically populated by JS) -->
+            <div id="experts-section" class="experts-section" style="display:none;">
+                <div class="experts-divider"><span>Consultants</span></div>
+                <div id="experts-list"></div>
+            </div>
+        </aside>
+
+        <!-- Center Column: Meeting Log / Conversation -->
+        <section id="conversation-panel">
+            <div class="panel-header">
+                <span class="panel-icon">&#x1F4DC;</span>
+                <h2>Meeting Log</h2>
+            </div>
+            <div id="conversation-scroll">
+                <div id="conversation-content">
+                    <div class="empty-state">
+                        <p>Waiting for the first turn...</p>
+                        <p class="hint">The PI will speak first.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: Inventory + Paper -->
+        <aside id="inventory-panel">
+            <div class="panel-header">
+                <span class="panel-icon">&#x1F4E6;</span>
+                <h2>Inventory</h2>
+            </div>
+            <div id="inventory-content">
+                <div class="inv-section" id="inv-data">
+                    <div class="inv-row">
+                        <span class="inv-icon">&#x1F4C1;</span>
+                        <span class="inv-name">data</span>
+                        <span class="inv-count">0</span>
+                    </div>
+                </div>
+                <div class="inv-section" id="inv-scripts">
+                    <div class="inv-row">
+                        <span class="inv-icon">&#x1F4C1;</span>
+                        <span class="inv-name">scripts</span>
+                        <span class="inv-count">0</span>
+                    </div>
+                </div>
+                <div class="inv-section" id="inv-figures">
+                    <div class="inv-row">
+                        <span class="inv-icon">&#x1F4C1;</span>
+                        <span class="inv-name">figures</span>
+                        <span class="inv-count">0</span>
+                    </div>
+                </div>
+                <div class="inv-section" id="inv-results">
+                    <div class="inv-row">
+                        <span class="inv-icon">&#x1F4C1;</span>
+                        <span class="inv-name">results</span>
+                        <span class="inv-count">0</span>
+                    </div>
+                </div>
+                <div class="inv-section" id="inv-paper">
+                    <div class="inv-row">
+                        <span class="inv-icon">&#x1F4C1;</span>
+                        <span class="inv-name">paper</span>
+                        <span class="inv-count">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-header paper-header">
+                <span class="panel-icon">&#x1F4C4;</span>
+                <h2>Paper</h2>
+            </div>
+            <div id="paper-progress">
+                <div class="paper-bar" id="paper-bar">
+                    <div class="bar-fill" id="paper-bar-fill" style="width: 0%"></div>
+                    <span class="bar-label" id="paper-bar-label">0%</span>
+                </div>
+                <div class="paper-sections" id="paper-sections">
+                    <div class="paper-row"><span class="sec-name">abstract</span><span class="sec-words" id="sec-abstract">--</span></div>
+                    <div class="paper-row"><span class="sec-name">introduction</span><span class="sec-words" id="sec-introduction">--</span></div>
+                    <div class="paper-row"><span class="sec-name">methods</span><span class="sec-words" id="sec-methods">--</span></div>
+                    <div class="paper-row"><span class="sec-name">results</span><span class="sec-words" id="sec-results">--</span></div>
+                    <div class="paper-row"><span class="sec-name">discussion</span><span class="sec-words" id="sec-discussion">--</span></div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Bottom Bar: Feedback Input -->
+    <footer id="feedback-bar">
+        <div class="feedback-target">
+            <select id="feedback-target">
+                <option value="">Talk to...</option>
+                <option value="pi">Professor</option>
+                <option value="trainee">Trainee</option>
+            </select>
+        </div>
+        <input type="text" id="feedback-input" placeholder="Type optional feedback (picked up next turn)..." autocomplete="off">
+        <button id="feedback-send" title="Send feedback">
+            <span>&#x1F4E4;</span>
+        </button>
+        <div id="feedback-status" class="feedback-status"></div>
+    </footer>
+
+    <!-- ========== Editor's Desk Overlay ========== -->
+    <div id="editor-desk-overlay" class="editor-overlay hidden">
+        <div class="editor-desk">
+            <div class="editor-header">
+                <span class="editor-icon">&#x1F4E8;</span>
+                <h2 id="editor-title">Editor's Desk</h2>
+                <span class="editor-round" id="editor-round"></span>
+                <button class="editor-close" id="btn-close-editorial" title="Close">&times;</button>
+            </div>
+
+            <!-- Phase: No editorial activity yet -->
+            <div id="editor-phase-empty" class="editor-phase" style="display:none;">
+                <div class="editor-empty-state">
+                    <p class="empty-icon">&#x1F4ED;</p>
+                    <p class="empty-title">No submissions yet</p>
+                    <p class="empty-hint">The editorial office will open when the PI submits a manuscript for review.</p>
+                </div>
+            </div>
+
+            <!-- Phase: Submission received -->
+            <div id="editor-phase-submitted" class="editor-phase" style="display:none;">
+                <div class="editor-section">
+                    <h3>&#x1F4DC; Cover Letter</h3>
+                    <div id="editor-cover-letter" class="editor-text-box"></div>
+                </div>
+                <div class="editor-section">
+                    <h3>&#x1F4C4; Manuscript</h3>
+                    <div class="editor-manuscript-info" id="editor-manuscript-info"></div>
+                </div>
+                <div class="editor-actions">
+                    <button class="editor-btn reject-btn" id="btn-desk-reject">&#x274C; Desk Reject</button>
+                    <button class="editor-btn invite-btn" id="btn-invite-reviewers">&#x1F4E9; Send to Reviewers</button>
+                </div>
+            </div>
+
+            <!-- Phase: Reviewer selection -->
+            <div id="editor-phase-invite" class="editor-phase" style="display:none;">
+                <h3>Select Reviewers (2-3 recommended)</h3>
+                <div id="reviewer-pool" class="reviewer-pool"></div>
+                <div id="selected-reviewers" class="selected-reviewers">
+                    <h4>Selected: <span id="selected-count">0</span></h4>
+                    <div id="selected-list"></div>
+                </div>
+                <div class="editor-actions">
+                    <button class="editor-btn back-btn" id="btn-back-to-submission">&#x2190; Back</button>
+                    <button class="editor-btn invite-btn" id="btn-confirm-reviewers" disabled>&#x2705; Confirm &amp; Send</button>
+                </div>
+            </div>
+
+            <!-- Phase: Under review (shows progress) -->
+            <div id="editor-phase-reviewing" class="editor-phase" style="display:none;">
+                <h3>&#x1F50D; Reviews in Progress</h3>
+                <div id="review-progress-list"></div>
+            </div>
+
+            <!-- Phase: Reviews complete — decision time -->
+            <div id="editor-phase-decision" class="editor-phase" style="display:none;">
+                <h3>&#x1F4CB; Reviewer Reports</h3>
+                <div id="review-reports"></div>
+                <div class="editor-section">
+                    <h3>&#x270D;&#xFE0F; Your Decision</h3>
+                    <textarea id="editor-feedback" placeholder="Write your editorial feedback here..." rows="4"></textarea>
+                    <div class="decision-buttons">
+                        <button class="editor-btn accept-btn" data-decision="accept">&#x2705; Accept</button>
+                        <button class="editor-btn minor-btn" data-decision="minor_revision">&#x1F4DD; Minor Revision</button>
+                        <button class="editor-btn major-btn" data-decision="major_revision">&#x1F6A7; Major Revision</button>
+                        <button class="editor-btn reject-btn" data-decision="reject">&#x274C; Reject</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase: Decision made -->
+            <div id="editor-phase-done" class="editor-phase" style="display:none;">
+                <div class="decision-result" id="decision-result"></div>
+            </div>
+        </div>
+    </div>
+
+        <!-- File Preview Modal -->
+        <div id="file-modal-overlay" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <span class="modal-icon">&#x1F4C4;</span>
+                    <span class="modal-title" id="modal-title">File</span>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
+                <div class="modal-body" id="modal-body">
+                    <!-- content injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/js/lab.js?v={{ version }}"></script>
+    </body>
+</html>
