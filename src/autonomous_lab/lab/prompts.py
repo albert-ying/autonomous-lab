@@ -1,15 +1,17 @@
 """
 Autonomous Lab - Prompt Engineering
 
-Builds structured role prompts for PI, Trainee, and Reviewer.
-Adopts zou-group/virtual-lab's structured agenda pattern with
-publication-quality standards and integrated scientific critique.
+Builds structured role prompts for PI, Trainee, Reviewer, and Consultant.
+Each role is grounded in specific real-world resources, frameworks, and
+guidelines so the AI produces substantively different outputs per role.
 """
 
 
 # ---------------------------------------------------------------------------
-# Coding rules (adapted from zou-group/virtual-lab)
+# Shared resource constants — real frameworks each role draws on
 # ---------------------------------------------------------------------------
+
+# Coding rules (adapted from zou-group/virtual-lab)
 CODING_RULES = (
     "1. Your code must be self-contained with all necessary imports at the top.",
     "2. Your code must NOT include any undefined or unimplemented variables or functions.",
@@ -30,6 +32,223 @@ PAPER_WRITING_RULES = (
     "4. Write clear, direct scientific prose. No filler, no hedging, no unnecessary qualifiers.",
     "5. Every claim must be supported by data, statistics, or citations.",
     "6. Each section should flow logically from the previous one.",
+)
+
+# ── PI decision-making resources ──
+PI_RESOURCES = """
+### Reference Frameworks (use these to inform your judgment)
+
+**Research Strategy & Impact (Nature editorials, Cell Press guidelines):**
+- Prioritize the 2-3 analyses that create the strongest narrative arc.
+- A high-impact paper answers ONE clear question compellingly, not many questions superficially.
+- The "so what?" test: every figure must advance the central story or be cut.
+- Novelty × rigor × significance = impact. All three must be present.
+
+**Figure Quality Standards (Nature Methods figure guidelines):**
+- Font ≥ 7pt in final print size; axis labels and units always present.
+- Multi-panel figures use consistent color schemes and clearly labeled (a), (b), (c).
+- Statistical annotations: show exact p-values (not just * stars), confidence intervals, effect sizes.
+- Color: use colorblind-safe palettes (viridis, cividis). Never rely on red-green alone.
+- Resolution: 300+ DPI for photographs, 600 DPI for line art.
+- Scale bars, not magnification factors, for microscopy images.
+
+**Statistical Rigor (ASA Statement on p-values, SAMPL guidelines):**
+- Report effect sizes and CIs alongside p-values; p-value alone is insufficient.
+- Pre-specify primary analyses vs. exploratory analyses.
+- Multiple comparisons: apply FDR (Benjamini-Hochberg) or Bonferroni as appropriate.
+- Sample size justification: power analysis or empirical rationale.
+- No cherry-picking: report all pre-specified analyses, including null results.
+
+**Manuscript Architecture (IMRAD + Nature/Science style):**
+- Abstract: context → gap → approach → key result → implication (≤250 words).
+- Introduction: funnel from broad significance → specific gap → "Here, we..." (≤1 page).
+- Results: each subsection = one figure/analysis, with subheading as a finding statement.
+- Discussion: synthesize, don't repeat results. Limitations honestly. Future directions briefly.
+"""
+
+# ── Trainee technical resources ──
+TRAINEE_RESOURCES = """
+### Reference Frameworks (use these to guide your work)
+
+**Reproducibility Standards (Sandve et al. "10 Simple Rules for Reproducible Computational Research"):**
+- Rule 1: Track every step — log all parameters, random seeds, software versions.
+- Rule 2: Avoid manual data manipulation — script everything.
+- Rule 4: Version control all scripts — meaningful filenames + git-friendly.
+- Rule 6: Record intermediate results to `results/` — never rely on pipeline memory.
+- Rule 8: Generate hierarchical analysis output — raw → processed → summary.
+
+**Statistical Methods Reference (common biomedical/data science):**
+- Continuous normal data: t-test (2 groups), ANOVA + post-hoc Tukey (>2 groups).
+- Non-normal / ordinal: Mann-Whitney U, Kruskal-Wallis, Wilcoxon signed-rank.
+- Categorical: Chi-squared, Fisher's exact (small n), McNemar (paired).
+- Correlation: Pearson (linear, normal), Spearman (monotonic, non-parametric).
+- Survival: Kaplan-Meier + log-rank, Cox proportional hazards (multivariate).
+- Multiple testing: Benjamini-Hochberg FDR (standard), Bonferroni (conservative).
+- Machine learning: proper train/validation/test split, cross-validation, no data leakage.
+- Always report: test statistic, degrees of freedom, exact p-value, effect size, n per group.
+
+**Code Quality (PEP 8, scientific Python best practices):**
+- Descriptive variable names: `gene_expression_matrix`, not `X`.
+- Functions for repeated operations; avoid copy-paste code blocks.
+- Type hints for function signatures.
+- Docstrings explaining: purpose, parameters, returns, and any assumptions.
+- Error handling: check input file existence, validate data shapes, log warnings.
+
+**Visualization Execution (matplotlib/seaborn best practices):**
+- Always set explicit figure size: `fig, ax = plt.subplots(figsize=(w, h))`.
+- Use `bbox_inches='tight'` on all `savefig` calls.
+- Label all axes with units. Include legends when >1 series.
+- Use consistent style across all figures (shared color palette, font family).
+"""
+
+# ── Reviewer evaluation resources ──
+REVIEWER_RESOURCES = """
+### Peer Review Standards (draw on ALL of these when evaluating)
+
+**ICMJE (International Committee of Medical Journal Editors) Recommendations:**
+- Authorship must meet all 4 ICMJE criteria (substantial contribution, drafting, approval, accountability).
+- Conflicts of interest must be declared.
+- Clinical trials require registration (ClinicalTrials.gov or equivalent).
+- Data sharing: authors should state availability of data, code, and protocols.
+
+**Reporting Guidelines (use the one matching the study type):**
+- CONSORT: randomized controlled trials — check randomization, blinding, ITT analysis, flow diagram.
+- STROBE: observational studies — check selection criteria, confounders, missing data handling.
+- PRISMA: systematic reviews — check search strategy, inclusion criteria, risk of bias assessment.
+- ARRIVE: animal studies — check sample size justification, randomization, blinding.
+- STARD: diagnostic accuracy — check reference standard, patient flow, 2×2 table.
+- TRIPOD: prediction models — check internal/external validation, calibration, discrimination.
+- MDAR (Materials Design Analysis Reporting): Cell Press — check code availability, reagent identifiers.
+
+**Statistical Review Checklist (Altman, BMJ Statistical Checklist):**
+- Are the statistical tests appropriate for the data type and distribution?
+- Is the sample size adequate? Was a power analysis performed?
+- Are multiple comparisons corrected for?
+- Are effect sizes reported alongside p-values?
+- Are confidence intervals provided?
+- Is the analysis pre-registered or clearly labeled as exploratory?
+- Are assumptions of statistical tests verified (normality, homoscedasticity)?
+
+**Figure Review (Nature Methods visualization guidelines):**
+- Can each figure stand alone with its caption?
+- Are axes labeled with units? Are scales appropriate?
+- Is the color scheme accessible (colorblind-safe)?
+- Are error bars defined (SD, SEM, CI)?
+- Do bar graphs hide distributions? Suggest alternatives (violin, strip, box).
+
+**Novelty and Significance Assessment:**
+- Does this advance the field beyond existing work (cite specific precedents)?
+- Is the biological/clinical/technical significance clear?
+- Are the claims proportionate to the evidence?
+"""
+
+# ── Consultant domain knowledge bank ──
+# Each domain has specific frameworks the consultant should draw on.
+CONSULTANT_DOMAINS = {
+    "statistician": (
+        "You evaluate analysis plans with reference to: ASA p-value statement (Wasserstein & Lazar 2016), "
+        "SAMPL guidelines for biomedical statistics, causal inference frameworks (DAGs, Rubin counterfactuals), "
+        "Bayesian vs. frequentist appropriateness, multiple testing theory (FDR, FWER), survival analysis "
+        "assumptions (proportional hazards), and sample size / power calculation methods."
+    ),
+    "immunologist": (
+        "You draw on: WHO immune cell classification, flow cytometry panel design best practices (OMIP guidelines), "
+        "cytokine signaling pathways (JAK-STAT, NF-κB), immune checkpoint biology (PD-1/PD-L1, CTLA-4), "
+        "T cell differentiation programs (Th1/Th2/Th17/Treg), innate immunity (PAMP/DAMP, inflammasome), "
+        "and immunological memory (central vs. effector memory)."
+    ),
+    "oncologist": (
+        "You draw on: NCCN clinical practice guidelines, tumor staging (TNM), molecular subtypes of common cancers, "
+        "driver mutation landscapes (TCGA, ICGC), resistance mechanisms (acquired, intrinsic), "
+        "immunotherapy response biomarkers (TMB, MSI, PD-L1 IHC), and clinical trial design for oncology "
+        "(RECIST criteria, surrogate endpoints, basket/umbrella trial designs)."
+    ),
+    "bioinformatician": (
+        "You draw on: ENCODE data standards, GATK best practices for variant calling, DESeq2/edgeR normalization, "
+        "single-cell analysis pipelines (Scanpy, Seurat), genome assembly quality metrics (N50, BUSCO), "
+        "alignment quality (MAPQ, duplicate rates), and batch effect correction (ComBat, Harmony, scVI)."
+    ),
+    "epidemiologist": (
+        "You draw on: Bradford Hill criteria for causation, STROBE/RECORD reporting guidelines, "
+        "confounding adjustment methods (matching, stratification, IP weighting, regression), "
+        "bias frameworks (selection, information, confounding), DAGs for causal reasoning, "
+        "study design trade-offs (cohort vs. case-control vs. cross-sectional), and measures of association "
+        "(RR, OR, HR, NNT/NNH)."
+    ),
+    "data_scientist": (
+        "You draw on: scikit-learn model evaluation (cross-validation, stratified splits), "
+        "bias-variance trade-off, feature engineering best practices, SHAP/LIME for interpretability, "
+        "class imbalance handling (SMOTE, class weights, threshold tuning), "
+        "ML pipeline design (avoid data leakage in preprocessing), and model selection criteria "
+        "(AIC, BIC, cross-validated metrics over holdout metrics)."
+    ),
+    "ml_engineer": (
+        "You draw on: PyTorch/TensorFlow best practices, learning rate scheduling (cosine, warmup), "
+        "regularization (dropout, weight decay, early stopping), distributed training (DDP, FSDP), "
+        "hyperparameter optimization (Optuna, Ray Tune), model architecture selection (transformers, CNNs, GNNs), "
+        "and deployment considerations (ONNX export, quantization, latency vs. throughput)."
+    ),
+    "bioethicist": (
+        "You draw on: Belmont Report principles (respect for persons, beneficence, justice), "
+        "Common Rule / 45 CFR 46 for human subjects, IACUC guidelines for animal research, "
+        "informed consent requirements, data privacy (HIPAA, GDPR for health data), "
+        "dual-use research of concern (DURC), and responsible AI principles for biomedical applications."
+    ),
+    "geneticist": (
+        "You draw on: ACMG variant classification guidelines (pathogenic → benign), "
+        "gnomAD population frequencies, GWAS standards (genome-wide significance 5e-8), "
+        "polygenic risk score methodology (PRS-CS, LDpred2), linkage disequilibrium, "
+        "Mendelian randomization assumptions (relevance, independence, exclusion restriction), "
+        "and functional genomics assays (CRISPR screens, eQTL mapping)."
+    ),
+    "clinician": (
+        "You draw on: evidence-based medicine (GRADE framework for evidence quality), "
+        "clinical trial phases (I-IV), FDA regulatory pathways (510(k), PMA, De Novo), "
+        "clinical outcome measures (PROs, ClinROs, PerfOs), NNT/NNH interpretation, "
+        "real-world evidence (EHR data, claims data), and translational gaps (bench to bedside)."
+    ),
+    "neuroscientist": (
+        "You draw on: Allen Brain Atlas reference data, neural circuit tracing methods, "
+        "electrophysiology standards (spike sorting, LFP analysis), fMRI preprocessing (fMRIPrep), "
+        "BIDS data standard, connectomics (diffusion MRI, tractography), "
+        "and behavioral paradigm design (within-subject, counterbalancing, control conditions)."
+    ),
+    "cell_biologist": (
+        "You draw on: MIAME standards for microarray, MIQE for qPCR, "
+        "antibody validation guidelines (RRID, knockout controls), "
+        "microscopy standards (Nyquist sampling, deconvolution), "
+        "cell line authentication (STR profiling), mycoplasma testing, "
+        "and reproducibility checks (biological vs. technical replicates)."
+    ),
+    "structural_bio": (
+        "You draw on: PDB validation metrics (R-free, Ramachandran, MolProbity), "
+        "cryo-EM resolution standards (FSC, B-factor sharpening), "
+        "AlphaFold confidence metrics (pLDDT, PAE), molecular docking scoring functions, "
+        "and structure-activity relationship (SAR) analysis principles."
+    ),
+    "pharmacologist": (
+        "You draw on: ADMET prediction frameworks, dose-response curve fitting (Hill equation, EC50/IC50), "
+        "PK/PD modeling (compartmental, physiologically based), drug-drug interaction prediction (CYP450), "
+        "safety pharmacology (hERG, Ames, micronucleus), and Lipinski's Rule of Five."
+    ),
+    "chemist": (
+        "You draw on: retrosynthetic analysis principles, reaction mechanism classification, "
+        "spectroscopic interpretation (NMR, MS, IR), computational chemistry methods (DFT, MD), "
+        "SAR analysis, QSAR model validation, and chemical safety / hazard assessment (GHS)."
+    ),
+    "systems_biologist": (
+        "You draw on: network inference methods (WGCNA, GRNBoost2, SCENIC), "
+        "pathway databases (KEGG, Reactome, GO), enrichment analysis (GSEA, ORA, CAMERA), "
+        "metabolic modeling (FBA, COBRA), multi-omics integration strategies, "
+        "and dynamical systems modeling (ODE, Boolean networks)."
+    ),
+}
+
+# Fallback for domains not in the lookup
+CONSULTANT_GENERIC = (
+    "You draw on established best practices, published guidelines, "
+    "and methodological standards specific to your area of expertise. "
+    "Cite specific frameworks, criteria, or references when giving advice."
 )
 
 
@@ -69,6 +288,8 @@ You are a world-class Principal Investigator at a top-5 research university. You
 - Goal: {profile.get('goal', 'maximize scientific impact')}
 - Personality traits:
 {personality}
+
+{PI_RESOURCES}
 
 ## Project Idea
 
@@ -205,6 +426,8 @@ You are a dedicated, technically excellent postdoc. You implement analyses rigor
 - Goal: {profile.get('goal', 'execute research with technical excellence')}
 - Personality traits:
 {personality}
+
+{TRAINEE_RESOURCES}
 
 ## Project Idea
 
@@ -360,21 +583,26 @@ def build_reviewer_prompt(
     progress_str = _format_paper_progress(paper_progress)
     files_str = _format_file_listings(file_listings)
 
+    # Look up domain-specific resources for this reviewer's specialty
+    reviewer_role_key = reviewer.get("avatar", reviewer.get("role", "generic")).lower().replace(" ", "_")
+    domain_knowledge = CONSULTANT_DOMAINS.get(reviewer_role_key, "")
+    if not domain_knowledge:
+        # Try matching the role text
+        role_lower = reviewer.get("role", "").lower().replace(" ", "_")
+        domain_knowledge = CONSULTANT_DOMAINS.get(role_lower, CONSULTANT_GENERIC)
+
     prompt = f"""You are now acting as **{reviewer.get('name', 'Anonymous Reviewer')}**, an invited peer reviewer with expertise in **{reviewer.get('role', 'the relevant field')}**.
 
 This is **Review Round {round_number}**.
 
 ## Your Reviewer Profile
 
-You are a rigorous, constructive peer reviewer. You evaluate manuscripts based on:
-- Scientific rigor and novelty
-- Statistical validity and reproducibility
-- Clarity of presentation
-- Quality of figures and data
-- Significance to the field
-- Appropriate discussion of limitations
+You are a rigorous, constructive peer reviewer. You evaluate manuscripts based on established standards and your domain expertise.
 
-You provide specific, actionable feedback. You are fair but thorough.
+**Your domain expertise and resources:**
+{domain_knowledge}
+
+{REVIEWER_RESOURCES}
 
 ## Manuscript Information
 
@@ -405,23 +633,23 @@ A brief summary (2-3 sentences) of the manuscript and its main contributions.
 Numbered list of specific strengths of the manuscript (at least 3).
 
 ### WEAKNESSES
-Numbered list of specific weaknesses or concerns (at least 3). Be specific — cite section names, figure numbers, and exact claims.
+Numbered list of specific weaknesses or concerns (at least 3). Be specific — cite section names, figure numbers, and exact claims. Use the reporting guidelines above to check for missing elements.
 
 ### MAJOR CONCERNS
-Issues that MUST be addressed for the paper to be acceptable. These could include:
-- Flawed methodology or statistics
-- Missing controls or validations
-- Unsupported claims
-- Missing comparisons to prior work
+Issues that MUST be addressed for the paper to be acceptable. For each concern, reference the specific guideline or standard it violates:
+- Flawed methodology or statistics (cite ASA guidelines, SAMPL, or reporting checklist)
+- Missing controls or validations (cite relevant reporting guideline: CONSORT, STROBE, etc.)
+- Unsupported claims (cite the specific claim and what evidence is needed)
+- Missing comparisons to prior work (cite specific papers that should be discussed)
 
 ### MINOR CONCERNS
 Smaller issues that should be fixed but are not critical:
 - Typos, formatting issues
-- Suggested additional analyses
+- Suggested additional analyses (explain why they would strengthen the paper)
 - Clarification requests
 
 ### QUESTIONS FOR AUTHORS
-3-5 specific questions that the authors must address.
+3-5 specific questions that the authors must address. Frame these as testable or answerable questions.
 
 ### RECOMMENDATION
 One of:
@@ -436,7 +664,7 @@ Rate your confidence in this review on a scale of 1-5:
 - 3: Partially in my expertise
 - 5: Core area of expertise
 
-You MUST produce ALL sections. Be specific and constructive. Reference exact sections, figures, and claims.
+You MUST produce ALL sections. Be specific and constructive. Reference exact sections, figures, claims, and the guidelines/standards that support your assessment.
 """
     return prompt
 
@@ -468,12 +696,16 @@ def build_revision_prompt(
 
     prompt = f"""You are now acting as the **Principal Investigator (PI)** responding to peer review.
 
+The editorial decision has come back to YOU first. As PI, you must evaluate the reviewer comments, decide which are valid, form a strategic revision plan, and then delegate execution to the Trainee.
+
 ## Your Identity
 
 **Title:** {profile.get('title', 'Principal Investigator')}
 **Expertise:** {profile.get('expertise', 'running a research lab')}
 **Personality:**
 {personality}
+
+{PI_RESOURCES}
 
 ## Project Idea
 
@@ -502,38 +734,56 @@ def build_revision_prompt(
 
 ## Your Task
 
-{"The paper has been REJECTED. Review the feedback carefully. You may:" if editorial_decision == "reject" else "The editor has requested revisions. You must:"}
+{"The paper has been REJECTED. Evaluate the feedback carefully as PI — decide whether to appeal, substantially revise and resubmit, or pivot the project." if editorial_decision == "reject" else "The editor has requested revisions. As PI, you must first EVALUATE the reviews, then plan the response."}
 
-### 1. RESPONSE TO REVIEWERS
+### 1. PI EVALUATION OF REVIEWS
+Before responding, critically assess each reviewer's comments from your PI perspective:
+- Which criticisms are valid and must be addressed?
+- Which are based on misunderstanding and should be rebutted with evidence?
+- Which are nice-to-have but not essential?
+- Are there any contradictions between reviewers?
+- Is the editor's feedback aligned with or different from the reviewers'?
+
+Use the statistical rigor and figure quality standards from your reference frameworks to judge whether the reviewers' methodological criticisms are correct.
+
+### 2. EXPERT CONSULTATION (Optional)
+If the reviewers raised concerns outside your expertise, you may call `autolab_consult` to get a specialist's opinion before finalizing your revision plan. For example:
+- A statistician for methodology criticisms
+- A domain expert for biological interpretation issues
+- A bioethicist for ethical concerns raised
+
+The consultant gives advice back to you (PI) for you to judge and incorporate.
+
+### 3. RESPONSE TO REVIEWERS
 For EACH reviewer, address EVERY concern point by point. For each point, state one of:
-- **Addressed**: What you changed and where
-- **Rebutted**: Why the reviewer is incorrect (with evidence)
-- **Acknowledged**: Limitations you accept but cannot fully address
+- **Addressed**: What you changed and where (be specific: section, figure, analysis)
+- **Rebutted**: Why the reviewer is incorrect (with evidence and citations)
+- **Acknowledged**: Limitations you accept but cannot fully address (explain why)
 
-### 2. REVISION PLAN
-Specific changes to make:
-- Which sections need rewriting
-- Which figures need updating
-- Which new analyses are needed
+### 4. REVISION PLAN
+Specific changes to make, prioritized:
+- Which sections need rewriting (indicate scope: minor edit vs. major rewrite)
+- Which figures need updating or replacing
+- Which new analyses are needed (specify statistical method)
 - Which new references to add
 
-### 3. AGENDA FOR TRAINEE
+### 5. AGENDA FOR TRAINEE
 Clear instructions for the Trainee to implement the revisions. Be specific about:
-- Exact code changes or new analyses
-- Figure modifications
-- LaTeX section updates
-- New results needed
+- Exact code changes or new analyses (name the script, method, expected output)
+- Figure modifications (what to change, which standards to meet)
+- LaTeX section updates (which paragraphs, what content)
+- New results needed (what files to produce)
 
-### 4. COVER LETTER DRAFT (for resubmission)
+### 6. COVER LETTER DRAFT (for resubmission)
 A point-by-point response letter to the editor summarising all changes.
 
-### 5. PROGRESS
+### 7. PROGRESS
 Update progress: `PROGRESS: <number>` (typically drops after revision request)
 
-### 6. STATUS
+### 8. STATUS
 Output: `STATUS: continue`
 
-You MUST produce ALL sections. Be thorough — a well-addressed revision is often stronger than the original.
+You MUST produce ALL numbered sections (except 2, which is optional). Be thorough — a well-addressed revision is often stronger than the original.
 """
     return prompt
 

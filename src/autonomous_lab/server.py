@@ -1237,7 +1237,7 @@ async def autolab_consult(
         state["experts"] = experts
         save_state(project_directory, state)
 
-    # Build the expert consultation prompt
+    # Build the expert consultation prompt with domain-specific knowledge
     idea = ""
     try:
         from .lab.state import load_idea
@@ -1245,20 +1245,33 @@ async def autolab_consult(
     except Exception:
         pass
 
+    # Look up domain-specific resources
+    from .lab.prompts import CONSULTANT_DOMAINS, CONSULTANT_GENERIC
+    avatar_key = expert_avatar.lower().replace(" ", "_")
+    role_key = expert_role.lower().replace(" ", "_")
+    domain_knowledge = (
+        CONSULTANT_DOMAINS.get(avatar_key)
+        or CONSULTANT_DOMAINS.get(role_key)
+        or CONSULTANT_GENERIC
+    )
+
     return (
         f"[CONSULTATION] Expert: {expert_name} ({expert_role})\n"
         f"{'=' * 50}\n\n"
-        f"You are now briefly acting as **{expert_name}**, a specialist in **{expert_role}**.\n"
+        f"You are now briefly acting as **{expert_name}**, a specialist in **{expert_role}**.\n\n"
+        f"**Your domain knowledge and standards:**\n{domain_knowledge}\n\n"
         f"The PI has asked you the following question:\n\n"
         f"> {question}\n\n"
-        f"Project context (brief):\n{idea[:300]}{'...' if len(idea) > 300 else ''}\n\n"
+        f"Project context (brief):\n{idea[:500]}{'...' if len(idea) > 500 else ''}\n\n"
         f"Provide a concise, expert response (2-4 paragraphs). Be direct and specific.\n"
+        f"Ground your advice in the specific frameworks, guidelines, and standards listed above.\n"
         f"Include:\n"
-        f"- Your expert opinion on the question\n"
+        f"- Your expert opinion on the question, citing relevant standards or guidelines\n"
         f"- Key considerations the PI should be aware of\n"
-        f"- Any methodological recommendations\n"
+        f"- Specific methodological recommendations with justification\n"
         f"- Potential pitfalls or caveats in your domain\n\n"
         f"After providing the consultation, IMMEDIATELY return to acting as the PI.\n"
+        f"The PI should evaluate the consultant's advice and decide what to adopt.\n"
         f"Do NOT call autolab_record for this consultation — it's part of the PI's turn.\n"
         f"Continue with whatever the PI was doing before the consultation."
     )
