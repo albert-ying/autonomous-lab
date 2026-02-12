@@ -1,0 +1,46 @@
+[project]
+name = "autonomous-lab"
+version = "0.1.0"
+description = "MCP server for iterative PI/Trainee research sessions with monitoring web UI, producing submission-ready LaTeX papers."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Albert Ying" }
+]
+keywords = ["mcp", "ai", "research", "lab", "pi", "trainee", "latex", "paper"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "fastmcp>=2.0.0",
+    "psutil>=7.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "jinja2>=3.1.0",
+    "websockets>=13.0.0",
+    "aiohttp>=3.8.0",
+    "mcp>=1.9.3",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+autonomous-lab = "autonomous_lab.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autonomous_lab"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
