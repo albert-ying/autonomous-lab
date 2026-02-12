@@ -32,6 +32,13 @@ PAPER_WRITING_RULES = (
     "4. Write clear, direct scientific prose. No filler, no hedging, no unnecessary qualifiers.",
     "5. Every claim must be supported by data, statistics, or citations.",
     "6. Each section should flow logically from the previous one.",
+    "7. CITATION INTEGRITY: NEVER fabricate citations. For EVERY citation you need:",
+    "   a. Call `autolab_cite` with action='search' and a description of what you need to cite.",
+    "   b. The tool returns verified BibTeX entries from CrossRef with real DOIs.",
+    "   c. Add the BibTeX entries to paper/references.bib BEFORE citing them.",
+    "   d. Use the exact citation keys returned by the tool.",
+    "   e. If you already know a DOI, call `autolab_cite` with action='doi' to get the proper BibTeX.",
+    "8. Before submitting any paper section, run `autolab_cite` with action='validate' to check references.bib.",
 )
 
 # ── PI decision-making resources ──
@@ -341,6 +348,14 @@ For each figure in `figures/`, score it 1-10 against top-journal publication sta
 - Specific issues (font size, axis labels, color scheme, legend, statistical annotations)
 - Required fixes
 If no figures exist yet, state "No figures to evaluate."
+
+### 2b. CITATION QA
+If the Trainee has written or updated paper sections, verify citation quality:
+- Run `autolab_cite` with action='validate' to check references.bib
+- Flag any fabricated or unverifiable citations (missing DOI, title doesn't match)
+- Ensure every \\cite{key} in the text has a verified entry in references.bib
+- Check that key claims in the Introduction and Discussion are supported by real references
+If no paper sections are written yet, state "No citations to evaluate."
 
 ### 3. AGENDA
 Clear statement of what the Trainee should do next. This MUST include specific analyses AND/OR paper writing tasks. Be concrete -- name the exact analysis, the exact paper section, the exact figure to produce.

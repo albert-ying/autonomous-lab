@@ -1278,6 +1278,126 @@ async def autolab_consult(
 
 
 @mcp.tool()
+async def autolab_cite(
+    action: Annotated[str, Field(
+        description="Action: 'search' (find papers by topic), 'doi' (get BibTeX from DOI), "
+                    "'validate' (check references.bib for errors)"
+    )] = "search",
+    query: Annotated[str, Field(
+        description="For 'search': topic description. For 'doi': the DOI string. "
+                    "For 'validate': path to .bib file (default: paper/references.bib)"
+    )] = "",
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    count: Annotated[int, Field(description="Number of results for search (max 10)")] = 5,
+    from_year: Annotated[int, Field(description="Only papers from this year onward (0 = no filter)")] = 0,
+) -> str:
+    """Look up, search, and validate citations using CrossRef API.
+
+    This tool ensures that ALL citations in the paper are real, verified papers
+    with correct metadata. Use it for:
+
+    1. **search**: Find real papers on a topic → returns verified BibTeX entries
+       ready to paste into references.bib.
+    2. **doi**: Convert a known DOI to a properly formatted BibTeX entry.
+    3. **validate**: Check an existing .bib file — verify DOIs resolve, find
+       entries missing DOIs, and suggest corrections.
+
+    CRITICAL RULE FOR CITATIONS:
+    - NEVER invent or fabricate citation entries. ALWAYS use this tool to get
+      verified BibTeX from CrossRef.
+    - EVERY \cite{key} in the paper MUST have a corresponding entry in
+      references.bib that was retrieved via this tool.
+    - When writing a paper section, first search for relevant papers, add
+      their BibTeX to references.bib, THEN cite them in the text.
+
+    Args:
+        action: 'search', 'doi', or 'validate'
+        query: Topic description, DOI string, or .bib file path
+        project_directory: Project directory path
+        count: Number of search results (max 10, default 5)
+        from_year: Filter papers from this year onward (0 = no filter)
+
+    Returns:
+        BibTeX entries (search/doi) or validation report (validate)
+    """
+    from .lab.citations import doi_to_bibtex, search_papers, validate_bibtex_file
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        if action == "doi":
+            if not query:
+                return "ERROR: 'query' must contain a DOI string (e.g., '10.1038/s41586-021-03819-2')"
+            bibtex = doi_to_bibtex(query)
+            return (
+                f"Verified BibTeX entry from CrossRef:\n\n{bibtex}\n\n"
+                f"Add this to paper/references.bib, then use the citation key in your LaTeX."
+            )
+
+        elif action == "search":
+            if not query:
+                return "ERROR: 'query' must describe what you need to cite (e.g., 'CRISPR efficiency in human cells')"
+            year_filter = from_year if from_year > 0 else None
+            results = search_papers(query, rows=min(count, 10), filter_from_year=year_filter)
+            if not results or (len(results) == 1 and "error" in results[0]):
+                return f"No papers found for: {query}\nTry broader search terms or remove the year filter."
+
+            output_parts = [f"Found {len(results)} verified paper(s) for: {query}\n"]
+            for i, r in enumerate(results, 1):
+                if "error" in r:
+                    continue
+                output_parts.append(
+                    f"--- Paper {i} ---\n"
+                    f"Title: {r['title']}\n"
+                    f"Authors: {r['authors']}\n"
+                    f"Year: {r['year']} | Journal: {r['journal']}\n"
+                    f"DOI: {r['doi']}\n\n"
+                    f"{r['bibtex']}\n"
+                )
+            output_parts.append(
+                "\nAdd the relevant entries to paper/references.bib.\n"
+                "Use the citation keys (e.g., \\cite{Smith2024keyword}) in your LaTeX text."
+            )
+            return "\n".join(output_parts)
+
+        elif action == "validate":
+            bib_path = query if query else os.path.join(project_directory, "paper", "references.bib")
+            if not os.path.exists(bib_path):
+                return f"ERROR: BibTeX file not found: {bib_path}"
+            report = validate_bibtex_file(bib_path)
+            lines = [
+                f"Citation Validation Report for {bib_path}",
+                f"{'=' * 50}",
+                f"Total entries: {report['total']}",
+                f"Valid (DOI verified or match found): {report['valid']}",
+                f"Errors: {len(report['errors'])}",
+                f"Warnings: {len(report['warnings'])}",
+            ]
+            if report["errors"]:
+                lines.append("\n--- ERRORS (must fix) ---")
+                for err in report["errors"]:
+                    lines.append(f"  [{err['key']}] {err['error']}")
+            if report["warnings"]:
+                lines.append("\n--- WARNINGS (review) ---")
+                for w in report["warnings"]:
+                    lines.append(f"  [{w['key']}] {w['warning']}")
+                    if "suggested_doi" in w:
+                        lines.append(f"    Suggested DOI: {w['suggested_doi']}")
+            if report["corrected_entries"]:
+                lines.append("\n--- CORRECTED ENTRIES (verified via CrossRef) ---")
+                for c in report["corrected_entries"][:5]:  # Show max 5
+                    lines.append(f"\n  Key: {c['key']}")
+                    lines.append(f"  {c['corrected_bibtex']}")
+            return "\n".join(lines)
+
+        else:
+            return f"ERROR: Unknown action '{action}'. Use 'search', 'doi', or 'validate'."
+
+    except Exception as e:
+        return f"Citation tool error: {e}\n\nYou can still manually look up papers at https://doi.org/ or https://scholar.google.com/"
+
+
+@mcp.tool()
 async def autolab_editorial(
     project_directory: Annotated[str, Field(description="Project directory path")] = ".",
 ) -> str:
