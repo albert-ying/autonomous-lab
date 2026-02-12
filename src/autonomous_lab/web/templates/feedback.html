@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/prompt-management.css">
     <link rel="stylesheet" href="/static/css/audio-management.css">
     <link rel="stylesheet" href="/static/css/notification-settings.css">
+    <link rel="stylesheet" href="/static/css/lab-dashboard.css">
     <style>
         /* 僅保留必要的頁面特定樣式和響應式調整 */
 
@@ -1214,6 +1215,8 @@
 
     <!-- 主應用程式 -->
     <script src="/static/js/app.js?v=2025010510"></script>
+    <!-- Autonomous Lab Dashboard -->
+    <script src="/static/js/modules/lab-dashboard.js"></script>
     <script>
         // 等待所有模組載入完成後再初始化 FeedbackApp
         async function initializeApp() {
@@ -1295,6 +1298,16 @@
                 }, 100);
 
                 logger.info('應用程式初始化完成');
+
+                // Initialize Autonomous Lab dashboard if available
+                if (window.LabDashboard) {
+                    try {
+                        await window.LabDashboard.init();
+                        logger.info('Lab dashboard initialized');
+                    } catch (labErr) {
+                        logger.warn('Lab dashboard init error:', labErr);
+                    }
+                }
             } catch (error) {
                 const logger = window.MCPFeedback?.logger || console;
                 logger.error('應用程式初始化失敗:', error);

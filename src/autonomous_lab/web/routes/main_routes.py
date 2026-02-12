@@ -27,7 +27,7 @@ def load_user_layout_settings() -> str:
     """載入用戶的佈局模式設定"""
     try:
         # 使用統一的設定檔案路徑
-        config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+        config_dir = Path.home() / ".config" / "autonomous-lab"
         settings_file = config_dir / "ui_settings.json"
 
         if settings_file.exists():
@@ -65,7 +65,7 @@ def setup_routes(manager: "WebUIManager"):
                 "index.html",
                 {
                     "request": request,
-                    "title": "MCP Feedback Enhanced",
+                    "title": "Autonomous Lab",
                     "has_session": False,
                     "version": __version__,
                 },
@@ -81,7 +81,7 @@ def setup_routes(manager: "WebUIManager"):
                 "request": request,
                 "project_directory": current_session.project_directory,
                 "summary": current_session.summary,
-                "title": "Interactive Feedback - 回饋收集",
+                "title": "Autonomous Lab",
                 "version": __version__,
                 "has_session": True,
                 "layout_mode": layout_mode,
@@ -255,6 +255,47 @@ def setup_routes(manager: "WebUIManager"):
                 },
             )
 
+    # ===== Autonomous Lab API =====
+    @manager.app.get("/api/autolab/state")
+    async def get_autolab_state():
+        """Get Autonomous Lab project state for the dashboard"""
+        try:
+            current_session = manager.get_current_session()
+            if not current_session:
+                return JSONResponse(content={"active": False})
+
+            project_dir = current_session.project_directory
+            autolab_dir = Path(project_dir) / ".autolab"
+
+            if not autolab_dir.exists():
+                return JSONResponse(content={"active": False})
+
+            from ...lab.state import (
+                get_paper_progress,
+                load_state,
+                scan_project_files,
+            )
+
+            state = load_state(project_dir)
+            file_listings = scan_project_files(project_dir)
+            paper_progress = get_paper_progress(project_dir)
+
+            # Collect figure paths for gallery
+            figures = file_listings.get("figures", [])
+
+            return JSONResponse(content={
+                "active": True,
+                "iteration": state.get("iteration", 0),
+                "next_role": state.get("next_role", "pi"),
+                "status": state.get("status", "active"),
+                "figures": figures,
+                "paper_progress": paper_progress,
+                "file_counts": {k: len(v) for k, v in file_listings.items()},
+            })
+        except Exception as e:
+            debug_log(f"Autolab state API error: {e}")
+            return JSONResponse(content={"active": False, "error": str(e)})
+
     @manager.app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket, lang: str = "zh-TW"):
         """WebSocket 端點 - 重構後移除 session_id 依賴"""
@@ -346,7 +387,7 @@ def setup_routes(manager: "WebUIManager"):
             data = await request.json()
 
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             config_dir.mkdir(parents=True, exist_ok=True)
             settings_file = config_dir / "ui_settings.json"
 
@@ -380,7 +421,7 @@ def setup_routes(manager: "WebUIManager"):
 
         try:
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             settings_file = config_dir / "ui_settings.json"
 
             if settings_file.exists():
@@ -409,7 +450,7 @@ def setup_routes(manager: "WebUIManager"):
 
         try:
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             settings_file = config_dir / "ui_settings.json"
 
             if settings_file.exists():
@@ -442,7 +483,7 @@ def setup_routes(manager: "WebUIManager"):
 
         try:
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             history_file = config_dir / "session_history.json"
 
             if history_file.exists():
@@ -488,7 +529,7 @@ def setup_routes(manager: "WebUIManager"):
             data = await request.json()
 
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             config_dir.mkdir(parents=True, exist_ok=True)
             history_file = config_dir / "session_history.json"
 
@@ -533,7 +574,7 @@ def setup_routes(manager: "WebUIManager"):
 
         try:
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             settings_file = config_dir / "ui_settings.json"
 
             if settings_file.exists():
@@ -576,7 +617,7 @@ def setup_routes(manager: "WebUIManager"):
                 )
 
             # 使用統一的設定檔案路徑
-            config_dir = Path.home() / ".config" / "mcp-feedback-enhanced"
+            config_dir = Path.home() / ".config" / "autonomous-lab"
             config_dir.mkdir(parents=True, exist_ok=True)
             settings_file = config_dir / "ui_settings.json"
 

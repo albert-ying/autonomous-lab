@@ -591,7 +591,337 @@ def get_system_info() -> str:
     return json.dumps(system_info, ensure_ascii=False, indent=2)
 
 
-# ===== 主程式入口 =====
+# ===== Autonomous Lab MCP Tools =====
+
+@mcp.tool()
+async def autolab_init(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    idea: Annotated[str, Field(description="Research project idea and context")] = "",
+    title: Annotated[str, Field(description="Paper title")] = "TITLE",
+) -> str:
+    """Initialize an Autonomous Lab project.
+
+    Creates .autolab/ directory with state, profiles, and meeting log.
+    Creates paper/ directory with LaTeX template.
+    Creates working directories: data/, scripts/, figures/, results/.
+
+    Call this once at the start of a new research project.
+
+    Args:
+        project_directory: Path to the project directory
+        idea: The research idea, context, and any preliminary data description
+        title: Working title for the paper
+
+    Returns:
+        str: Confirmation message with instructions to call autolab_next
+    """
+    from .lab.latex_template import create_paper_structure
+    from .lab.state import init_project
+
+    project_directory = os.path.abspath(project_directory)
+
+    if not idea.strip():
+        return "ERROR: 'idea' parameter is required. Provide the research idea and context."
+
+    try:
+        state = init_project(project_directory, idea)
+        create_paper_structure(project_directory, title)
+
+        return (
+            f"Autonomous Lab initialized in {project_directory}\n\n"
+            f"Created:\n"
+            f"  .autolab/ -- state, profiles, meeting log\n"
+            f"  paper/ -- LaTeX template ({title})\n"
+            f"  scripts/, figures/, results/ -- working directories\n\n"
+            f"State: iteration={state['iteration']}, next_role={state['next_role']}\n\n"
+            f"Next step: Call autolab_next to get the PI's first prompt."
+        )
+    except Exception as e:
+        return f"ERROR initializing project: {e}"
+
+
+@mcp.tool()
+async def autolab_next(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """Get the next role prompt for the Autonomous Lab session.
+
+    Reads the current state to determine whose turn it is (PI or Trainee),
+    assembles context (idea, profiles, meeting history, file listings),
+    and returns a detailed role prompt.
+
+    The AI should then follow the returned prompt exactly, acting as
+    the specified role (PI or Trainee).
+
+    Call flow: autolab_next -> (AI acts as role) -> autolab_record -> autolab_next -> ...
+
+    Args:
+        project_directory: Path to the project directory
+
+    Returns:
+        str: The role prompt to follow
+    """
+    from .lab.prompts import build_pi_prompt, build_reviewer_prompt, build_trainee_prompt
+    from .lab.state import (
+        get_meeting_summaries,
+        get_paper_progress,
+        get_recent_meetings,
+        load_idea,
+        load_profile,
+        load_state,
+        scan_project_files,
+    )
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    idea = load_idea(project_directory)
+    role = state["next_role"]
+    iteration = state["iteration"]
+    user_feedback = state.get("user_feedback", "")
+    meeting_history = get_recent_meetings(project_directory, n=3)
+    summaries = get_meeting_summaries(project_directory)
+    file_listings = scan_project_files(project_directory)
+
+    # Check if paper review is needed
+    if state.get("status") == "ready_for_review":
+        paper_progress = get_paper_progress(project_directory)
+        prompt = build_reviewer_prompt(paper_progress, file_listings, meeting_history)
+        return (
+            f"[AUTOLAB] REVIEWER MODE -- Paper Review\n"
+            f"Iteration: {iteration}\n\n"
+            f"{prompt}"
+        )
+
+    # Build role-specific prompt
+    profile = load_profile(project_directory, role)
+
+    if role == "pi":
+        prompt = build_pi_prompt(
+            idea=idea,
+            profile=profile,
+            meeting_history=meeting_history,
+            summaries=summaries,
+            file_listings=file_listings,
+            user_feedback=user_feedback,
+            iteration=iteration,
+        )
+    else:
+        prompt = build_trainee_prompt(
+            idea=idea,
+            profile=profile,
+            meeting_history=meeting_history,
+            summaries=summaries,
+            file_listings=file_listings,
+            user_feedback=user_feedback,
+            iteration=iteration,
+        )
+
+    return (
+        f"[AUTOLAB] {role.upper()} TURN -- Iteration {iteration}\n\n"
+        f"{prompt}"
+    )
+
+
+@mcp.tool()
+async def autolab_record(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    role: Annotated[str, Field(description="Role that just acted: 'pi' or 'trainee'")] = "",
+    summary: Annotated[str, Field(description="Brief summary of what was done this turn")] = "",
+    content: Annotated[str, Field(description="Full content of the turn (review, agenda, results, etc.)")] = "",
+    status: Annotated[str, Field(description="Status: 'continue' or 'ready_for_review'")] = "continue",
+    timeout: Annotated[int, Field(description="Timeout in seconds for user feedback")] = 600,
+) -> str:
+    """Record a completed turn and show the monitoring UI for user feedback.
+
+    This tool:
+    1. Saves the turn to meeting_log.md
+    2. Updates state.json (advance iteration, flip role, store status)
+    3. Compresses old meetings every 6 turns
+    4. Opens the web feedback UI with a rich dashboard summary
+    5. Waits for user feedback (or timeout = auto-continue)
+    6. Stores user feedback in state.json for the next turn
+
+    Call this AFTER completing your role actions (as PI or Trainee).
+
+    Args:
+        project_directory: Path to the project directory
+        role: Which role just completed: 'pi' or 'trainee'
+        summary: Brief summary of actions taken
+        content: Full structured content of the turn
+        status: 'continue' to keep iterating, 'ready_for_review' when paper is done
+        timeout: Seconds to wait for user feedback (default 600)
+
+    Returns:
+        str: User feedback text, or empty string if auto-continued
+    """
+    from .lab.state import (
+        append_meeting_log,
+        compress_old_meetings,
+        get_paper_progress,
+        load_state,
+        save_state,
+        scan_project_files,
+        COMPRESS_EVERY,
+    )
+
+    project_directory = os.path.abspath(project_directory)
+
+    if role not in ("pi", "trainee"):
+        return "ERROR: role must be 'pi' or 'trainee'"
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    iteration = state["iteration"]
+
+    # 1. Append to meeting log
+    append_meeting_log(project_directory, role, iteration, summary, content)
+
+    # 2. Update state
+    next_role = "trainee" if role == "pi" else "pi"
+    new_iteration = iteration + (1 if role == "trainee" else 0)
+    state["iteration"] = new_iteration
+    state["next_role"] = next_role
+    state["status"] = status
+    state["user_feedback"] = ""  # Clear previous feedback
+    save_state(project_directory, state)
+
+    # 3. Compress old meetings periodically
+    if new_iteration > 0 and new_iteration % COMPRESS_EVERY == 0:
+        compress_old_meetings(project_directory)
+
+    # 4. Build dashboard summary for the web UI
+    file_listings = scan_project_files(project_directory)
+    paper_progress = get_paper_progress(project_directory)
+
+    # Build a rich markdown summary for the feedback UI
+    figures_list = file_listings.get("figures", [])
+    figures_str = "\n".join(f"- {f}" for f in figures_list[:20]) if figures_list else "None yet"
+
+    paper_str_parts = []
+    for section, info in paper_progress.items():
+        if info["exists"] and info["words"] > 0:
+            paper_str_parts.append(f"  {section}: {info['words']} words")
+        else:
+            paper_str_parts.append(f"  {section}: --")
+    paper_str = "\n".join(paper_str_parts)
+
+    dashboard_summary = (
+        f"[AUTOLAB]\n\n"
+        f"# Autonomous Lab — Iteration {new_iteration}\n\n"
+        f"**Completed:** {role.upper()} turn\n"
+        f"**Next:** {next_role.upper()} turn\n"
+        f"**Status:** {status}\n\n"
+        f"## Turn Summary\n\n{summary}\n\n"
+        f"## Figures\n\n{figures_str}\n\n"
+        f"## Paper Progress\n\n{paper_str}\n\n"
+        f"---\n\n"
+        f"*Provide feedback below, or leave empty and submit to continue.*"
+    )
+
+    # 5. Launch the feedback UI (reusing mcp-feedback-enhanced's web UI)
+    try:
+        result = await launch_web_feedback_ui(project_directory, dashboard_summary, timeout)
+
+        user_feedback_text = ""
+        if result and result.get("interactive_feedback"):
+            user_feedback_text = result["interactive_feedback"].strip()
+
+        # 6. Store feedback in state
+        state = load_state(project_directory)
+        state["user_feedback"] = user_feedback_text
+        save_state(project_directory, state)
+
+        if user_feedback_text:
+            return f"User feedback received:\n\n{user_feedback_text}"
+        else:
+            return "No user feedback. Continuing to next turn."
+
+    except TimeoutError:
+        return "Feedback timeout. Continuing to next turn."
+    except Exception as e:
+        debug_log(f"Feedback UI error: {e}")
+        return f"Feedback UI error: {e}. Continuing to next turn."
+
+
+@mcp.tool()
+async def autolab_status(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """Get the current status of an Autonomous Lab project.
+
+    Returns the current state, file listings, paper progress,
+    and a summary of recent meetings.
+
+    Args:
+        project_directory: Path to the project directory
+
+    Returns:
+        str: Formatted status report
+    """
+    from .lab.state import (
+        get_paper_progress,
+        get_recent_meetings,
+        load_state,
+        scan_project_files,
+    )
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    file_listings = scan_project_files(project_directory)
+    paper_progress = get_paper_progress(project_directory)
+    recent = get_recent_meetings(project_directory, n=2)
+
+    # Format file counts
+    file_counts = {k: len(v) for k, v in file_listings.items()}
+
+    # Format paper progress
+    paper_lines = []
+    for section, info in paper_progress.items():
+        if info["exists"] and info["words"] > 0:
+            paper_lines.append(f"  {section}: {info['words']} words")
+        elif info["exists"]:
+            paper_lines.append(f"  {section}: placeholder only")
+        else:
+            paper_lines.append(f"  {section}: not created")
+
+    report = (
+        f"# Autonomous Lab Status\n\n"
+        f"**Iteration:** {state['iteration']}\n"
+        f"**Next role:** {state['next_role']}\n"
+        f"**Status:** {state['status']}\n"
+        f"**Last updated:** {state.get('last_updated', 'unknown')}\n\n"
+        f"## File Counts\n"
+        f"  data: {file_counts.get('data', 0)} files\n"
+        f"  scripts: {file_counts.get('scripts', 0)} files\n"
+        f"  figures: {file_counts.get('figures', 0)} files\n"
+        f"  results: {file_counts.get('results', 0)} files\n"
+        f"  paper: {file_counts.get('paper', 0)} files\n\n"
+        f"## Paper Progress\n"
+        + "\n".join(paper_lines)
+        + "\n\n"
+        f"## Recent Meetings\n\n{recent if recent.strip() else 'No meetings yet.'}\n"
+    )
+
+    if state.get("user_feedback"):
+        report += f"\n## Pending User Feedback\n\n{state['user_feedback']}\n"
+
+    return report
+
+
+# ===== Main entry point =====
 def main():
     """主要入口點，用於套件執行
     收集用戶的互動回饋，支援文字和圖片
