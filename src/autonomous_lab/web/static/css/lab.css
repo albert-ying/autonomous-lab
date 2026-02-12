@@ -102,6 +102,12 @@ h1, h2, .badge-value, .char-name, .panel-icon {
 
 .version { font-size: 10px; color: var(--text-muted); }
 .top-right { display: flex; align-items: center; gap: 12px; }
+.lab-timer {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+}
 .editorial-btn {
     font-family: 'Press Start 2P', monospace;
     font-size: 9px;

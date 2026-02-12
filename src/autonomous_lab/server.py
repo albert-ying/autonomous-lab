@@ -427,136 +427,93 @@ def process_images(images_data: list[dict]) -> list[MCPImage]:
 
 # ===== MCP 工具定義 =====
 @mcp.tool()
-async def interactive_feedback(
-    project_directory: Annotated[str, Field(description="專案目錄路徑")] = ".",
+async def lab_meeting(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
     summary: Annotated[
-        str, Field(description="AI 工作完成的摘要說明")
-    ] = "我已完成了您請求的任務。",
-    timeout: Annotated[int, Field(description="等待用戶回饋的超時時間（秒）")] = 600,
-) -> list:
-    """Interactive feedback collection tool for LLM agents.
+        str, Field(description="Summary of AI work completed for user review")
+    ] = "Completed the requested task.",
+    timeout: Annotated[int, Field(description="Pause duration in seconds (default: 15)")] = 15,
+) -> str:
+    """Pause briefly between lab turns to show the monitoring UI and collect optional feedback.
 
-    USAGE RULES:
-    1. During any process, task, or conversation, whether asking, replying, or completing phased tasks, you must call this tool to ask for feedback.
-    2. Unless receiving termination instructions, all steps must repeatedly call this tool.
-    3. Whenever user feedback is received, if the feedback content is not empty, you must call this tool again and adjust behavior based on the feedback content.
-    4. Only when the user explicitly indicates "end" or "no more interaction needed" can you stop calling this tool, and the process is considered complete.
-    5. You should summarize what have done, and provide project directory through args to let user know what you have done to provide feedback for next step.
+    This opens/refreshes the game-style lab monitoring UI in the browser.
+    It pauses for a short period (default 15s) during which the user can
+    optionally type feedback through the lab UI's feedback panel.
+
+    Call this after EVERY autolab_record call during normal lab turns.
+
+    LOOP PROTOCOL (normal turns):
+      autolab_next -> (act as role) -> autolab_record -> lab_meeting -> autolab_next -> ...
+
+    DO NOT use this for editorial submission waits. Use autolab_editorial instead.
+
+    After this tool returns, ALWAYS call autolab_next to continue.
+    NEVER stop the loop.
 
     Args:
-        project_directory: Project directory path for context
-        summary: Summary of AI work completed for user review
-        timeout: Timeout in seconds for waiting user feedback (default: 600 seconds)
+        project_directory: Project directory path
+        summary: Summary of AI work completed (displayed in the status bar)
+        timeout: How long to pause for user feedback (seconds, default 15)
 
     Returns:
-        list: List containing TextContent and MCPImage objects representing user feedback
+        str: Any user feedback collected, or a message to continue the loop
     """
-    # 環境偵測
-    is_remote = is_remote_environment()
-    is_wsl = is_wsl_environment()
-
-    debug_log(f"環境偵測結果 - 遠端: {is_remote}, WSL: {is_wsl}")
-    debug_log("使用介面: Web UI")
+    import asyncio
 
     try:
-        # 確保專案目錄存在
         if not os.path.exists(project_directory):
             project_directory = os.getcwd()
         project_directory = os.path.abspath(project_directory)
 
-        # 使用 Web 模式
-        debug_log("回饋模式: web")
+        # Ensure the game-style lab UI is open
+        _ensure_lab_ui(project_directory)
 
-        result = await launch_web_feedback_ui(project_directory, summary, timeout)
+        # Clear any stale feedback from the previous turn
+        try:
+            from .lab.state import load_state, save_state
+            state = load_state(project_directory)
+            old_feedback = state.get("user_feedback", "")
+            if old_feedback:
+                state["user_feedback"] = ""
+                save_state(project_directory, state)
+        except Exception:
+            old_feedback = ""
 
-        # 處理取消情況
-        if not result:
-            return [TextContent(type="text", text="用戶取消了回饋。")]
+        debug_log(f"lab_meeting: pausing {timeout}s for optional feedback")
 
-        # 儲存詳細結果
-        save_feedback_to_file(result)
+        # Poll for user feedback during the pause window
+        poll_interval = 3  # seconds
+        elapsed = 0
+        user_feedback = ""
+        while elapsed < timeout:
+            await asyncio.sleep(min(poll_interval, timeout - elapsed))
+            elapsed += poll_interval
+            try:
+                state = load_state(project_directory)
+                fb = state.get("user_feedback", "").strip()
+                if fb:
+                    user_feedback = fb
+                    # Clear the feedback so the next turn starts fresh
+                    state["user_feedback"] = ""
+                    save_state(project_directory, state)
+                    break  # Got feedback, no need to wait longer
+            except Exception:
+                continue
 
-        # 建立回饋項目列表
-        feedback_items = []
-
-        # 添加文字回饋
-        if (
-            result.get("interactive_feedback")
-            or result.get("command_logs")
-            or result.get("images")
-        ):
-            feedback_text = create_feedback_text(result)
-            feedback_items.append(TextContent(type="text", text=feedback_text))
-            debug_log("文字回饋已添加")
-
-        # 添加圖片回饋
-        if result.get("images"):
-            mcp_images = process_images(result["images"])
-            # 修復 arg-type 錯誤 - 直接擴展列表
-            feedback_items.extend(mcp_images)
-            debug_log(f"已添加 {len(mcp_images)} 張圖片")
-
-        # 確保至少有一個回饋項目
-        if not feedback_items:
-            feedback_items.append(
-                TextContent(type="text", text="用戶未提供任何回饋內容。")
+        if user_feedback:
+            debug_log(f"lab_meeting: got user feedback: {user_feedback[:80]}")
+            return (
+                f"User feedback received:\n{user_feedback}\n\n"
+                f"Incorporate this feedback into the next turn.\n"
+                f"Continue the lab loop: call autolab_next now."
             )
 
-        debug_log(f"回饋收集完成，共 {len(feedback_items)} 個項目")
-        return feedback_items
+        debug_log("lab_meeting: no feedback, continuing")
+        return "No user feedback. Continue the lab loop: call autolab_next now."
 
     except Exception as e:
-        # 使用統一錯誤處理，但不影響 JSON RPC 響應
-        error_id = ErrorHandler.log_error_with_context(
-            e,
-            context={"operation": "回饋收集", "project_dir": project_directory},
-            error_type=ErrorType.SYSTEM,
-        )
-
-        # 生成用戶友好的錯誤信息
-        user_error_msg = ErrorHandler.format_user_error(e, include_technical=False)
-        debug_log(f"回饋收集錯誤 [錯誤ID: {error_id}]: {e!s}")
-
-        return [TextContent(type="text", text=user_error_msg)]
-
-
-async def launch_web_feedback_ui(project_dir: str, summary: str, timeout: int) -> dict:
-    """
-    啟動 Web UI 收集回饋，支援自訂超時時間
-
-    Args:
-        project_dir: 專案目錄路徑
-        summary: AI 工作摘要
-        timeout: 超時時間（秒）
-
-    Returns:
-        dict: 收集到的回饋資料
-    """
-    debug_log(f"啟動 Web UI 介面，超時時間: {timeout} 秒")
-
-    try:
-        # 使用新的 web 模組
-        from .web import launch_web_feedback_ui as web_launch
-
-        # 傳遞 timeout 參數給 Web UI
-        return await web_launch(project_dir, summary, timeout)
-    except ImportError as e:
-        # 使用統一錯誤處理
-        error_id = ErrorHandler.log_error_with_context(
-            e,
-            context={"operation": "Web UI 模組導入", "module": "web"},
-            error_type=ErrorType.DEPENDENCY,
-        )
-        user_error_msg = ErrorHandler.format_user_error(
-            e, ErrorType.DEPENDENCY, include_technical=False
-        )
-        debug_log(f"Web UI 模組導入失敗 [錯誤ID: {error_id}]: {e}")
-
-        return {
-            "command_logs": "",
-            "interactive_feedback": user_error_msg,
-            "images": [],
-        }
+        debug_log(f"lab_meeting error: {e}")
+        return f"Lab meeting error (non-fatal): {e}\n\nContinue the lab loop: call autolab_next now."
 
 
 @mcp.tool()
@@ -593,11 +550,68 @@ def get_system_info() -> str:
 
 # ===== Autonomous Lab MCP Tools =====
 
+# Mandatory loop instruction for NORMAL turns (PI/Trainee/Reviewer)
+_LOOP_INSTRUCTION = (
+    "\n\n---\n"
+    "MANDATORY NEXT STEPS (you MUST do both, in order):\n"
+    "1. Call lab_meeting NOW with a brief summary of what just happened.\n"
+    "2. After lab_meeting returns, call autolab_next to continue the lab session.\n"
+    "NEVER stop or end your turn. The lab loop runs until the user explicitly says 'stop'."
+)
+
+# Editorial instruction for submission / waiting-for-editor scenarios
+_EDITORIAL_INSTRUCTION = (
+    "\n\n---\n"
+    "MANDATORY NEXT STEP:\n"
+    "Call autolab_editorial NOW. It will wait (with no timeout) for the Editor's action.\n"
+    "When it returns, follow its instructions to continue.\n"
+    "NEVER stop or end your turn."
+)
+
+
+_lab_browser_opened: set[str] = set()  # tracks which project dirs already have a browser tab
+
+
+def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
+    """Ensure the monitoring web UI is running and points to this project.
+
+    Only opens a new browser tab ONCE per project per MCP session.
+    Subsequent calls just update lab_project_dir without spawning tabs.
+    Set force_open=True to open the browser even if already opened (e.g., autolab_resume).
+    """
+    try:
+        import urllib.parse
+
+        from .web.main import get_web_ui_manager
+
+        manager = get_web_ui_manager()
+        manager.lab_project_dir = project_directory
+
+        # Start the server if not running
+        if manager.server_thread is None or not manager.server_thread.is_alive():
+            import time
+            manager.start_server()
+            time.sleep(1)
+
+        # Only open browser once per project (or on force_open)
+        if project_directory not in _lab_browser_opened or force_open:
+            encoded = urllib.parse.quote(project_directory, safe="")
+            lab_url = f"{manager.get_server_url()}/lab?project={encoded}"
+            manager.open_browser(lab_url)
+            _lab_browser_opened.add(project_directory)
+            debug_log(f"Lab UI browser opened for {project_directory}")
+        else:
+            debug_log("Lab UI already open, skipping browser launch")
+    except Exception as e:
+        debug_log(f"Lab UI ensure failed (non-fatal): {e}")
+
+
 @mcp.tool()
 async def autolab_init(
     project_directory: Annotated[str, Field(description="Project directory path")] = ".",
     idea: Annotated[str, Field(description="Research project idea and context")] = "",
     title: Annotated[str, Field(description="Paper title")] = "TITLE",
+    force_new: Annotated[bool, Field(description="Force fresh start even if project exists")] = False,
 ) -> str:
     """Initialize an Autonomous Lab project.
 
@@ -606,12 +620,14 @@ async def autolab_init(
     Creates working directories: data/, scripts/, figures/, results/.
     Opens the game-style monitoring UI in the browser.
 
-    Call this once at the start of a new research project.
+    If an existing project is found, returns a warning and suggests
+    calling autolab_resume instead. Set force_new=True to overwrite.
 
     Args:
         project_directory: Path to the project directory
         idea: The research idea, context, and any preliminary data description
         title: Working title for the paper
+        force_new: If True, overwrite existing project. Default False.
 
     Returns:
         str: Confirmation message with instructions to call autolab_next
@@ -624,6 +640,28 @@ async def autolab_init(
     if not idea.strip():
         return "ERROR: 'idea' parameter is required. Provide the research idea and context."
 
+    # Check if an existing project is present — suggest resume instead of overwriting
+    autolab_dir = os.path.join(project_directory, ".autolab")
+    state_file = os.path.join(autolab_dir, "state.json")
+    if os.path.exists(state_file) and not force_new:
+        try:
+            with open(state_file, "r") as f:
+                existing = json.load(f)
+            iteration = existing.get("iteration", 0)
+            status = existing.get("status", "active")
+            role = existing.get("next_role", "pi")
+            progress = existing.get("progress", 0)
+            return (
+                f"WARNING: An existing Autonomous Lab project was found in {project_directory}\n\n"
+                f"  Iteration: {iteration}, Status: {status}, Next role: {role}, Progress: {progress}%\n\n"
+                f"To RESUME the existing project, call autolab_resume(project_directory='{project_directory}').\n"
+                f"To START FRESH (this will overwrite the existing project), call autolab_init again "
+                f"with force_new=True.\n\n"
+                f"Do NOT reinitialize unless the user explicitly asks for a fresh start."
+            )
+        except Exception:
+            pass  # Corrupted state — safe to reinitialize
+
     try:
         state = init_project(project_directory, idea)
         create_paper_structure(project_directory, title)
@@ -631,19 +669,9 @@ async def autolab_init(
         # Start the monitoring web UI (non-blocking)
         lab_url = ""
         try:
-            import time
-
+            _ensure_lab_ui(project_directory)
             from .web.main import get_web_ui_manager
-
-            manager = get_web_ui_manager()
-            manager.lab_project_dir = project_directory
-
-            if manager.server_thread is None or not manager.server_thread.is_alive():
-                manager.start_server()
-                time.sleep(1)
-
-            lab_url = f"{manager.get_server_url()}/lab"
-            manager.open_browser(lab_url)
+            lab_url = f"{get_web_ui_manager().get_server_url()}/lab"
         except Exception as e:
             debug_log(f"Failed to start lab UI: {e}")
             lab_url = "(failed to start)"
@@ -655,11 +683,153 @@ async def autolab_init(
             f"  paper/ -- LaTeX template ({title})\n"
             f"  scripts/, figures/, results/ -- working directories\n\n"
             f"State: iteration={state['iteration']}, next_role={state['next_role']}\n"
-            f"Monitoring UI: {lab_url}\n\n"
-            f"Next step: Call autolab_next to get the PI's first prompt."
+            f"Monitoring UI: {lab_url}"
+            + _LOOP_INSTRUCTION
         )
     except Exception as e:
         return f"ERROR initializing project: {e}"
+
+
+@mcp.tool()
+async def autolab_resume(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """Resume an interrupted Autonomous Lab session.
+
+    Call this when the AI agent was disconnected, the process crashed,
+    or a new conversation is started for an existing project.
+
+    This tool:
+    1. Loads the full saved state (iteration, role, status, progress, editorial)
+    2. Reads the last several meeting log entries to reconstruct context
+    3. Lists all existing files (scripts, figures, paper sections)
+    4. Opens the monitoring UI
+    5. Returns a comprehensive briefing so the AI can continue seamlessly
+
+    After this returns, follow the MANDATORY NEXT STEPS to re-enter the loop.
+
+    Args:
+        project_directory: Path to the project directory with .autolab/
+
+    Returns:
+        str: Full recovery briefing + instructions to continue
+    """
+    from .lab.state import (
+        get_editorial,
+        get_meeting_summaries,
+        get_paper_progress,
+        get_recent_meetings,
+        load_idea,
+        load_state,
+        scan_project_files,
+    )
+
+    project_directory = os.path.abspath(project_directory)
+
+    # Verify the project exists
+    autolab_dir = os.path.join(project_directory, ".autolab")
+    if not os.path.exists(autolab_dir):
+        return (
+            f"ERROR: No Autonomous Lab project found in {project_directory}\n"
+            f"(.autolab/ directory does not exist)\n\n"
+            f"To start a new project, call autolab_init instead."
+        )
+
+    try:
+        state = load_state(project_directory)
+    except Exception as e:
+        return f"ERROR loading state: {e}"
+
+    # Open the monitoring UI (force open since this is an explicit resume)
+    _ensure_lab_ui(project_directory, force_open=True)
+
+    # Gather context
+    idea = load_idea(project_directory)
+    iteration = state.get("iteration", 0)
+    role = state.get("next_role", "pi")
+    status = state.get("status", "active")
+    progress = state.get("progress", 0)
+    experts = state.get("experts", [])
+    editorial = state.get("editorial", {})
+    created_at = state.get("created_at", "unknown")
+
+    # Recent meeting history (more than normal — 5 entries for recovery context)
+    recent_meetings = get_recent_meetings(project_directory, n=5)
+    summaries = get_meeting_summaries(project_directory)
+    file_listings = scan_project_files(project_directory)
+    paper_progress = get_paper_progress(project_directory)
+
+    # Build file listing summary
+    file_summary_parts = []
+    for category, files in file_listings.items():
+        if files:
+            file_summary_parts.append(f"  {category}/: {len(files)} file(s) — {', '.join(files[:5])}")
+    file_summary = "\n".join(file_summary_parts) if file_summary_parts else "  (no files yet)"
+
+    # Build paper progress summary
+    paper_parts = []
+    for section, info in paper_progress.items():
+        word_count = info.get("words", 0)
+        paper_parts.append(f"  {section}: {word_count} words" if word_count > 0 else f"  {section}: not written")
+    paper_summary = "\n".join(paper_parts) if paper_parts else "  (no paper sections yet)"
+
+    # Build editorial status
+    editorial_phase = editorial.get("phase", "none")
+    editorial_summary = ""
+    if editorial_phase != "none":
+        editorial_summary = (
+            f"\n\nEditorial Status:\n"
+            f"  Phase: {editorial_phase}\n"
+            f"  Round: {editorial.get('round', 1)}\n"
+            f"  Decision: {editorial.get('decision', 'pending')}\n"
+        )
+        if editorial.get("reviewers"):
+            rev_names = [r.get("name", "?") for r in editorial["reviewers"]]
+            editorial_summary += f"  Reviewers: {', '.join(rev_names)}\n"
+        if editorial.get("reviews"):
+            done_reviews = list(editorial["reviews"].keys())
+            editorial_summary += f"  Reviews completed: {', '.join(done_reviews)}\n"
+
+    # Expert consultants
+    expert_summary = ""
+    if experts:
+        expert_summary = "\n\nActive Consultants:\n"
+        for ex in experts:
+            expert_summary += f"  - {ex.get('name', '?')} ({ex.get('role', '?')})\n"
+
+    # Determine the right instruction based on current state
+    if status in ("submitted_to_editor", "reviews_complete"):
+        next_instruction = _EDITORIAL_INSTRUCTION
+    else:
+        next_instruction = _LOOP_INSTRUCTION
+
+    briefing = (
+        f"[AUTOLAB] SESSION RECOVERED — Resuming from saved state\n"
+        f"{'=' * 60}\n\n"
+        f"Project: {project_directory}\n"
+        f"Started: {created_at}\n"
+        f"Iteration: {iteration}\n"
+        f"Status: {status}\n"
+        f"Progress: {progress}%\n"
+        f"Next role: {role}\n"
+        f"{editorial_summary}"
+        f"{expert_summary}\n\n"
+        f"Project Idea:\n{idea[:500]}{'...' if len(idea) > 500 else ''}\n\n"
+        f"Files:\n{file_summary}\n\n"
+        f"Paper Progress:\n{paper_summary}\n\n"
+        f"Recent Meeting History (last 5 turns):\n"
+        f"{'─' * 40}\n"
+        f"{recent_meetings if recent_meetings.strip() else '(no meeting history yet)'}\n"
+        f"{'─' * 40}\n\n"
+        f"Meeting Summaries:\n"
+        f"{summaries[:1000] if summaries.strip() else '(none yet)'}\n\n"
+        f"{'=' * 60}\n"
+        f"Recovery complete. The monitoring UI should be open.\n"
+        f"Continue the lab from where it left off."
+        f"{next_instruction}"
+    )
+
+    return briefing
 
 
 @mcp.tool()
@@ -675,13 +845,22 @@ async def autolab_next(
     The AI should then follow the returned prompt exactly, acting as
     the specified role (PI or Trainee).
 
-    Call flow: autolab_next -> (AI acts as role) -> autolab_record -> autolab_next -> ...
+    MANDATORY LOOP PROTOCOL — the lab NEVER stops:
+
+    Normal turns:
+      autolab_next -> (act as role) -> autolab_record -> lab_meeting -> autolab_next -> ...
+
+    Editorial submission:
+      autolab_record(status='ready_for_review') -> autolab_editorial (blocks) -> follow instructions
+
+    After EVERY autolab_record call, follow the MANDATORY NEXT STEPS in the return message.
+    NEVER stop. NEVER end your turn.
 
     Args:
         project_directory: Path to the project directory
 
     Returns:
-        str: The role prompt to follow
+        str: The role prompt to follow (MUST act on it and continue the loop)
     """
     from .lab.prompts import (
         build_pi_prompt,
@@ -702,6 +881,9 @@ async def autolab_next(
     )
 
     project_directory = os.path.abspath(project_directory)
+
+    # Ensure the monitoring UI is visible on every new turn
+    _ensure_lab_ui(project_directory)
 
     try:
         state = load_state(project_directory)
@@ -725,7 +907,8 @@ async def autolab_next(
         prompt = build_submission_prompt(paper_progress, file_listings, meeting_history)
         return (
             f"[AUTOLAB] SUBMISSION MODE -- Iteration {iteration}\n\n"
-            f"{prompt}"
+            f"{prompt}\n\n"
+            f"After completing your submission, call autolab_record, then follow the MANDATORY NEXT STEPS."
         )
 
     # 2. Waiting for editor (submitted / reviews_complete)
@@ -735,18 +918,23 @@ async def autolab_next(
             return (
                 f"[AUTOLAB] AWAITING EDITOR -- Iteration {iteration}\n\n"
                 f"The manuscript has been submitted to the Editor.\n"
-                f"The Editor (user) will now decide: Desk Reject or Invite Reviewers.\n\n"
-                f"Waiting for editorial action via the monitoring UI...\n"
-                f"Call autolab_next again after the editor acts."
+                f"The Editor (user) will decide: Desk Reject or Invite Reviewers."
+                + _EDITORIAL_INSTRUCTION
             )
         if phase == "reviews_complete":
             return (
                 f"[AUTOLAB] AWAITING EDITORIAL DECISION -- Iteration {iteration}\n\n"
                 f"All reviewer reports are in.\n"
-                f"The Editor (user) will now decide: Accept / Minor Revision / Major Revision / Reject.\n\n"
-                f"Waiting for editorial decision via the monitoring UI...\n"
-                f"Call autolab_next again after the editor acts."
+                f"The Editor (user) will decide: Accept / Minor Revision / Major Revision / Reject."
+                + _EDITORIAL_INSTRUCTION
             )
+        # Catch-all for transitional editorial states
+        return (
+            f"[AUTOLAB] EDITORIAL IN PROGRESS -- Iteration {iteration}\n\n"
+            f"Editorial phase: {phase}, Status: {state.get('status')}\n"
+            f"The editorial workflow is in progress."
+            + _EDITORIAL_INSTRUCTION
+        )
 
     # 3. Reviewer turn
     if role.startswith("reviewer_"):
@@ -768,10 +956,21 @@ async def autolab_next(
         return (
             f"[AUTOLAB] REVIEWER TURN -- {reviewer['name']} ({reviewer['role']})\n"
             f"Iteration: {iteration}, Round: {round_num}\n\n"
-            f"{prompt}"
+            f"{prompt}\n\n"
+            f"After completing your review, call autolab_record, then follow the MANDATORY NEXT STEPS."
         )
 
-    # 4. PI handling revision
+    # 4. Paper accepted — PI wraps up
+    if state.get("status") == "accepted":
+        return (
+            f"[AUTOLAB] PAPER ACCEPTED -- Iteration {iteration}\n\n"
+            f"Congratulations! The manuscript has been accepted by the Editor.\n"
+            f"As PI, write a brief acknowledgment, finalize the paper, and celebrate.\n"
+            f"If there is nothing left to do, inform the user the project is complete."
+            + _LOOP_INSTRUCTION
+        )
+
+    # 5. PI handling revision
     if state.get("status") in ("revision_requested", "rejected"):
         profile = load_profile(project_directory, "pi")
         reviews = editorial.get("reviews", {})
@@ -792,7 +991,8 @@ async def autolab_next(
             f"[AUTOLAB] REVISION MODE -- Round {round_num}\n"
             f"Decision: {decision.upper().replace('_', ' ')}\n"
             f"Iteration: {iteration}\n\n"
-            f"{prompt}"
+            f"{prompt}\n\n"
+            f"After completing revision actions, call autolab_record, then follow the MANDATORY NEXT STEPS."
         )
 
     # --- Normal lab workflow ---
@@ -821,7 +1021,8 @@ async def autolab_next(
 
     return (
         f"[AUTOLAB] {role.upper()} TURN -- Iteration {iteration}\n\n"
-        f"{prompt}"
+        f"{prompt}\n\n"
+        f"After completing your actions as {role.upper()}, call autolab_record, then follow the MANDATORY NEXT STEPS."
     )
 
 
@@ -846,6 +1047,11 @@ async def autolab_record(
 
     Call this AFTER completing your role actions (as PI or Trainee).
 
+    CRITICAL LOOP PROTOCOL — you MUST follow the MANDATORY NEXT STEPS in the return message:
+      - Normal turns: call lab_meeting, then autolab_next.
+      - Submission/editorial: call autolab_editorial (blocks until editor acts).
+      - NEVER stop. NEVER end your turn. The loop runs indefinitely.
+
     Args:
         project_directory: Path to the project directory
         role: Which role just completed: 'pi' or 'trainee'
@@ -855,7 +1061,7 @@ async def autolab_record(
         progress: PI's assessment of overall project progress 0-100 (only PI should set this)
 
     Returns:
-        str: User feedback text, or empty string if auto-continued
+        str: Instructions to continue the loop (MUST follow them)
     """
     from .lab.state import (
         append_meeting_log,
@@ -886,10 +1092,13 @@ async def autolab_record(
 
     # --- Reviewer turn handling ---
     if role.startswith("reviewer_"):
-        # Extract recommendation from content
+        # Extract recommendation from content (flexible matching)
         import re
-        rec_match = re.search(r"RECOMMENDATION:\s*(\w[\w\s]*)", content)
-        conf_match = re.search(r"CONFIDENCE[^:]*:\s*(\d)", content)
+        rec_match = re.search(
+            r"(?:RECOMMENDATION|OVERALL\s+RECOMMENDATION|DECISION)[:\s]*([A-Za-z][A-Za-z _]*)",
+            content, re.IGNORECASE,
+        )
+        conf_match = re.search(r"CONFIDENCE[^:]*:\s*(\d)", content, re.IGNORECASE)
         recommendation = rec_match.group(1).strip().lower().replace(" ", "_") if rec_match else "major_revision"
         confidence = int(conf_match.group(1)) if conf_match else 3
 
@@ -903,16 +1112,26 @@ async def autolab_record(
                      if r["id"] not in editorial.get("reviews", {})]
 
         if remaining:
+            next_reviewer = remaining[0]
+            # Find reviewer name for clarity
+            rev_name = next((r.get("name", next_reviewer) for r in editorial.get("reviewers", [])
+                           if r["id"] == next_reviewer), next_reviewer)
             return (
-                f"Review by {role} recorded.\n"
-                f"Next reviewer: {remaining[0]}.\n"
-                f"Call autolab_next to continue."
+                f"Review by {role} recorded successfully.\n"
+                f"Next reviewer: {rev_name} ({next_reviewer}).\n\n"
+                f"---\n"
+                f"MANDATORY NEXT STEPS:\n"
+                f"1. Call autolab_next NOW — it will give you {rev_name}'s reviewer prompt.\n"
+                f"2. Act as that reviewer and write the review.\n"
+                f"3. Call autolab_record with role='{next_reviewer}'.\n"
+                f"4. Then repeat: autolab_next for the next reviewer (or autolab_editorial if done).\n"
+                f"NEVER stop. NEVER call lab_meeting between reviewer turns — go straight to autolab_next."
             )
         else:
             return (
-                f"Review by {role} recorded. All reviews complete.\n"
-                f"Waiting for editorial decision from the Editor (user).\n"
-                f"Call autolab_next to check status."
+                f"Review by {role} recorded. ALL REVIEWS ARE COMPLETE.\n\n"
+                f"The Editor (user) will now make a final decision."
+                + _EDITORIAL_INSTRUCTION
             )
 
     # --- PI submission handling ---
@@ -925,8 +1144,8 @@ async def autolab_record(
         return (
             f"Manuscript submitted to Editor.\n"
             f"Cover letter and manuscript summary recorded.\n"
-            f"Waiting for editorial action via the monitoring UI.\n"
-            f"Call autolab_next to check status."
+            f"The Editor (user) will now review via the monitoring UI."
+            + _EDITORIAL_INSTRUCTION
         )
 
     # --- Normal turn handling ---
@@ -952,12 +1171,260 @@ async def autolab_record(
         return (
             f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n\n"
             f"User feedback pending:\n{user_feedback}"
+            + _LOOP_INSTRUCTION
         )
 
     return (
-        f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n"
-        f"Call autolab_next to continue."
+        f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}."
+        + _LOOP_INSTRUCTION
     )
+
+
+@mcp.tool()
+async def autolab_consult(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    expert_name: Annotated[str, Field(description="Expert's name (e.g., 'Dr. Sarah Chen')")] = "",
+    expert_role: Annotated[str, Field(description="Expert's specialty (e.g., 'Statistician', 'Immunologist')")] = "",
+    expert_avatar: Annotated[str, Field(
+        description="Avatar key for the UI sprite: reviewer, bioethicist, science_writer, grant_reviewer, "
+                    "immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, "
+                    "pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, "
+                    "statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, "
+                    "clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic"
+    )] = "generic",
+    question: Annotated[str, Field(description="The specific question or topic to consult about")] = "",
+) -> str:
+    """Invite a domain expert for a one-time consultation during a PI turn.
+
+    The PI can call this to get advice from a specialist on a specific topic.
+    The AI should then role-play as that expert and provide their insight,
+    then continue the PI turn normally.
+
+    This does NOT interrupt the loop — it's a synchronous consultation within
+    the current PI turn. The expert appears in the monitoring UI sidebar.
+
+    Args:
+        project_directory: Path to the project directory
+        expert_name: Name of the expert
+        expert_role: Their specialty/domain
+        expert_avatar: Avatar sprite key for the UI
+        question: The specific question being asked
+
+    Returns:
+        str: Expert consultation prompt — the AI should role-play as the expert
+    """
+    from .lab.state import load_state, save_state
+
+    project_directory = os.path.abspath(project_directory)
+
+    if not expert_name or not expert_role or not question:
+        return "ERROR: expert_name, expert_role, and question are all required."
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    # Add expert to the list (dedup by name)
+    experts = state.get("experts", [])
+    existing = next((e for e in experts if e["name"] == expert_name), None)
+    if not existing:
+        experts.append({
+            "name": expert_name,
+            "role": expert_role,
+            "avatar": expert_avatar,
+        })
+        state["experts"] = experts
+        save_state(project_directory, state)
+
+    # Build the expert consultation prompt
+    idea = ""
+    try:
+        from .lab.state import load_idea
+        idea = load_idea(project_directory)
+    except Exception:
+        pass
+
+    return (
+        f"[CONSULTATION] Expert: {expert_name} ({expert_role})\n"
+        f"{'=' * 50}\n\n"
+        f"You are now briefly acting as **{expert_name}**, a specialist in **{expert_role}**.\n"
+        f"The PI has asked you the following question:\n\n"
+        f"> {question}\n\n"
+        f"Project context (brief):\n{idea[:300]}{'...' if len(idea) > 300 else ''}\n\n"
+        f"Provide a concise, expert response (2-4 paragraphs). Be direct and specific.\n"
+        f"Include:\n"
+        f"- Your expert opinion on the question\n"
+        f"- Key considerations the PI should be aware of\n"
+        f"- Any methodological recommendations\n"
+        f"- Potential pitfalls or caveats in your domain\n\n"
+        f"After providing the consultation, IMMEDIATELY return to acting as the PI.\n"
+        f"Do NOT call autolab_record for this consultation — it's part of the PI's turn.\n"
+        f"Continue with whatever the PI was doing before the consultation."
+    )
+
+
+@mcp.tool()
+async def autolab_editorial(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+) -> str:
+    """Wait for the Editor (user) to act on the submitted manuscript.
+
+    Call this in two scenarios:
+    1. After PI submits a manuscript (autolab_record with status='ready_for_review').
+       Waits for the editor to either Desk Reject or Invite Reviewers.
+    2. After all reviewer reports are complete.
+       Waits for the editor to make a final decision (Accept/Minor/Major/Reject).
+
+    This tool BLOCKS with NO TIMEOUT — it can wait minutes or hours.
+    The editor acts via the monitoring UI (Editor's Desk overlay).
+
+    Returns:
+      - If reviewers invited: instructions to run the reviewer loop
+        (call autolab_next for each reviewer, then autolab_editorial again)
+      - If decision made (accept/minor/major/reject): the decision + instructions
+        to call lab_meeting then autolab_next to continue PI/Trainee loop.
+    """
+    import asyncio
+
+    from .lab.state import load_state
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    editorial = state.get("editorial", {})
+    starting_phase = editorial.get("phase", "none")
+    iteration = state.get("iteration", 0)
+    current_status = state.get("status", "")
+    next_role = state.get("next_role", "")
+
+    debug_log(f"autolab_editorial: starting phase={starting_phase}, status={current_status}, next_role={next_role}")
+
+    # ── Immediate returns: if the state already advanced, don't poll ──
+
+    # Already in reviewer phase → return immediately with reviewer instructions
+    if starting_phase in ("reviewers_invited", "under_review") and next_role.startswith("reviewer_"):
+        reviewers = editorial.get("reviewers", [])
+        reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+        return (
+            f"[EDITORIAL] Reviewers invited: {reviewer_names}\n\n"
+            f"The editor has invited {len(reviewers)} reviewer(s) and reviews are in progress.\n"
+            f"You must now play each reviewer role in sequence.\n\n"
+            f"MANDATORY NEXT STEPS:\n"
+            f"1. Call autolab_next — it will return the current reviewer's prompt.\n"
+            f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
+            f"3. Call autolab_next immediately for the next reviewer (do NOT call lab_meeting between reviewers).\n"
+            f"4. Repeat until all reviews are done.\n"
+            f"5. After the LAST review, call autolab_editorial to wait for the editor's final decision.\n"
+            f"NEVER stop. Continue the loop."
+        )
+
+    # Already have a decision → return immediately
+    if starting_phase == "decision_made":
+        decision = editorial.get("decision", "")
+        feedback = editorial.get("decision_feedback", "")
+        dec_display = decision.upper().replace("_", " ")
+        return (
+            f"[EDITORIAL] Decision: {dec_display}\n\n"
+            f"Editor feedback: {feedback}\n\n"
+            f"The editorial process for this round is complete.\n"
+            f"Decision: {dec_display}"
+            + _LOOP_INSTRUCTION
+        )
+
+    # Reviews already complete → wait for decision only
+    if starting_phase == "reviews_complete":
+        debug_log("autolab_editorial: all reviews done, waiting for editor decision")
+
+    # ── Poll loop: wait for the editorial phase to advance ──
+
+    poll_interval = 5  # seconds
+    while True:
+        await asyncio.sleep(poll_interval)
+
+        try:
+            state = load_state(project_directory)
+        except Exception:
+            continue  # Retry on transient read errors
+
+        editorial = state.get("editorial", {})
+        current_phase = editorial.get("phase", "none")
+        current_status = state.get("status", "")
+        next_role = state.get("next_role", "")
+
+        # --- Case 1: We were waiting for editor after submission ---
+        if starting_phase == "submitted":
+            if current_phase in ("reviewers_invited", "under_review"):
+                # Editor invited reviewers → AI must now play reviewer roles
+                reviewers = editorial.get("reviewers", [])
+                reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+                return (
+                    f"[EDITORIAL] Reviewers invited: {reviewer_names}\n\n"
+                    f"The editor has invited {len(reviewers)} reviewer(s).\n"
+                    f"You must now play each reviewer role in sequence.\n\n"
+                    f"MANDATORY NEXT STEPS:\n"
+                    f"1. Call autolab_next — it will return the first reviewer's prompt.\n"
+                    f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
+                    f"3. Call autolab_next immediately for the next reviewer (do NOT call lab_meeting between reviewers).\n"
+                    f"4. Repeat until all reviews are done.\n"
+                    f"5. After the LAST review, call autolab_editorial to wait for the editor's final decision.\n"
+                    f"NEVER stop. Continue the loop."
+                )
+            if current_phase == "decision_made":
+                # Desk reject (editor decided without reviewers)
+                decision = editorial.get("decision", "reject")
+                feedback = editorial.get("decision_feedback", "")
+                return (
+                    f"[EDITORIAL] Decision: {decision.upper().replace('_', ' ')}\n\n"
+                    f"The editor has desk-rejected the manuscript.\n"
+                    f"Feedback: {feedback}\n"
+                    + _LOOP_INSTRUCTION
+                )
+
+        # --- Case 2: We were waiting for final decision after reviews ---
+        if starting_phase in ("reviews_complete", "under_review", "reviewers_invited"):
+            if current_phase == "decision_made":
+                decision = editorial.get("decision", "")
+                feedback = editorial.get("decision_feedback", "")
+                dec_display = decision.upper().replace("_", " ")
+                return (
+                    f"[EDITORIAL] Decision: {dec_display}\n\n"
+                    f"Editor feedback: {feedback}\n\n"
+                    f"The editorial process for this round is complete.\n"
+                    f"Decision: {dec_display}"
+                    + _LOOP_INSTRUCTION
+                )
+            # Reviewer role assigned while we're polling → break out to let AI play reviewer
+            if next_role.startswith("reviewer_") and current_phase in ("reviewers_invited", "under_review"):
+                reviewers = editorial.get("reviewers", [])
+                reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+                return (
+                    f"[EDITORIAL] Reviewer turn ready: {next_role}\n\n"
+                    f"Reviewers: {reviewer_names}\n\n"
+                    f"MANDATORY NEXT STEPS:\n"
+                    f"1. Call autolab_next to get the reviewer prompt.\n"
+                    f"2. Act as the reviewer, then call autolab_record with role='{next_role}'.\n"
+                    f"3. Call autolab_next immediately for the next reviewer (skip lab_meeting between reviewers).\n"
+                    f"4. After the LAST review, call autolab_editorial again.\n"
+                    f"NEVER stop."
+                )
+
+        # --- Generic: any phase change from what we started with ---
+        if current_phase != starting_phase:
+            return (
+                f"[EDITORIAL] Phase changed: {starting_phase} → {current_phase}\n"
+                f"Status: {current_status}\n"
+                + _LOOP_INSTRUCTION
+            )
+
+        # Still waiting — continue polling
+        # Gradually increase poll interval up to 15s to reduce disk I/O
+        if poll_interval < 15:
+            poll_interval = min(poll_interval + 1, 15)
 
 
 @mcp.tool()

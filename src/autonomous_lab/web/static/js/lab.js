@@ -127,6 +127,18 @@
   let currentTurns = [];
   let lastTurnCount = 0;
   let cachedFiles = {};
+  let labStartTime = null; // ISO timestamp from state.created_at
+
+  // Project-scoped URL builder (reads ?project= from location)
+  const _urlProject = new URLSearchParams(window.location.search).get("project") || "";
+  function apiUrl(path, extraParams) {
+    const u = new URL(path, window.location.origin);
+    if (_urlProject) u.searchParams.set("project", _urlProject);
+    if (extraParams) {
+      for (const [k, v] of Object.entries(extraParams)) u.searchParams.set(k, v);
+    }
+    return u.toString();
+  }
 
   // ============================================================
   // SPRITE ANIMATION LOOP
@@ -153,11 +165,16 @@
   // ============================================================
   async function fetchState() {
     try {
-      const resp = await fetch("/api/autolab/state");
+      const resp = await fetch(apiUrl("/api/autolab/state"));
       const data = await resp.json();
       if (data.active) {
         currentState = data;
         if (data.files) cachedFiles = data.files;
+        // Set lab start time from state (only once)
+        if (!labStartTime && data.created_at) {
+          labStartTime = new Date(data.created_at).getTime();
+          updateLabTimer();
+        }
         updateStatusBar(data);
         updateCharacterStatus(data);
         updateInventory(data);
@@ -171,7 +188,7 @@
 
   async function fetchMeetingLog() {
     try {
-      const resp = await fetch("/api/autolab/meeting-log");
+      const resp = await fetch(apiUrl("/api/autolab/meeting-log"));
       const data = await resp.json();
       if (data.turns) {
         currentTurns = data.turns;
@@ -183,11 +200,28 @@
     } catch (e) { console.warn("Meeting log fetch error:", e); }
   }
 
+  // ============================================================
+  // LAB TIMER
+  // ============================================================
+  function updateLabTimer() {
+    const el = document.getElementById("lab-timer");
+    if (!labStartTime || !el) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - labStartTime) / 1000));
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    el.textContent = h > 0
+      ? `\u23F1 ${h}:${pad(m)}:${pad(s)}`
+      : `\u23F1 ${pad(m)}:${pad(s)}`;
+  }
+
   function startPolling() {
     fetchState();
     fetchMeetingLog();
     setInterval(fetchState, 2500);
     setInterval(fetchMeetingLog, 3000);
+    setInterval(updateLabTimer, 1000);
   }
 
   // ============================================================
@@ -399,14 +433,14 @@
     if (isImageFile(fileName)) {
       const img = document.createElement("img");
       img.className = "preview-image";
-      img.src = `/api/autolab/file?path=${encodeURIComponent(filePath)}&t=${Date.now()}`;
+      img.src = apiUrl("/api/autolab/file", { path: filePath, t: Date.now() });
       img.alt = fileName;
       img.onload = () => { body.innerHTML = ""; body.appendChild(img); };
       img.onerror = () => {
         body.innerHTML = '<div class="loading-text">Could not load image.<br>The file may not exist yet.</div>';
       };
     } else {
-      fetch(`/api/autolab/file?path=${encodeURIComponent(filePath)}`)
+      fetch(apiUrl("/api/autolab/file", { path: filePath }))
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();
@@ -654,11 +688,14 @@
 
   let _selectingReviewers = false; // flag to prevent poll reset during reviewer selection
   let _manualOpen = false;          // flag: user manually opened the overlay
+  let _editorialBusy = false;       // flag: an editorial API call is in flight
+  let _userDismissedPhase = null;   // phase the user dismissed — don't re-show until phase changes
 
   function openEditorDesk() {
     const overlay = document.getElementById("editor-desk-overlay");
     if (!overlay) return;
     _manualOpen = true;
+    _userDismissedPhase = null; // clear dismiss memory when manually opening
     overlay.classList.remove("hidden");
     // Populate with latest editorial state
     const editorial = (currentState && currentState.editorial) || { phase: "none" };
@@ -686,6 +723,8 @@
     if (overlay) overlay.classList.add("hidden");
     _manualOpen = false;
     _selectingReviewers = false;
+    // Remember which phase we dismissed so the poll doesn't re-open it
+    _userDismissedPhase = editorPhase || null;
   }
 
   function updateEditorDesk(state) {
@@ -696,6 +735,9 @@
     const phase = editorial.phase || "none";
     editorPhase = phase;
 
+    // If an editorial API call is in flight, skip ALL poll updates to prevent UI reset
+    if (_editorialBusy) return;
+
     // If user is actively selecting reviewers, don't let the poll override the invite view
     if (_selectingReviewers && phase === "submitted") return;
 
@@ -705,6 +747,10 @@
     // Show/hide overlay
     const showPhases = ["submitted","reviewers_invited","under_review","reviews_complete","decision_made"];
     if (showPhases.includes(phase)) {
+      // If user dismissed this exact phase, don't re-show it
+      if (_userDismissedPhase === phase) return;
+      // Phase changed since user's dismissal — clear the flag and show
+      if (_userDismissedPhase && _userDismissedPhase !== phase) _userDismissedPhase = null;
       overlay.classList.remove("hidden");
       _manualOpen = false; // system-driven now
     } else if (!_manualOpen) {
@@ -841,16 +887,47 @@
       if (e.target.id === "editor-desk-overlay") closeEditorDesk();
     });
 
-    // Desk reject
+    // Helper: editorial API call with lock, error handling, and project_dir
+    async function editorialFetch(url, body) {
+      _editorialBusy = true;
+      // Attach project_dir from current state for multi-instance safety
+      if (currentState && currentState.project_dir) {
+        body.project_dir = currentState.project_dir;
+      }
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          const msg = err.error || `Server error (${resp.status})`;
+          console.error("Editorial API error:", msg);
+          showEditorToast("Error: " + msg);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error("Editorial fetch failed:", e);
+        showEditorToast("Network error - is the server running?");
+        return false;
+      } finally {
+        // Brief delay so the next poll picks up the new state
+        await new Promise(r => setTimeout(r, 600));
+        _editorialBusy = false;
+        fetchState();
+      }
+    }
+
+    // Desk reject — uses inline textarea instead of prompt()
     document.getElementById("btn-desk-reject").addEventListener("click", async () => {
-      const feedback = prompt("Reason for desk rejection:");
-      if (feedback === null) return;
-      await fetch("/api/autolab/editorial/desk-reject", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ feedback: feedback || "Desk rejected." }),
+      // Use the feedback textarea already in the submitted panel, or a simple confirm
+      const reason = window.prompt("Reason for desk rejection (optional):");
+      if (reason === null) return; // user cancelled
+      await editorialFetch("/api/autolab/editorial/desk-reject", {
+        feedback: reason || "Desk rejected by editor.",
       });
-      fetchState();
     });
 
     // Invite reviewers
@@ -871,13 +948,10 @@
     document.getElementById("btn-confirm-reviewers").addEventListener("click", async () => {
       if (selectedReviewers.length === 0) return;
       _selectingReviewers = false;
-      await fetch("/api/autolab/editorial/invite-reviewers", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ reviewers: selectedReviewers }),
+      await editorialFetch("/api/autolab/editorial/invite-reviewers", {
+        reviewers: selectedReviewers,
       });
       selectedReviewers = [];
-      fetchState();
     });
 
     // Decision buttons
@@ -886,12 +960,9 @@
         const decision = btn.dataset.decision;
         if (!decision) return;
         const feedback = document.getElementById("editor-feedback").value.trim();
-        await fetch("/api/autolab/editorial/decision", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ decision, feedback }),
+        await editorialFetch("/api/autolab/editorial/decision", {
+          decision, feedback,
         });
-        fetchState();
       });
     });
   }
@@ -949,7 +1020,7 @@
       if (!text) return;
       const target = document.getElementById("feedback-target").value;
       try {
-        const resp = await fetch("/api/autolab/feedback", {
+        const resp = await fetch(apiUrl("/api/autolab/feedback"), {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ text, target }),
@@ -977,6 +1048,20 @@
     el.textContent = msg;
     el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 2000);
+  }
+
+  // Toast notification inside editor desk overlay
+  function showEditorToast(msg) {
+    let toast = document.getElementById("editor-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "editor-toast";
+      toast.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:99999;background:#cc3333;color:#fff;font-family:'Press Start 2P',monospace;font-size:8px;padding:10px 20px;border-radius:4px;box-shadow:0 2px 10px rgba(0,0,0,0.5);transition:opacity 0.3s;pointer-events:none;";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = "1";
+    setTimeout(() => { toast.style.opacity = "0"; }, 4000);
   }
 
   // ============================================================

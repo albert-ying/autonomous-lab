@@ -281,11 +281,13 @@ def setup_routes(manager: "WebUIManager"):
         )
 
     @manager.app.get("/api/autolab/state")
-    async def get_autolab_state():
+    async def get_autolab_state(request: Request):
         """Get Autonomous Lab project state for the dashboard"""
         try:
-            # Use lab_project_dir if set, else fall back to current session
-            project_dir = getattr(manager, "lab_project_dir", None)
+            # Priority: URL ?project= > manager.lab_project_dir > current session
+            project_dir = request.query_params.get("project") or None
+            if not project_dir:
+                project_dir = getattr(manager, "lab_project_dir", None)
             if not project_dir:
                 current_session = manager.get_current_session()
                 if current_session:
@@ -322,12 +324,14 @@ def setup_routes(manager: "WebUIManager"):
 
             return JSONResponse(content={
                 "active": True,
+                "project_dir": str(project_dir),
                 "iteration": state.get("iteration", 0),
                 "next_role": state.get("next_role", "pi"),
                 "status": state.get("status", "active"),
                 "user_feedback": state.get("user_feedback", ""),
                 "progress": state.get("progress", 0),
                 "experts": state.get("experts", []),
+                "created_at": state.get("created_at", ""),
                 "editorial": editorial,
                 "figures": figures,
                 "paper_progress": paper_progress,
@@ -340,10 +344,10 @@ def setup_routes(manager: "WebUIManager"):
             return JSONResponse(content={"active": False, "error": str(e)})
 
     @manager.app.get("/api/autolab/meeting-log")
-    async def get_meeting_log():
+    async def get_meeting_log(request: Request):
         """Get parsed meeting log turns for the game UI conversation panel"""
         try:
-            project_dir = getattr(manager, "lab_project_dir", None)
+            project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
             if not project_dir:
                 return JSONResponse(content={"turns": []})
 
@@ -356,12 +360,12 @@ def setup_routes(manager: "WebUIManager"):
             return JSONResponse(content={"turns": [], "error": str(e)})
 
     @manager.app.get("/api/autolab/file")
-    async def get_autolab_file(path: str = ""):
+    async def get_autolab_file(request: Request, path: str = ""):
         """Serve a file from the project directory (images, code, paper sections).
 
         Security: only serves files under allowed subdirectories.
         """
-        project_dir = getattr(manager, "lab_project_dir", None)
+        project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
         if not project_dir:
             return JSONResponse(status_code=400, content={"error": "No active project"})
 
@@ -415,10 +419,22 @@ def setup_routes(manager: "WebUIManager"):
 
     # ---- Editorial workflow API ----
 
+    def _resolve_project_dir(body_project_dir: str | None = None) -> str | None:
+        """Resolve project dir: prefer body param > manager attr > current session."""
+        if body_project_dir:
+            return body_project_dir
+        pdir = getattr(manager, "lab_project_dir", None)
+        if pdir:
+            return pdir
+        current_session = manager.get_current_session()
+        if current_session:
+            return current_session.project_directory
+        return None
+
     @manager.app.get("/api/autolab/editorial")
-    async def get_editorial_state():
+    async def get_editorial_state(request: Request):
         """Get current editorial phase and data"""
-        project_dir = getattr(manager, "lab_project_dir", None)
+        project_dir = _resolve_project_dir(request.query_params.get("project"))
         if not project_dir:
             return JSONResponse(content={"phase": "none"})
         try:
@@ -432,11 +448,12 @@ def setup_routes(manager: "WebUIManager"):
     @manager.app.post("/api/autolab/editorial/invite-reviewers")
     async def invite_reviewers_api(request: Request):
         """Editor invites peer reviewers (2-3 from available pool)"""
-        project_dir = getattr(manager, "lab_project_dir", None)
-        if not project_dir:
-            return JSONResponse(status_code=400, content={"error": "No active project"})
         try:
             data = await request.json()
+            project_dir = _resolve_project_dir(data.get("project_dir"))
+            if not project_dir:
+                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+
             reviewers = data.get("reviewers", [])
             if not reviewers or len(reviewers) < 1:
                 return JSONResponse(status_code=400, content={"error": "Select at least 1 reviewer"})
@@ -458,11 +475,12 @@ def setup_routes(manager: "WebUIManager"):
     @manager.app.post("/api/autolab/editorial/decision")
     async def editorial_decision_api(request: Request):
         """Editor makes a decision on the manuscript"""
-        project_dir = getattr(manager, "lab_project_dir", None)
-        if not project_dir:
-            return JSONResponse(status_code=400, content={"error": "No active project"})
         try:
             data = await request.json()
+            project_dir = _resolve_project_dir(data.get("project_dir"))
+            if not project_dir:
+                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+
             decision = data.get("decision", "")
             feedback = data.get("feedback", "")
 
@@ -483,11 +501,12 @@ def setup_routes(manager: "WebUIManager"):
     @manager.app.post("/api/autolab/editorial/desk-reject")
     async def desk_reject_api(request: Request):
         """Editor desk-rejects without sending to reviewers"""
-        project_dir = getattr(manager, "lab_project_dir", None)
-        if not project_dir:
-            return JSONResponse(status_code=400, content={"error": "No active project"})
         try:
             data = await request.json()
+            project_dir = _resolve_project_dir(data.get("project_dir"))
+            if not project_dir:
+                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+
             feedback = data.get("feedback", "Desk rejected by editor.")
 
             from ...lab.state import record_editorial_decision
@@ -503,7 +522,10 @@ def setup_routes(manager: "WebUIManager"):
         """Store user feedback from the game UI (non-blocking, async)"""
         try:
             data = await request.json()
-            project_dir = getattr(manager, "lab_project_dir", None)
+            project_dir = _resolve_project_dir(data.get("project_dir"))
+            if not project_dir:
+                # Also check query param
+                project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
             if not project_dir:
                 return JSONResponse(
                     status_code=400,

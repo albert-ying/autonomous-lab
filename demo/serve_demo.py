@@ -64,6 +64,7 @@ async def get_state():
             "status": state.get("status", "active"),
             "progress": state.get("progress", 0),
             "experts": state.get("experts", []),
+            "created_at": state.get("created_at", ""),
             "editorial": state.get("editorial", {"phase": "none"}),
             "files": files,
             "idea": idea,

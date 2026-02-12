@@ -136,11 +136,13 @@ Which paper sections should be written or updated? Map specific findings to spec
 ### 7. EXPERT CONSULTANTS (Optional)
 You may invite domain experts for a one-time consultation. This is useful when the project touches areas outside your expertise, or you want a critical review from a specialist.
 
-To invite an expert, use `autolab_record` to update the project state with an `experts` list. Each expert should have:
-- `name` — a plausible name (e.g., "Dr. Lee")
-- `role` — their specialty (e.g., "Immunologist", "Statistician", "Bioethicist")
-- `avatar` — one of: reviewer, bioethicist, science_writer, grant_reviewer, immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic
-- `thought` — a key insight or question from that expert
+To consult an expert, call the `autolab_consult` tool with:
+- `expert_name` — a name (e.g., "Dr. Sarah Chen")
+- `expert_role` — their specialty (e.g., "Immunologist", "Statistician", "Bioethicist")
+- `expert_avatar` — one of: reviewer, bioethicist, science_writer, grant_reviewer, immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic
+- `question` — the specific question to ask
+
+The tool returns a prompt for you to role-play as that expert briefly, then return to your PI role. The expert will appear in the monitoring UI sidebar. You may consult multiple experts per turn.
 
 If you don't need expert consultation this turn, skip this section.
 
