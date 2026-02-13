@@ -568,8 +568,12 @@ def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
     Only opens a new browser tab ONCE per project per MCP session.
     Subsequent calls just update lab_project_dir without spawning tabs.
     Set force_open=True to open the browser even if already opened (e.g., autolab_resume).
+
+    If the web server thread died (crash, port conflict, etc.) this will
+    restart it automatically.
     """
     try:
+        import time
         import urllib.parse
 
         from .web.main import get_web_ui_manager
@@ -577,14 +581,28 @@ def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
         manager = get_web_ui_manager()
         manager.lab_project_dir = project_directory
 
-        # Start the server if not running
-        if manager.server_thread is None or not manager.server_thread.is_alive():
-            import time
+        # Start or restart the server if not running
+        server_was_dead = (
+            manager.server_thread is None or not manager.server_thread.is_alive()
+        )
+        if server_was_dead:
+            debug_log("Lab UI server not running — (re)starting...")
             manager.start_server()
-            time.sleep(1)
+            # Wait with retries for the server to become healthy
+            for attempt in range(5):
+                time.sleep(1)
+                try:
+                    import urllib.request
+                    health_url = f"{manager.get_server_url()}/api/autolab/state"
+                    urllib.request.urlopen(health_url, timeout=2)
+                    debug_log(f"Lab UI server healthy after {attempt + 1}s")
+                    break
+                except Exception:
+                    if attempt == 4:
+                        debug_log("Lab UI server failed health check after 5s")
 
-        # Only open browser once per project (or on force_open)
-        if project_directory not in _lab_browser_opened or force_open:
+        # Only open browser once per project (or on force_open, or after restart)
+        if project_directory not in _lab_browser_opened or force_open or server_was_dead:
             encoded = urllib.parse.quote(project_directory, safe="")
             lab_url = f"{manager.get_server_url()}/lab?project={encoded}"
             manager.open_browser(lab_url)
@@ -1421,6 +1439,9 @@ async def autolab_editorial(
 
     project_directory = os.path.abspath(project_directory)
 
+    # Ensure the web UI is running — the user needs it to make editorial decisions
+    _ensure_lab_ui(project_directory)
+
     try:
         state = load_state(project_directory)
     except FileNotFoundError as e:
@@ -1478,9 +1499,18 @@ async def autolab_editorial(
     # ── Poll loop: wait for the editorial phase to advance ──
 
     poll_interval = 5  # seconds
+    _health_check_counter = 0
     while True:
         await asyncio.sleep(poll_interval)
         elapsed_seconds += poll_interval
+        _health_check_counter += 1
+
+        # Periodic health check — restart the web server if it died (every ~60s)
+        if _health_check_counter % 12 == 0:
+            try:
+                _ensure_lab_ui(project_directory)
+            except Exception:
+                pass  # non-fatal
 
         try:
             state = load_state(project_directory)
@@ -1929,6 +1959,317 @@ async def autolab_biotools_env() -> str:
     from .integrations.biomni import check_environment
     env = check_environment()
     return json.dumps(env, indent=2)
+
+
+# ===== Character Creation =====
+
+# Available avatar sprite keys (must match EXPERT_DEFS in sprites.js)
+_AVATAR_KEYS = [
+    "reviewer", "bioethicist", "science_writer", "grant_reviewer",
+    "immunologist", "oncologist", "neuroscientist", "geneticist",
+    "cell_biologist", "microbiologist", "pathologist", "pharmacologist",
+    "structural_bio", "systems_biologist", "epidemiologist", "statistician",
+    "bioinformatician", "data_scientist", "ml_engineer", "comp_biologist",
+    "clinician", "radiologist", "surgeon", "chemist", "physicist",
+    "engineer", "psychologist", "ecologist", "generic",
+]
+
+# Built-in skill catalog for reference (users can also create their own)
+_SKILL_CATALOG = {
+    "Bioinformatics & Omics": [
+        "scanpy", "scvi-tools", "pydeseq2", "pysam", "deeptools",
+        "anndata", "cellxgene-census", "geniml", "gtars", "arboreto",
+    ],
+    "Machine Learning & AI": [
+        "scikit-learn", "pytorch-lightning", "transformers", "accelerate",
+        "shap", "torch_geometric", "deepchem", "torchdrug", "umap-learn",
+        "stable-baselines3",
+    ],
+    "Statistics & Modeling": [
+        "statistical-analysis", "statsmodels", "pymc", "scikit-survival",
+        "sympy", "pymoo",
+    ],
+    "Chemistry & Drug Discovery": [
+        "rdkit", "datamol", "medchem", "molfeat", "pytdc", "diffdock",
+        "rowan", "matchms",
+    ],
+    "Visualization": [
+        "scientific-visualization", "matplotlib", "seaborn", "plotly",
+    ],
+    "Writing & Communication": [
+        "scientific-writing", "literature-review", "peer-review",
+        "scientific-brainstorming", "hypothesis-generation",
+        "venue-templates", "latex-posters", "scientific-slides",
+    ],
+    "Clinical & Databases": [
+        "clinical-reports", "clinicaltrials-database", "clinvar-database",
+        "pubmed-database", "geo-database", "opentargets-database",
+        "string-database", "kegg-database", "reactome-database",
+        "uniprot-database", "pdb-database", "pubchem-database",
+        "chembl-database", "ensembl-database",
+    ],
+    "Infrastructure & MLOps": [
+        "weights-and-biases", "mlflow", "tensorboard", "modal",
+        "vllm", "sglang",
+    ],
+    "Data Processing": [
+        "polars", "dask", "vaex", "zarr-python", "geopandas",
+        "exploratory-data-analysis",
+    ],
+}
+
+# Flatten catalog skills for reference (not for validation — users can add custom skills)
+_KNOWN_SKILLS = sorted({s for skills in _SKILL_CATALOG.values() for s in skills})
+
+
+@mcp.tool()
+async def autolab_create_character(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    name: Annotated[str, Field(description="Character's display name (e.g., 'Dr. Maria Chen')")] = "",
+    role: Annotated[str, Field(description="Role type: 'pi', 'trainee', or 'collaborator'")] = "",
+    title: Annotated[str, Field(description="Professional title (e.g., 'Computational Biology PI')")] = "",
+    expertise: Annotated[str, Field(description="Areas of expertise (e.g., 'Single-cell genomics, machine learning')")] = "",
+    goal: Annotated[str, Field(description="Character's research goal")] = "",
+    skills: Annotated[str, Field(
+        description="Comma-separated skill names "
+                    "(e.g., 'scanpy,scvi-tools,scientific-writing,my-custom-tool'). "
+                    "Can be built-in Cursor skills or your own custom SKILL.md names. "
+                    "Use list_skills=True to browse the built-in catalog."
+    )] = "",
+    personality: Annotated[str, Field(
+        description="Pipe-separated personality traits "
+                    "(e.g., 'Rigorous: demands statistical reproducibility|"
+                    "Visionary: spots novel research directions')"
+    )] = "",
+    avatar: Annotated[str, Field(
+        description="Avatar sprite key for the game UI: reviewer, bioethicist, "
+                    "science_writer, grant_reviewer, immunologist, oncologist, "
+                    "neuroscientist, geneticist, cell_biologist, microbiologist, "
+                    "pathologist, pharmacologist, structural_bio, systems_biologist, "
+                    "epidemiologist, statistician, bioinformatician, data_scientist, "
+                    "ml_engineer, comp_biologist, clinician, radiologist, surgeon, "
+                    "chemist, physicist, engineer, psychologist, ecologist, generic"
+    )] = "generic",
+    deploy_as: Annotated[str, Field(
+        description="Deploy locally as 'pi' or 'trainee' profile "
+                    "(saves to .autolab/profiles/). Leave empty to only generate the YAML."
+    )] = "",
+    github_repo: Annotated[str, Field(
+        description="Optional GitHub repo path for marketplace listing "
+                    "(e.g., 'username/autolab-char-name')"
+    )] = "",
+    list_skills: Annotated[bool, Field(
+        description="If True, ignore other params and return the built-in skill catalog "
+                    "(you can also use any custom skill name not listed here)"
+    )] = False,
+    list_avatars: Annotated[bool, Field(
+        description="If True, ignore other params and return all available avatar keys"
+    )] = False,
+) -> str:
+    """Create a character profile for the Autonomous Lab research team.
+
+    A character is a YAML persona backed by Cursor agent skills that controls
+    how the AI behaves during research sessions. Characters can be:
+    - Deployed locally as a PI or Trainee profile
+    - Published to GitHub for the marketplace
+
+    Use list_skills=True or list_avatars=True to discover options first.
+
+    Workflow:
+    1. Call with list_skills=True to see available skills by domain.
+    2. Call with all fields filled to generate + optionally deploy the character.
+    3. Push to GitHub and submit to the marketplace.
+
+    Args:
+        project_directory: Project directory path
+        name: Character display name
+        role: pi, trainee, or collaborator
+        title: Professional title
+        expertise: Areas of expertise
+        goal: Research goal
+        skills: Comma-separated Cursor skill names
+        personality: Pipe-separated personality traits (Trait: description)
+        avatar: Sprite key for the game UI
+        deploy_as: Deploy as 'pi' or 'trainee' profile locally
+        github_repo: GitHub repo for marketplace listing
+        list_skills: Return skill catalog instead of creating
+        list_avatars: Return avatar list instead of creating
+
+    Returns:
+        str: Generated YAML, deployment confirmation, or catalog listing
+    """
+    import yaml as _yaml
+    from pathlib import Path
+
+    # ── Discovery modes ──
+
+    if list_skills:
+        lines = ["# Built-in Cursor Skills (Reference Catalog)\n"]
+        lines.append(f"Total: {len(_KNOWN_SKILLS)} built-in skills across {len(_SKILL_CATALOG)} domains\n")
+        for domain, skill_list in _SKILL_CATALOG.items():
+            lines.append(f"\n## {domain}")
+            for s in skill_list:
+                lines.append(f"  - {s}")
+        lines.append(
+            "\n---\n"
+            "## Custom Skills\n"
+            "You are NOT limited to this catalog. You can use ANY custom skill name.\n"
+            "Custom skills just need a SKILL.md file in ~/.cursor/skills/<name>/SKILL.md.\n"
+            "Example: skills='scanpy,my-protein-docking-tool,lab-specific-pipeline'\n"
+            "\n## Tips\n"
+            "- Choose 4-8 skills for focus\n"
+            "- PI characters should include 'scientific-writing'\n"
+            "- Trainee characters should include hands-on tools\n"
+            "- Collaborators should focus on their specialty\n"
+        )
+        return "\n".join(lines)
+
+    if list_avatars:
+        lines = ["# Available Avatar Sprite Keys\n"]
+        lines.append("These control the pixel-art character in the game UI:\n")
+        for a in _AVATAR_KEYS:
+            lines.append(f"  - {a}")
+        lines.append(
+            "\n---\n"
+            "Pass your chosen avatar key:\n"
+            "  avatar='neuroscientist'"
+        )
+        return "\n".join(lines)
+
+    # ── Validation ──
+
+    errors = []
+    if not name:
+        errors.append("'name' is required (e.g., 'Dr. Maria Chen')")
+    if role not in ("pi", "trainee", "collaborator"):
+        errors.append("'role' must be 'pi', 'trainee', or 'collaborator'")
+    if not title:
+        errors.append("'title' is required (e.g., 'Computational Biology PI')")
+    if not expertise:
+        errors.append("'expertise' is required")
+    if not goal:
+        errors.append("'goal' is required")
+    if not skills:
+        errors.append("'skills' is required (comma-separated Cursor skill names)")
+    if not personality:
+        errors.append("'personality' is required (pipe-separated 'Trait: description' entries)")
+    if avatar not in _AVATAR_KEYS:
+        errors.append(f"'avatar' must be one of: {', '.join(_AVATAR_KEYS[:5])}... (use list_avatars=True)")
+    if deploy_as and deploy_as not in ("pi", "trainee"):
+        errors.append("'deploy_as' must be 'pi' or 'trainee' (or empty)")
+
+    if errors:
+        return (
+            "ERROR: Missing or invalid fields:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+            + "\n\nUse list_skills=True or list_avatars=True to discover options."
+        )
+
+    # ── Parse inputs ──
+
+    skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+    personality_list = [p.strip() for p in personality.split("|") if p.strip()]
+
+    # Note which skills are custom (not in the built-in catalog)
+    custom = [s for s in skill_list if s not in _KNOWN_SKILLS]
+
+    # ── Build YAML content ──
+
+    source_line = ""
+    if github_repo:
+        clean_repo = github_repo.strip().strip("/")
+        source_line = f"# Source: https://github.com/{clean_repo}\n"
+
+    character_data = {
+        "title": title,
+        "expertise": expertise,
+        "goal": goal,
+        "skills": skill_list,
+        "personality": personality_list,
+    }
+
+    yaml_header = (
+        f"# {name} — {title}\n"
+        f"# Role: {role}\n"
+        f"# Avatar: {avatar}\n"
+        f"{source_line}"
+    )
+    yaml_body = _yaml.dump(
+        character_data,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    full_yaml = yaml_header + "\n" + yaml_body
+
+    # ── Save character.yaml ──
+
+    project_dir = os.path.abspath(project_directory)
+    char_filename = name.lower().replace(" ", "-").replace(".", "").replace("'", "")
+    char_path = Path(project_dir) / f"{char_filename}.yaml"
+    char_path.write_text(full_yaml, encoding="utf-8")
+
+    output_lines = [
+        f"Character created: {char_path}\n",
+        "--- Generated YAML ---",
+        full_yaml,
+        "--- End YAML ---\n",
+    ]
+
+    # ── Deploy locally ──
+
+    if deploy_as:
+        autolab_dir = Path(project_dir) / ".autolab" / "profiles"
+        autolab_dir.mkdir(parents=True, exist_ok=True)
+        target = autolab_dir / (f"{deploy_as}.yaml")
+        target.write_text(full_yaml, encoding="utf-8")
+        output_lines.append(
+            f"Deployed as {deploy_as} profile: {target}\n"
+            f"This character is now active. Run autolab_next to use it."
+        )
+
+    # ── Skill notes ──
+
+    if custom:
+        output_lines.append(
+            f"\nCustom skills (not in built-in catalog): {', '.join(custom)}\n"
+            f"Make sure each has a SKILL.md at ~/.cursor/skills/<name>/SKILL.md"
+        )
+
+    if len(skill_list) > 8:
+        output_lines.append(
+            "\nWARNING: More than 8 skills can dilute focus. "
+            "Consider keeping 4-8 skills for best results."
+        )
+
+    # ── GitHub publishing instructions ──
+
+    if github_repo:
+        clean_repo = github_repo.strip().strip("/")
+        output_lines.append(
+            f"\n--- Publishing to Marketplace ---\n"
+            f"1. Create the repo: https://github.com/new\n"
+            f"   Or fork: https://github.com/MarcusOfficial/autolab-character-template/fork\n"
+            f"2. Copy {char_path.name} into the repo as character.yaml\n"
+            f"3. Add a README.md describing the character\n"
+            f"4. Push to GitHub:\n"
+            f"   git add . && git commit -m 'Character: {name}' && git push\n"
+            f"5. Submit to marketplace:\n"
+            f"   Open an issue at https://github.com/MarcusOfficial/autonomous-lab/issues/new\n"
+            f"   Title: New Character: {name}\n"
+            f"   Body: Repo URL: https://github.com/{clean_repo}\n"
+            f"\nOnce indexed, the character appears at https://MarcusOfficial.github.io/autonomous-lab/"
+        )
+    else:
+        output_lines.append(
+            "\nTo publish to the marketplace, call again with "
+            "github_repo='username/autolab-char-name' or manually:\n"
+            "1. Create a GitHub repo from https://github.com/MarcusOfficial/autolab-character-template/fork\n"
+            "2. Copy the YAML as character.yaml\n"
+            "3. Open an issue at https://github.com/MarcusOfficial/autonomous-lab/issues/new"
+        )
+
+    return "\n".join(output_lines)
 
 
 # ===== Main entry point =====
