@@ -34,16 +34,6 @@ The easiest way: copy this page link into **Claude Code**, Cursor, or any coding
 
 Or do it manually:
 
-```bash
-# From PyPI
-uv pip install autonomous-lab
-
-# With optional biomedical toolkit (biomni)
-uv pip install autonomous-lab[biotools]
-```
-
-## Quick start
-
 Add to your MCP client config (e.g. Cursor `~/.cursor/mcp.json`):
 
 ```json
