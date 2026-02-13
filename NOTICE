@@ -3,22 +3,32 @@ Copyright 2025-2026 Albert Ying
 
 This project builds on the following open-source work:
 
-1. mcp-feedback-enhanced
+1. The Virtual Lab
+   By James Zou Lab, Stanford University, MIT License
+   https://github.com/zou-group/virtual-lab
+   Swanson et al., "The Virtual Lab of AI agents designs new
+   SARS-CoV-2 nanobodies." Nature (2025).
+
+   The concept of a virtual research lab with LLM agents acting
+   as PI and scientist roles, iterating through structured meetings,
+   is inspired by this work.
+
+2. mcp-feedback-enhanced
    By Minidoracat (2024), MIT License
    https://github.com/Minidoracat/mcp-feedback-enhanced
 
    The Web UI, feedback loop, session management, and i18n
    infrastructure are derived from this project.
 
-2. interactive-feedback-mcp
+3. interactive-feedback-mcp
    By Fábio Ferreira (2024), MIT License
    https://github.com/fabiomlferreira/interactive-feedback-mcp
 
    The original MCP feedback server that mcp-feedback-enhanced
    was built upon.
 
-3. BiomNI
-   By James Zou Lab, Stanford University, Apache 2.0 License
+4. BiomNI
+   By Jure Leskovec Lab, Stanford University, Apache 2.0 License
    https://github.com/snap-stanford/Biomni
 
    The optional biomedical toolkit integration wraps BiomNI's
@@ -26,8 +36,8 @@ This project builds on the following open-source work:
    at runtime when the user opts in. Some integrated tools and
    databases within BiomNI carry their own licenses.
 
-The original MIT-licensed code from (1) and (2) has been
+The original MIT-licensed code from (2) and (3) has been
 substantially modified, extended, and re-architected for the
 Autonomous Lab project (autonomous PI/Trainee loop, editorial
 workflow, character system, skill containers, citation engine,
-game-style monitoring UI).
+game-style monitoring UI, multi-domain generalization).

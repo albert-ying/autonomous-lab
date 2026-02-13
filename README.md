@@ -116,9 +116,10 @@ personality:
 
 Autonomous Lab builds on these open-source projects:
 
+- [The Virtual Lab](https://github.com/zou-group/virtual-lab) by James Zou Lab, Stanford (MIT) -- the concept of LLM agents as PI and scientists iterating through structured research meetings ([Swanson et al., Nature 2025](https://www.nature.com/articles/s41586-025-09442-9))
 - [mcp-feedback-enhanced](https://github.com/Minidoracat/mcp-feedback-enhanced) by Minidoracat (MIT) -- Web UI, feedback loop, session management, and i18n infrastructure
 - [interactive-feedback-mcp](https://github.com/fabiomlferreira/interactive-feedback-mcp) by Fábio Ferreira (MIT) -- the original MCP feedback server
-- [BiomNI](https://github.com/snap-stanford/Biomni) by James Zou Lab, Stanford (Apache 2.0) -- optional biomedical toolkit integration (100+ tools and databases)
+- [BiomNI](https://github.com/snap-stanford/Biomni) by Jure Leskovec Lab, Stanford (Apache 2.0) -- optional biomedical toolkit integration
 
 ## License
 
