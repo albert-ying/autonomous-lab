@@ -66,6 +66,7 @@ def init_project(
     pi_profile: dict | None = None,
     trainee_profile: dict | None = None,
     config: dict | None = None,
+    domain: str = "research",
 ) -> dict:
     """
     Initialize a new Autonomous Lab project.
@@ -92,11 +93,13 @@ def init_project(
     with open(autolab / PROFILES_DIR / TRAINEE_PROFILE, "w", encoding="utf-8") as f:
         yaml.dump(trainee, f, default_flow_style=False, allow_unicode=True)
 
-    # Write config
+    # Write config (include domain)
+    domain_cfg = DOMAIN_CONFIGS.get(domain, DOMAIN_CONFIGS["research"])
     default_cfg = {
+        "domain": domain,
         "max_iterations": 50,
-        "target_journal": "Nature",
-        "editor_timeout_minutes": 30,   # 0 = no timeout (wait forever)
+        "target_venue": domain_cfg.get("target_venue", "Nature"),
+        "editor_timeout_minutes": 30,  # 0 = no timeout (wait forever)
     }
     if config:
         default_cfg.update(config)
@@ -109,8 +112,8 @@ def init_project(
         "iteration": 0,
         "next_role": "pi",
         "status": "active",
-        "user_feedback": "",          # legacy compat (read by older code paths)
-        "feedback_queue": [],         # accumulates messages until drained
+        "user_feedback": "",  # legacy compat (read by older code paths)
+        "feedback_queue": [],  # accumulates messages until drained
         "progress": 0,
         "experts": [],
         "created_at": now,
@@ -141,8 +144,7 @@ def load_state(project_dir: str) -> dict:
     state_path = _autolab_path(project_dir) / STATE_FILE
     if not state_path.exists():
         raise FileNotFoundError(
-            f"No .autolab/state.json found in {project_dir}. "
-            "Run autolab_init first."
+            f"No .autolab/state.json found in {project_dir}. " "Run autolab_init first."
         )
     with open(state_path, encoding="utf-8") as f:
         return json.load(f)
@@ -224,7 +226,7 @@ def compress_old_meetings(project_dir: str, keep_recent: int = 3) -> None:
     if len(entries) <= keep_recent:
         return  # Nothing to compress
 
-    old_entries = entries[: -keep_recent]
+    old_entries = entries[:-keep_recent]
     recent_entries = entries[-keep_recent:]
 
     # Build compressed summaries from old entries
@@ -348,6 +350,127 @@ def load_config(project_dir: str) -> dict:
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+# ---------------------------------------------------------------------------
+# Domain configuration — maps domain IDs to role/artifact labels
+# ---------------------------------------------------------------------------
+DOMAIN_CONFIGS = {
+    "research": {
+        "senior_label": "Professor",
+        "senior_short": "PI",
+        "junior_label": "Trainee",
+        "junior_short": "Trainee",
+        "overseer_label": "Editor",
+        "reviewer_label": "Reviewer",
+        "artifact": "Paper",
+        "artifact_plural": "Papers",
+        "workspace": "Lab",
+        "meeting_log_name": "Meeting Log",
+        "review_process": "Peer Review",
+        "consultant_label": "Consultant",
+        "decisions": ["Accept", "Minor Revision", "Major Revision", "Reject"],
+        "target_venue": "Nature",
+    },
+    "software": {
+        "senior_label": "Tech Lead",
+        "senior_short": "Lead",
+        "junior_label": "Developer",
+        "junior_short": "Dev",
+        "overseer_label": "Code Reviewer",
+        "reviewer_label": "Reviewer",
+        "artifact": "Pull Request",
+        "artifact_plural": "Pull Requests",
+        "workspace": "Sprint",
+        "meeting_log_name": "Standup Log",
+        "review_process": "Code Review",
+        "consultant_label": "Specialist",
+        "decisions": ["Approve", "Request Changes", "Needs Discussion", "Reject"],
+        "target_venue": "Production",
+    },
+    "consulting": {
+        "senior_label": "Partner",
+        "senior_short": "Partner",
+        "junior_label": "Associate",
+        "junior_short": "Associate",
+        "overseer_label": "Client",
+        "reviewer_label": "Advisor",
+        "artifact": "Strategy Report",
+        "artifact_plural": "Reports",
+        "workspace": "Engagement",
+        "meeting_log_name": "Engagement Log",
+        "review_process": "Client Review",
+        "consultant_label": "Subject Expert",
+        "decisions": ["Approve", "Revise", "Rework", "Reject"],
+        "target_venue": "Board Presentation",
+    },
+    "legal": {
+        "senior_label": "Senior Partner",
+        "senior_short": "Partner",
+        "junior_label": "Associate",
+        "junior_short": "Associate",
+        "overseer_label": "Reviewing Partner",
+        "reviewer_label": "Counsel",
+        "artifact": "Legal Brief",
+        "artifact_plural": "Briefs",
+        "workspace": "Case",
+        "meeting_log_name": "Case Log",
+        "review_process": "Partner Review",
+        "consultant_label": "Specialist",
+        "decisions": ["File", "Minor Edits", "Major Rewrite", "Withdraw"],
+        "target_venue": "Court Filing",
+    },
+    "medical": {
+        "senior_label": "Attending",
+        "senior_short": "Attending",
+        "junior_label": "Resident",
+        "junior_short": "Resident",
+        "overseer_label": "Chief",
+        "reviewer_label": "Reviewer",
+        "artifact": "Treatment Plan",
+        "artifact_plural": "Plans",
+        "workspace": "Rounds",
+        "meeting_log_name": "Rounds Log",
+        "review_process": "Peer Review",
+        "consultant_label": "Specialist",
+        "decisions": ["Approve", "Modify Plan", "Reassess", "Override"],
+        "target_venue": "Clinical Practice",
+    },
+    "creative": {
+        "senior_label": "Art Director",
+        "senior_short": "AD",
+        "junior_label": "Designer",
+        "junior_short": "Designer",
+        "overseer_label": "Creative Director",
+        "reviewer_label": "Reviewer",
+        "artifact": "Campaign",
+        "artifact_plural": "Campaigns",
+        "workspace": "Studio",
+        "meeting_log_name": "Creative Brief",
+        "review_process": "Creative Review",
+        "consultant_label": "Specialist",
+        "decisions": ["Approve", "Polish", "Rework", "Scrap"],
+        "target_venue": "Client Presentation",
+    },
+}
+
+
+def get_domain_config(project_dir: str) -> dict:
+    """
+    Get domain-specific labels for a project.
+
+    Reads the 'domain' key from config.yaml and returns the corresponding
+    label dictionary. Defaults to 'research' for backward compatibility.
+    """
+    cfg = load_config(project_dir)
+    domain = cfg.get("domain", "research")
+    return DOMAIN_CONFIGS.get(domain, DOMAIN_CONFIGS["research"])
+
+
+def get_domain_id(project_dir: str) -> str:
+    """Get the domain ID for a project (default: 'research')."""
+    cfg = load_config(project_dir)
+    return cfg.get("domain", "research")
 
 
 def get_editor_timeout_seconds(project_dir: str) -> int:
@@ -476,12 +599,12 @@ def has_pending_feedback(project_dir: str) -> bool:
 # Editorial workflow state
 # ---------------------------------------------------------------------------
 EDITORIAL_PHASES = (
-    "none",               # Normal lab mode
-    "submitted",          # PI submitted manuscript + cover letter
+    "none",  # Normal lab mode
+    "submitted",  # PI submitted manuscript + cover letter
     "reviewers_invited",  # Editor invited reviewers
-    "under_review",       # Reviewers generating reports
-    "reviews_complete",   # All reviews in, awaiting editorial decision
-    "decision_made",      # Editor made decision, returning to PI
+    "under_review",  # Reviewers generating reports
+    "reviews_complete",  # All reviews in, awaiting editorial decision
+    "decision_made",  # Editor made decision, returning to PI
 )
 
 
@@ -499,7 +622,7 @@ def _default_editorial() -> dict:
         "reviews": {},
         "decision": "",
         "decision_feedback": "",
-        "round": 0,          # revision round counter
+        "round": 0,  # revision round counter
     }
 
 

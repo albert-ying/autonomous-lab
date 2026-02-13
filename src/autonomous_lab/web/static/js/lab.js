@@ -129,6 +129,63 @@
   let cachedFiles = {};
   let labStartTime = null; // ISO timestamp from state.created_at
 
+  // Domain-configurable labels (overridden from API state.domain_config)
+  let domainLabels = {
+    senior_label: "Professor",
+    senior_short: "PI",
+    junior_label: "Trainee",
+    junior_short: "Trainee",
+    overseer_label: "Editor",
+    reviewer_label: "Reviewer",
+    artifact: "Paper",
+    meeting_log_name: "Meeting Log",
+    consultant_label: "Consultant",
+  };
+
+  /** Apply domain labels from API response to the UI */
+  function applyDomainLabels(dcfg) {
+    if (!dcfg) return;
+    Object.assign(domainLabels, dcfg);
+
+    // Character card names
+    const piName = document.querySelector("#pi-card .char-name");
+    if (piName) piName.textContent = domainLabels.senior_label;
+    const trainName = document.querySelector("#trainee-card .char-name");
+    if (trainName) trainName.textContent = domainLabels.junior_label;
+
+    // Meeting log panel header
+    const convHeader = document.querySelector("#conversation-panel .panel-header h2");
+    if (convHeader) convHeader.textContent = domainLabels.meeting_log_name;
+
+    // Paper panel header
+    const paperHeader = document.querySelector(".paper-header h2");
+    if (paperHeader) paperHeader.textContent = domainLabels.artifact;
+
+    // Feedback dropdown
+    const piOpt = document.querySelector('#feedback-target option[value="pi"]');
+    if (piOpt) piOpt.textContent = domainLabels.senior_label;
+    const trainOpt = document.querySelector('#feedback-target option[value="trainee"]');
+    if (trainOpt) trainOpt.textContent = domainLabels.junior_label;
+
+    // Editorial office text
+    const editorTitle = document.getElementById("editor-title");
+    if (editorTitle) editorTitle.textContent = domainLabels.overseer_label + "'s Desk";
+    const editorialBtn = document.getElementById("btn-open-editorial");
+    if (editorialBtn) editorialBtn.innerHTML = "&#x1F4EC; " + domainLabels.overseer_label + "'s Office";
+
+    // Empty editorial state hint
+    const emptyHint = document.querySelector("#editor-phase-empty .empty-hint");
+    if (emptyHint) {
+      emptyHint.textContent =
+        `The ${domainLabels.overseer_label.toLowerCase()}'s office will open when the ` +
+        `${domainLabels.senior_label} submits a ${domainLabels.artifact.toLowerCase()} for review.`;
+    }
+
+    // Experts/consultants section divider
+    const expertsDivider = document.querySelector("#experts-section .experts-divider span");
+    if (expertsDivider) expertsDivider.textContent = domainLabels.consultant_label + "s";
+  }
+
   // Project-scoped URL builder (reads ?project= from location)
   const _urlProject = new URLSearchParams(window.location.search).get("project") || "";
   function apiUrl(path, extraParams) {
@@ -170,6 +227,8 @@
       if (data.active) {
         currentState = data;
         if (data.files) cachedFiles = data.files;
+        // Apply domain labels from config (idempotent)
+        if (data.domain_config) applyDomainLabels(data.domain_config);
         // Set lab start time from state (only once)
         if (!labStartTime && data.created_at) {
           labStartTime = new Date(data.created_at).getTime();
@@ -229,8 +288,11 @@
   // ============================================================
   function updateStatusBar(state) {
     document.getElementById("iteration-num").textContent = state.iteration;
-    document.getElementById("next-role").textContent =
-      state.next_role === "pi" ? "PI" : "TRAINEE";
+    // Use domain labels for the next-role badge
+    const roleLabel = state.next_role === "pi"
+      ? domainLabels.senior_short
+      : (state.next_role === "trainee" ? domainLabels.junior_short || domainLabels.junior_label : state.next_role);
+    document.getElementById("next-role").textContent = roleLabel.toUpperCase();
     document.getElementById("status-text").textContent =
       state.status === "active" ? "Running" :
       state.status === "ready_for_review" ? "Review" : state.status;
@@ -596,7 +658,7 @@
     const container = document.getElementById("conversation-content");
     if (!turns.length) {
       container.innerHTML =
-        '<div class="empty-state"><p>Waiting for the first turn...</p><p class="hint">The PI will speak first.</p></div>';
+        `<div class="empty-state"><p>Waiting for the first turn...</p><p class="hint">The ${domainLabels.senior_label} will speak first.</p></div>`;
       return;
     }
 
@@ -606,7 +668,7 @@
       bubble.className = `turn-bubble ${turn.role}`;
 
       const roleIcon = turn.role === "pi" ? "\uD83D\uDD2C" : "\uD83E\uDDEA";
-      const roleName = turn.role === "pi" ? "Professor" : "Trainee";
+      const roleName = turn.role === "pi" ? domainLabels.senior_label : domainLabels.junior_label;
       const summaryText = turn.summary || "(no summary)";
       const hasDetails = turn.content && turn.content.length > 0;
       const detailId = `detail-${idx}`;
@@ -794,7 +856,7 @@
         const remainSec = Math.floor((remainMs % 60000) / 1000);
 
         if (remainMs <= 0) {
-          badge.textContent = "AI EDITOR ACTIVE";
+          badge.textContent = `AI ${domainLabels.overseer_label.toUpperCase()} ACTIVE`;
           badge.classList.add("urgent");
         } else {
           const padSec = String(remainSec).padStart(2, "0");
@@ -930,7 +992,7 @@
     panel.style.display = "block";
     const result = document.getElementById("decision-result");
     const dec = (editorial.decision || "").toUpperCase().replace(/_/g, " ");
-    result.innerHTML = `Decision: ${dec}<br><br>${escapeHtmlSafe(editorial.decision_feedback || "")}<br><br>Returning to PI...`;
+    result.innerHTML = `Decision: ${dec}<br><br>${escapeHtmlSafe(editorial.decision_feedback || "")}<br><br>Returning to ${domainLabels.senior_label}...`;
     // Auto-hide after 5 seconds only if not user-opened
     if (!_manualOpen) {
       setTimeout(() => {

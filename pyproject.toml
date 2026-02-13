@@ -1,20 +1,23 @@
 [project]
 name = "autonomous-lab"
 version = "0.5.1"
-description = "MCP server for iterative PI/Trainee research sessions with monitoring web UI, producing submission-ready LaTeX papers."
+description = "MCP server that turns any Senior-Junior workflow into an autonomous loop with a human decision maker. Seamless integration with Cursor, Claude Code, Codex, and any MCP client."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "Albert Ying" }
 ]
-keywords = ["mcp", "ai", "research", "lab", "pi", "trainee", "latex", "paper"]
+keywords = ["mcp", "ai", "agent", "autonomous", "workflow", "skill-container", "cursor", "claude-code"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [

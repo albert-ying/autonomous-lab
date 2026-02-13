@@ -301,6 +301,7 @@ def setup_routes(manager: "WebUIManager"):
                 return JSONResponse(content={"active": False})
 
             from ...lab.state import (
+                get_domain_config,
                 get_paper_progress,
                 load_config,
                 load_state,
@@ -311,6 +312,7 @@ def setup_routes(manager: "WebUIManager"):
             file_listings = scan_project_files(project_dir)
             paper_progress = get_paper_progress(project_dir)
             config = load_config(project_dir)
+            domain_config = get_domain_config(project_dir)
 
             figures = file_listings.get("figures", [])
 
@@ -342,6 +344,7 @@ def setup_routes(manager: "WebUIManager"):
                 "file_counts": {k: len(v) for k, v in file_listings.items()},
                 "files": file_listings,
                 "biotools": biotools_info,
+                "domain_config": domain_config,
             })
         except Exception as e:
             debug_log(f"Autolab state API error: {e}")

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Lab — The Work Unit, Reimagined</title>
+    <meta name="description" content="A multi-agent system where AI fills the Senior and Junior roles, while the human acts as Overseer. Works across research, software, consulting, legal, medical, and creative domains. MCP-powered.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x2697;</text></svg>">
+</head>
+<body>
+    <!-- ========== FIXED NAVIGATION ========== -->
+    <nav id="top-nav">
+        <div class="nav-left">
+            <span class="nav-icon">&#x2697;&#xFE0F;</span>
+            <span class="nav-title">AUTONOMOUS LAB</span>
+        </div>
+        <div class="nav-links">
+            <a href="#hero" class="nav-link active">Home</a>
+            <a href="#tutorial" class="nav-link">Tutorial</a>
+            <a href="#characters" class="nav-link">Characters</a>
+            <a href="#marketplace" class="nav-link">Marketplace</a>
+            <a href="#get-started" class="nav-link">Get Started</a>
+        </div>
+        <div class="nav-right">
+            <a href="https://github.com/ayinghub/autonomous-lab" class="nav-github" target="_blank" rel="noopener">
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                GitHub
+            </a>
+        </div>
+    </nav>
+
+    <!-- ========== HERO SECTION ========== -->
+    <section id="hero" class="section hero-section">
+        <div class="hero-content">
+            <div class="hero-sprites">
+                <div class="hero-char">
+                    <canvas id="hero-pi-sprite" width="40" height="64"></canvas>
+                    <div class="hero-char-label pi-label">Professor</div>
+                </div>
+                <div class="hero-arrow">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-label">collaborate</div>
+                    <div class="arrow-line"></div>
+                </div>
+                <div class="hero-char">
+                    <canvas id="hero-trainee-sprite" width="40" height="64"></canvas>
+                    <div class="hero-char-label trainee-label">Trainee</div>
+                </div>
+                <div class="hero-arrow">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-label">submit</div>
+                    <div class="arrow-line"></div>
+                </div>
+                <div class="hero-char hero-you">
+                    <div class="hero-you-icon">&#x1F9D1;&#x200D;&#x1F52C;</div>
+                    <div class="hero-char-label editor-label">You (Editor)</div>
+                </div>
+            </div>
+            <p class="hero-kicker">Senior. Junior. You. The work unit, reimagined.</p>
+            <!-- Domain Switcher — Tag-machine selector -->
+            <div class="domain-switcher">
+                <button class="domain-pill active" data-domain="research">&#x1F52C; Research</button>
+                <button class="domain-pill" data-domain="software">&#x1F4BB; Software</button>
+                <button class="domain-pill" data-domain="consulting">&#x1F4BC; Consulting</button>
+                <button class="domain-pill" data-domain="legal">&#x2696;&#xFE0F; Legal</button>
+                <button class="domain-pill" data-domain="medical">&#x1FA7A; Medical</button>
+                <button class="domain-pill" data-domain="creative">&#x1F3A8; Creative</button>
+            </div>
+            <h1 class="hero-title">Autonomous Lab</h1>
+            <p class="hero-subtitle">You did the research. Now you judge it.</p>
+            <p class="hero-description">
+                AI takes the <strong class="dyn-senior">PI</strong> and <strong class="dyn-junior">Trainee</strong>
+                roles&hairsp;&mdash;&hairsp;designing experiments, running analysis, writing the paper.
+                You become the <strong class="dyn-overseer">Editor</strong>: the sole decision maker who
+                curates, judges, and steers the science.
+            </p>
+            <div class="hero-mcp-banner">
+                <span class="mcp-label">&#x1F50C; MCP Server</span>
+                <span class="mcp-desc">Integrates seamlessly into your existing AI agent workflow.
+                    Reuse your skills. Configure characters. Run 24-hour sessions.</span>
+                <div class="mcp-tools">
+                    <span class="mcp-tool">Cursor</span>
+                    <span class="mcp-tool">Claude Code</span>
+                    <span class="mcp-tool">Codex CLI</span>
+                    <span class="mcp-tool">Windsurf</span>
+                    <span class="mcp-tool">Any MCP Client</span>
+                </div>
+            </div>
+            <div class="hero-cta">
+                <a href="#tutorial" class="btn-primary">See How It Works</a>
+                <a href="#marketplace" class="btn-secondary">Browse Characters</a>
+            </div>
+            <div class="hero-badges">
+                <span class="badge">&#x1F4DD; LaTeX Papers</span>
+                <span class="badge">&#x1F9EC; Skill Containers</span>
+                <span class="badge">&#x23F1;&#xFE0F; 24-Hour Sessions</span>
+                <span class="badge">&#x2699;&#xFE0F; Fully Configurable</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== TUTORIAL SECTION (Meeting-Log Style) ========== -->
+    <section id="tutorial" class="section">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F4DC; How It Works</h2>
+            <p class="section-subtitle">Watch a research session unfold, step by step</p>
+        </div>
+
+        <!-- Fake Lab UI Frame -->
+        <div class="lab-frame">
+            <!-- Lab Frame Top Bar -->
+            <div class="lab-frame-topbar">
+                <div class="lf-left">
+                    <span class="lf-icon">&#x2697;&#xFE0F;</span>
+                    <span class="lf-title">AUTONOMOUS LAB</span>
+                </div>
+                <div class="lf-center">
+                    <span class="lf-badge-label">Iteration</span>
+                    <span class="lf-badge-value" id="tut-iteration">1</span>
+                    <span class="lf-divider">|</span>
+                    <span class="lf-badge-label">Next</span>
+                    <span class="lf-badge-value" id="tut-role">PI</span>
+                    <span class="lf-divider">|</span>
+                    <span class="lf-dot"></span>
+                    <span class="lf-badge-value">Tutorial</span>
+                </div>
+                <div class="lf-right">
+                    <span class="lf-timer">&#x23F1; 00:00</span>
+                </div>
+            </div>
+
+            <!-- Lab Frame 3-Column -->
+            <div class="lab-frame-grid">
+                <!-- Left: Characters -->
+                <aside class="lf-characters">
+                    <div class="lf-char-card" id="tut-pi-card">
+                        <div class="lf-char-header">
+                            <span>&#x1F52C;</span>
+                            <span class="lf-char-name">Professor</span>
+                        </div>
+                        <canvas id="tut-pi-sprite" width="40" height="64" class="lf-sprite"></canvas>
+                        <div class="lf-char-status">
+                            <span class="lf-status-dot idle" id="tut-pi-dot"></span>
+                            <span class="lf-status-text" id="tut-pi-status">Idle</span>
+                        </div>
+                    </div>
+                    <div class="lf-char-card" id="tut-trainee-card">
+                        <div class="lf-char-header">
+                            <span>&#x1F9EA;</span>
+                            <span class="lf-char-name">Trainee</span>
+                        </div>
+                        <canvas id="tut-trainee-sprite" width="40" height="64" class="lf-sprite"></canvas>
+                        <div class="lf-char-status">
+                            <span class="lf-status-dot idle" id="tut-trainee-dot"></span>
+                            <span class="lf-status-text" id="tut-trainee-status">Idle</span>
+                        </div>
+                    </div>
+                    <div class="lf-experts-divider"><span>Consultants</span></div>
+                    <div class="lf-expert-card">
+                        <canvas id="tut-expert-sprite" width="40" height="64" class="lf-sprite-sm"></canvas>
+                        <div class="lf-expert-info">
+                            <div class="lf-expert-name">Dr. Tanaka</div>
+                            <div class="lf-expert-role">Statistician</div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Center: Meeting Log (Tutorial) -->
+                <div class="lf-conversation">
+                    <div class="lf-conv-header">
+                        <span>&#x1F4DC;</span>
+                        <span class="lf-conv-title">Meeting Log</span>
+                    </div>
+                    <div class="lf-conv-scroll" id="tut-conversation">
+                        <!-- Tutorial steps injected by JS -->
+                        <div class="lf-empty-state" id="tut-empty">
+                            <p>Click <strong>Start Tutorial</strong> to begin</p>
+                            <p class="lf-hint">Watch how PI and Trainee collaborate on a research project</p>
+                        </div>
+                    </div>
+                    <!-- Tutorial Controls -->
+                    <div class="tut-controls">
+                        <button class="tut-btn" id="tut-prev" disabled>&#x2190; Previous</button>
+                        <button class="tut-btn tut-btn-restart hidden" id="tut-restart" title="Restart tutorial">&#x21BB;</button>
+                        <div class="tut-progress">
+                            <span id="tut-step-label">Step 0 / 9</span>
+                            <div class="tut-progress-bar">
+                                <div class="tut-progress-fill" id="tut-progress-fill" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <button class="tut-btn tut-btn-primary" id="tut-next">Start Tutorial &#x2192;</button>
+                    </div>
+                </div>
+
+                <!-- Right: Inventory -->
+                <aside class="lf-inventory">
+                    <div class="lf-inv-header">
+                        <span>&#x1F4E6;</span>
+                        <span class="lf-inv-title">Inventory</span>
+                    </div>
+                    <div class="lf-inv-content">
+                        <div class="lf-inv-row"><span>&#x1F4C1;</span><span>data</span><span class="lf-inv-count" id="tut-inv-data">0</span></div>
+                        <div class="lf-inv-row"><span>&#x1F4C1;</span><span>scripts</span><span class="lf-inv-count" id="tut-inv-scripts">0</span></div>
+                        <div class="lf-inv-row"><span>&#x1F4C1;</span><span>figures</span><span class="lf-inv-count" id="tut-inv-figures">0</span></div>
+                        <div class="lf-inv-row"><span>&#x1F4C1;</span><span>results</span><span class="lf-inv-count" id="tut-inv-results">0</span></div>
+                        <div class="lf-inv-row"><span>&#x1F4C1;</span><span>paper</span><span class="lf-inv-count" id="tut-inv-paper">0</span></div>
+                    </div>
+                    <div class="lf-paper-section">
+                        <div class="lf-inv-header">
+                            <span>&#x1F4C4;</span>
+                            <span class="lf-inv-title">Paper</span>
+                        </div>
+                        <div class="lf-paper-bar">
+                            <div class="lf-paper-fill" id="tut-paper-fill" style="width:0%"></div>
+                            <span class="lf-paper-label" id="tut-paper-label">0%</span>
+                        </div>
+                        <div class="lf-paper-sections">
+                            <div class="lf-paper-row"><span>abstract</span><span class="lf-sec-words" id="tut-sec-abstract">--</span></div>
+                            <div class="lf-paper-row"><span>introduction</span><span class="lf-sec-words" id="tut-sec-intro">--</span></div>
+                            <div class="lf-paper-row"><span>methods</span><span class="lf-sec-words" id="tut-sec-methods">--</span></div>
+                            <div class="lf-paper-row"><span>results</span><span class="lf-sec-words" id="tut-sec-results">--</span></div>
+                            <div class="lf-paper-row"><span>discussion</span><span class="lf-sec-words" id="tut-sec-discussion">--</span></div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Lab Frame Feedback Bar -->
+            <div class="lab-frame-footer">
+                <span class="lf-footer-icon">&#x1F4AC;</span>
+                <div class="lf-footer-input">Type optional feedback (picked up next turn)...</div>
+                <span class="lf-footer-send">&#x1F4E4;</span>
+            </div>
+
+            <!-- Editorial Office Overlay (shown during editor tutorial steps) -->
+            <div id="tut-editor-overlay" class="tut-editor-overlay hidden">
+                <div class="tut-editor-desk">
+                    <div class="tut-editor-header">
+                        <span class="tut-editor-icon">&#x1F4E8;</span>
+                        <h3 class="tut-editor-title">Editor's Desk</h3>
+                        <span class="tut-editor-round" id="tut-editor-round">Round 1</span>
+                    </div>
+                    <!-- Phase: Submission (first editor step) -->
+                    <div id="tut-editor-submitted" class="tut-editor-phase">
+                        <div class="tut-editor-section">
+                            <h4>&#x1F4DC; Cover Letter</h4>
+                            <div class="tut-editor-textbox">
+                                Dear Editor, we present a novel analysis of single-cell chromatin accessibility in tumor microenvironments.
+                                Our work identifies cell-type-specific regulatory programs driving treatment resistance using a robust pseudo-bulk
+                                DE approach validated by survival analysis (C-index = 0.78)...
+                            </div>
+                        </div>
+                        <div class="tut-editor-section">
+                            <h4>&#x1F4C4; Manuscript Summary</h4>
+                            <div class="tut-editor-textbox tut-editor-manuscript">
+                                <div class="tut-manuscript-row"><span>Sections:</span><span>5 (Abstract, Intro, Methods, Results, Discussion)</span></div>
+                                <div class="tut-manuscript-row"><span>Figures:</span><span>4</span></div>
+                                <div class="tut-manuscript-row"><span>References:</span><span>42</span></div>
+                                <div class="tut-manuscript-row"><span>Word count:</span><span>~4,650</span></div>
+                            </div>
+                        </div>
+                        <div class="tut-editor-actions">
+                            <button class="tut-editor-btn tut-editor-reject-btn" disabled>&#x274C; Desk Reject</button>
+                            <button class="tut-editor-btn tut-editor-invite-btn tut-editor-btn-active" id="tut-btn-send-reviewers">&#x1F4E9; Send to Reviewers &#x2192;</button>
+                        </div>
+                    </div>
+                    <!-- Phase: Reviewer Selection (sub-phase within first editor step) -->
+                    <div id="tut-editor-select-reviewers" class="tut-editor-phase" style="display:none;">
+                        <div class="tut-editor-section">
+                            <h4>Select Reviewers (2&ndash;3 recommended)</h4>
+                            <div class="tut-reviewer-pool">
+                                <div class="tut-reviewer-option selected">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="comp_biologist" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Kim</span>
+                                        <span class="tut-reviewer-role">Comp. Biologist</span>
+                                    </div>
+                                    <span class="tut-reviewer-check">&#x2705;</span>
+                                </div>
+                                <div class="tut-reviewer-option selected">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="immunologist" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Patel</span>
+                                        <span class="tut-reviewer-role">Immunologist</span>
+                                    </div>
+                                    <span class="tut-reviewer-check">&#x2705;</span>
+                                </div>
+                                <div class="tut-reviewer-option">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="statistician" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Tanaka</span>
+                                        <span class="tut-reviewer-role">Statistician</span>
+                                    </div>
+                                    <span class="tut-reviewer-check"></span>
+                                </div>
+                                <div class="tut-reviewer-option">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="oncologist" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Rivera</span>
+                                        <span class="tut-reviewer-role">Oncologist</span>
+                                    </div>
+                                    <span class="tut-reviewer-check"></span>
+                                </div>
+                                <div class="tut-reviewer-option">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="geneticist" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Liu</span>
+                                        <span class="tut-reviewer-role">Geneticist</span>
+                                    </div>
+                                    <span class="tut-reviewer-check"></span>
+                                </div>
+                                <div class="tut-reviewer-option">
+                                    <canvas class="tut-reviewer-sprite" data-avatar="epidemiologist" width="40" height="64"></canvas>
+                                    <div class="tut-reviewer-info">
+                                        <span class="tut-reviewer-name">Dr. Okafor</span>
+                                        <span class="tut-reviewer-role">Epidemiologist</span>
+                                    </div>
+                                    <span class="tut-reviewer-check"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tut-editor-section">
+                            <h4>Selected: <span class="tut-selected-count">2</span></h4>
+                        </div>
+                        <div class="tut-editor-actions">
+                            <button class="tut-editor-btn" id="tut-btn-back-submit">&#x2190; Back</button>
+                            <button class="tut-editor-btn tut-editor-btn-active" id="tut-btn-confirm-reviewers">&#x2705; Confirm &amp; Send &#x2192;</button>
+                        </div>
+                    </div>
+                    <!-- Phase: Decision (second editor step) -->
+                    <div id="tut-editor-decision" class="tut-editor-phase" style="display:none;">
+                        <div class="tut-editor-section">
+                            <h4>&#x1F4CB; Reviewer Reports</h4>
+                            <div class="tut-review-report">
+                                <div class="tut-review-header">
+                                    <span>&#x1F50D; Reviewer #1 — Dr. Kim (Comp. Biologist)</span>
+                                    <span class="tut-review-rec minor">Minor Revision</span>
+                                </div>
+                                <p>Solid statistical framework. Add external validation cohort and improve Figure 3 resolution.</p>
+                            </div>
+                            <div class="tut-review-report">
+                                <div class="tut-review-header">
+                                    <span>&#x1F50D; Reviewer #2 — Dr. Patel (Immunologist)</span>
+                                    <span class="tut-review-rec minor">Minor Revision</span>
+                                </div>
+                                <p>Cell-type annotations are convincing. Expand discussion of immune checkpoint markers in resistant populations.</p>
+                            </div>
+                        </div>
+                        <div class="tut-editor-section">
+                            <h4>&#x270D;&#xFE0F; Your Decision</h4>
+                            <div class="tut-decision-buttons">
+                                <button class="tut-editor-btn tut-dec-accept" disabled>&#x2705; Accept</button>
+                                <button class="tut-editor-btn tut-dec-minor tut-editor-btn-active" id="tut-btn-minor">&#x1F4DD; Minor Revision &#x2192;</button>
+                                <button class="tut-editor-btn tut-dec-major" disabled>&#x1F6A7; Major Revision</button>
+                                <button class="tut-editor-btn tut-dec-reject" disabled>&#x274C; Reject</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Phase: Done (after decision) -->
+                    <div id="tut-editor-done" class="tut-editor-phase" style="display:none;">
+                        <div class="tut-editor-done-msg">
+                            <span class="tut-done-icon">&#x1F4DD;</span>
+                            <h4>Decision sent: Minor Revision</h4>
+                            <p>Feedback sent to the PI. The revision loop continues until you Accept.</p>
+                            <p class="tut-done-hint">&#x2714; Tutorial complete! The PI&ndash;Trainee loop resumes with revisions.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CHARACTER SYSTEM SECTION ========== -->
+    <section id="characters" class="section">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F9EC; Characters as Skill Containers</h2>
+            <p class="section-subtitle">Each character is a persona backed by a curated set of scientific skills</p>
+        </div>
+
+        <div class="char-explainer">
+            <div class="char-explainer-visual">
+                <div class="char-explainer-card">
+                    <div class="char-explainer-avatar">
+                        <canvas id="explainer-sprite" width="40" height="64" class="explainer-canvas"></canvas>
+                    </div>
+                    <div class="char-explainer-name">Dr. Maria Chen</div>
+                    <div class="char-explainer-title">Computational Biology PI</div>
+                    <div class="char-explainer-skills">
+                        <span class="skill-tag skill-analysis">scanpy</span>
+                        <span class="skill-tag skill-ml">pytorch-lightning</span>
+                        <span class="skill-tag skill-analysis">scvi-tools</span>
+                        <span class="skill-tag skill-writing">scientific-writing</span>
+                        <span class="skill-tag skill-viz">scientific-visualization</span>
+                        <span class="skill-tag skill-stats">statistical-analysis</span>
+                    </div>
+                </div>
+
+                <div class="char-explainer-arrow">&#x27A1;</div>
+
+                <div class="char-explainer-yaml">
+                    <div class="yaml-header">
+                        <span class="yaml-icon">&#x1F4C4;</span>
+                        <span>pi.yaml</span>
+                    </div>
+                    <pre class="yaml-code"><code><span class="yaml-key">title:</span> <span class="yaml-val">Computational Biology PI</span>
+<span class="yaml-key">expertise:</span> <span class="yaml-val">single-cell genomics and ML</span>
+<span class="yaml-key">goal:</span> <span class="yaml-val">discover cell-type-specific
+  gene regulatory programs</span>
+<span class="yaml-key">skills:</span>
+  <span class="yaml-val">- scanpy</span>
+  <span class="yaml-val">- pytorch-lightning</span>
+  <span class="yaml-val">- scvi-tools</span>
+  <span class="yaml-val">- scientific-writing</span>
+  <span class="yaml-val">- scientific-visualization</span>
+  <span class="yaml-val">- statistical-analysis</span>
+<span class="yaml-key">personality:</span>
+  <span class="yaml-val">- "Visionary: identifies novel
+    biological questions"</span>
+  <span class="yaml-val">- "Rigorous: demands reproducible
+    pipelines"</span></code></pre>
+                </div>
+            </div>
+
+            <div class="char-explainer-text">
+                <h3>How It Works</h3>
+                <div class="explainer-steps">
+                    <div class="explainer-step">
+                        <span class="step-num">1</span>
+                        <div>
+                            <strong>Define a Persona</strong>
+                            <p>Give your character a title, expertise, and personality traits. These shape how the AI agent approaches problems and communicates.</p>
+                        </div>
+                    </div>
+                    <div class="explainer-step">
+                        <span class="step-num">2</span>
+                        <div>
+                            <strong>Attach Cursor Skills</strong>
+                            <p>Each skill name maps to a <code>SKILL.md</code> file&mdash;the same agent skills used by Cursor and Claude. The AI reads these instructions when acting as this character. Skills include <em>scanpy</em>, <em>scientific-writing</em>, <em>pytorch-lightning</em>, <em>statistical-analysis</em>, and 200+ more.</p>
+                        </div>
+                    </div>
+                    <div class="explainer-step">
+                        <span class="step-num">3</span>
+                        <div>
+                            <strong>Deploy to Your Lab</strong>
+                            <p>Drop the YAML file into your project's <code>.autolab/profiles/</code> folder. The character is now part of your research team, with all attached skills active.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== MARKETPLACE SECTION ========== -->
+    <section id="marketplace" class="section">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F3EA; Character Marketplace</h2>
+            <p class="section-subtitle">Browse community-created characters or share your own</p>
+        </div>
+
+        <!-- Marketplace Filters -->
+        <div class="mp-controls">
+            <div class="mp-filters">
+                <button class="mp-filter active" data-filter="all">All</button>
+                <button class="mp-filter" data-filter="pi">PI</button>
+                <button class="mp-filter" data-filter="trainee">Trainee</button>
+                <button class="mp-filter" data-filter="collaborator">Collaborator</button>
+            </div>
+            <div class="mp-search">
+                <input type="text" id="mp-search-input" placeholder="Search characters or skills..." class="mp-search-input">
+            </div>
+            <select id="mp-sort" class="mp-sort-select">
+                <option value="stars">Sort: Stars</option>
+                <option value="name">Sort: Name</option>
+            </select>
+            <button class="btn-upload" id="btn-list-char">
+                <span>&#x1F517;</span> List Your Character
+            </button>
+        </div>
+
+        <!-- Character Grid -->
+        <div class="mp-grid" id="mp-grid">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Link Repo Modal -->
+        <div class="modal-overlay hidden" id="link-repo-modal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <span class="modal-icon">&#x1F517;</span>
+                    <span class="modal-title">List Your Character</span>
+                    <button class="modal-close" id="link-repo-modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-intro">Share your character with the community by creating a GitHub repo from our template. Characters are ranked by GitHub stars.</p>
+
+                    <div class="link-repo-steps">
+                        <div class="link-repo-step">
+                            <span class="link-repo-num">1</span>
+                            <div>
+                                <strong>Fork the template repo</strong>
+                                <p>Start from our character template which includes the YAML schema, a README, and example files.</p>
+                                <a href="https://github.com/MarcusOfficial/autolab-character-template/fork" target="_blank" rel="noopener" class="btn-primary btn-sm">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75v-.878a2.25 2.25 0 111.5 0v.878a2.25 2.25 0 01-2.25 2.25h-1.5v2.128a2.251 2.251 0 11-1.5 0V8.5h-1.5A2.25 2.25 0 013.5 6.25v-.878a2.25 2.25 0 111.5 0zm-1 0a.75.75 0 10-1.5 0 .75.75 0 001.5 0zm6 0a.75.75 0 10-1.5 0 .75.75 0 001.5 0zM8 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z"/></svg>
+                                    Fork Template Repo
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="link-repo-step">
+                            <span class="link-repo-num">2</span>
+                            <div>
+                                <strong>Create your character YAML</strong>
+                                <p>Edit the <code>character.yaml</code> in your forked repo. Define the persona, skills, and personality.</p>
+                                <pre class="gs-code link-repo-yaml"><code><span class="yaml-key">name:</span> <span class="yaml-val">Dr. Your Name</span>
+<span class="yaml-key">role:</span> <span class="yaml-val">pi</span>  <span class="code-comment"># pi | trainee | collaborator</span>
+<span class="yaml-key">avatar:</span> <span class="yaml-val">neuroscientist</span>
+<span class="yaml-key">title:</span> <span class="yaml-val">Your Title Here</span>
+<span class="yaml-key">expertise:</span> <span class="yaml-val">your domain expertise</span>
+<span class="yaml-key">goal:</span> <span class="yaml-val">what this character aims to achieve</span>
+<span class="yaml-key">skills:</span>  <span class="code-comment"># Cursor skill names</span>
+  <span class="yaml-val">- scanpy</span>
+  <span class="yaml-val">- scientific-writing</span>
+  <span class="yaml-val">- statistical-analysis</span>
+<span class="yaml-key">personality:</span>
+  <span class="yaml-val">- "Trait: description"</span></code></pre>
+                            </div>
+                        </div>
+
+                        <div class="link-repo-step">
+                            <span class="link-repo-num">3</span>
+                            <div>
+                                <strong>Submit your repo URL</strong>
+                                <p>Open an issue on our main repo with your GitHub repo link. We'll index it automatically.</p>
+                                <a href="https://github.com/MarcusOfficial/autonomous-lab/issues/new?title=New+Character:+[Your+Character+Name]&body=Repo+URL:+https://github.com/YOUR_USERNAME/YOUR_REPO%0A%0ADescription:+Brief+description+of+your+character" target="_blank" rel="noopener" class="btn-github btn-sm">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                                    Submit Your Repo
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="link-repo-step">
+                            <span class="link-repo-num">&#x2B50;</span>
+                            <div>
+                                <strong>Get ranked by stars</strong>
+                                <p>Once indexed, your character appears in the marketplace. The more GitHub stars your repo gets, the higher it ranks. Official characters from <strong>MarcusOfficial</strong> get a verified badge.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Character Detail Modal -->
+        <div class="modal-overlay hidden" id="char-detail-modal">
+            <div class="modal-box modal-box-lg">
+                <div class="modal-header">
+                    <span class="modal-icon" id="detail-icon">&#x1F52C;</span>
+                    <span class="modal-title" id="detail-title">Character</span>
+                    <button class="modal-close" id="detail-modal-close">&times;</button>
+                </div>
+                <div class="modal-body" id="detail-body">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== GET STARTED SECTION ========== -->
+    <section id="get-started" class="section">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F680; Get Started</h2>
+            <p class="section-subtitle">Set up your own Autonomous Lab in minutes</p>
+        </div>
+
+        <div class="gs-grid">
+            <div class="gs-card">
+                <div class="gs-card-num">1</div>
+                <h3>Install the MCP Server</h3>
+                <p>Add Autonomous Lab to your Cursor MCP settings (<code>~/.cursor/mcp.json</code>):</p>
+                <pre class="gs-code"><code>{
+  "mcpServers": {
+    "autonomous-lab": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/autonomous-lab",
+        "run", "autonomous-lab"
+      ],
+      "timeout": 86400,
+      "env": {
+        "MCP_WEB_PORT": "8766"
+      }
+    }
+  }
+}</code></pre>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">2</div>
+                <h3>Add Character Skills</h3>
+                <p>Install skills in <code>~/.cursor/skills/</code>. Each skill is a <code>SKILL.md</code> that the AI reads when a character uses it:</p>
+                <pre class="gs-code"><code><span class="code-comment"># Skills directory structure:</span>
+~/.cursor/skills/
+  scientific-skills/
+    scanpy/SKILL.md
+    scvi-tools/SKILL.md
+    pytorch-lightning/SKILL.md
+    scientific-writing/SKILL.md
+    statistical-analysis/SKILL.md
+    ...
+
+<span class="code-comment"># 200+ skills available</span>
+<span class="code-comment"># Characters reference these</span>
+<span class="code-comment"># by name in their YAML</span></code></pre>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">3</div>
+                <h3>Customize Your Team</h3>
+                <p>Download characters from the Marketplace or create your own in <code>.autolab/profiles/</code>:</p>
+                <pre class="gs-code"><code><span class="yaml-key">title:</span> <span class="yaml-val">Your Custom PI</span>
+<span class="yaml-key">expertise:</span> <span class="yaml-val">your domain</span>
+<span class="yaml-key">goal:</span> <span class="yaml-val">what to achieve</span>
+<span class="yaml-key">skills:</span>  <span class="code-comment"># Cursor skill names</span>
+  <span class="yaml-val">- scanpy</span>
+  <span class="yaml-val">- scientific-writing</span>
+  <span class="yaml-val">- statistical-analysis</span>
+<span class="yaml-key">personality:</span>
+  <span class="yaml-val">- "Trait: description"</span></code></pre>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">4</div>
+                <h3>Run the Loop</h3>
+                <p id="gs-loop-desc">The PI-Trainee loop runs, then you act as Editor:</p>
+                <pre class="gs-code" id="gs-step4-code"><code><span class="code-comment"># The research cycle:</span>
+autolab_next  <span class="code-comment"># PI sets agenda</span>
+autolab_next  <span class="code-comment"># Trainee executes</span>
+autolab_next  <span class="code-comment"># PI reviews</span>
+  ...          <span class="code-comment"># iterate</span>
+
+<span class="code-comment"># When paper is ready:</span>
+autolab_editorial <span class="code-comment"># You decide!</span>
+<span class="code-comment"># Invite reviewers, then:</span>
+<span class="code-comment"># Accept / Minor / Major / Reject</span></code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer id="site-footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <span class="footer-icon">&#x2697;&#xFE0F;</span>
+                <span class="footer-title">Autonomous Lab</span>
+                <span class="footer-author">by Albert Ying, Stanford University</span>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/ayinghub/autonomous-lab" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/ayinghub/autonomous-lab/issues" target="_blank" rel="noopener">Issues</a>
+                <a href="#marketplace">Marketplace</a>
+            </div>
+            <div class="footer-right">
+                <span class="footer-license">MIT License</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/sprites.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

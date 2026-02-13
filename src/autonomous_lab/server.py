@@ -428,11 +428,15 @@ def process_images(images_data: list[dict]) -> list[MCPImage]:
 # ===== MCP 工具定義 =====
 @mcp.tool()
 async def lab_meeting(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
     summary: Annotated[
         str, Field(description="Summary of AI work completed for user review")
     ] = "Completed the requested task.",
-    timeout: Annotated[int, Field(description="Pause duration in seconds (default: 15)")] = 15,
+    timeout: Annotated[
+        int, Field(description="Pause duration in seconds (default: 15)")
+    ] = 15,
 ) -> str:
     """Pause briefly between lab turns to show the monitoring UI and collect optional feedback.
 
@@ -559,7 +563,9 @@ _EDITORIAL_INSTRUCTION = (
 )
 
 
-_lab_browser_opened: set[str] = set()  # tracks which project dirs already have a browser tab
+_lab_browser_opened: set[str] = (
+    set()
+)  # tracks which project dirs already have a browser tab
 
 
 def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
@@ -593,6 +599,7 @@ def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
                 time.sleep(1)
                 try:
                     import urllib.request
+
                     health_url = f"{manager.get_server_url()}/api/autolab/state"
                     urllib.request.urlopen(health_url, timeout=2)
                     debug_log(f"Lab UI server healthy after {attempt + 1}s")
@@ -602,7 +609,11 @@ def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
                         debug_log("Lab UI server failed health check after 5s")
 
         # Only open browser once per project (or on force_open, or after restart)
-        if project_directory not in _lab_browser_opened or force_open or server_was_dead:
+        if (
+            project_directory not in _lab_browser_opened
+            or force_open
+            or server_was_dead
+        ):
             encoded = urllib.parse.quote(project_directory, safe="")
             lab_url = f"{manager.get_server_url()}/lab?project={encoded}"
             manager.open_browser(lab_url)
@@ -616,10 +627,22 @@ def _ensure_lab_ui(project_directory: str, force_open: bool = False) -> None:
 
 @mcp.tool()
 async def autolab_init(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
     idea: Annotated[str, Field(description="Research project idea and context")] = "",
     title: Annotated[str, Field(description="Paper title")] = "TITLE",
-    force_new: Annotated[bool, Field(description="Force fresh start even if project exists")] = False,
+    force_new: Annotated[
+        bool, Field(description="Force fresh start even if project exists")
+    ] = False,
+    domain: Annotated[
+        str,
+        Field(
+            description="Project domain: 'research' (default), 'software', 'consulting', 'legal', 'medical', or 'creative'. "
+            "Controls role labels (e.g., PI/Trainee/Editor vs Tech Lead/Developer/Code Reviewer) "
+            "and artifact names (Paper vs Pull Request vs Report)."
+        ),
+    ] = "research",
 ) -> str:
     """Initialize an Autonomous Lab project.
 
@@ -636,6 +659,7 @@ async def autolab_init(
         idea: The research idea, context, and any preliminary data description
         title: Working title for the paper
         force_new: If True, overwrite existing project. Default False.
+        domain: Project domain controlling role labels and artifact names.
 
     Returns:
         str: Confirmation message with instructions to call autolab_next
@@ -670,8 +694,20 @@ async def autolab_init(
         except Exception:
             pass  # Corrupted state — safe to reinitialize
 
+    # Validate domain
+    valid_domains = (
+        "research",
+        "software",
+        "consulting",
+        "legal",
+        "medical",
+        "creative",
+    )
+    if domain not in valid_domains:
+        return f"ERROR: Invalid domain '{domain}'. Must be one of: {', '.join(valid_domains)}"
+
     try:
-        state = init_project(project_directory, idea)
+        state = init_project(project_directory, idea, domain=domain)
         create_paper_structure(project_directory, title)
 
         # Start the monitoring web UI (non-blocking)
@@ -679,20 +715,26 @@ async def autolab_init(
         try:
             _ensure_lab_ui(project_directory)
             from .web.main import get_web_ui_manager
+
             lab_url = f"{get_web_ui_manager().get_server_url()}/lab"
         except Exception as e:
             debug_log(f"Failed to start lab UI: {e}")
             lab_url = "(failed to start)"
 
+        from .lab.state import get_domain_config
+
+        dcfg = get_domain_config(project_directory)
+
         return (
             f"Autonomous Lab initialized in {project_directory}\n\n"
+            f"Domain: {domain} — roles: {dcfg['senior_label']}, {dcfg['junior_label']}, {dcfg['overseer_label']}\n"
+            f"Artifact: {dcfg['artifact']}\n\n"
             f"Created:\n"
             f"  .autolab/ -- state, profiles, meeting log\n"
             f"  paper/ -- LaTeX template ({title})\n"
             f"  scripts/, figures/, results/ -- working directories\n\n"
             f"State: iteration={state['iteration']}, next_role={state['next_role']}\n"
-            f"Monitoring UI: {lab_url}"
-            + _LOOP_INSTRUCTION
+            f"Monitoring UI: {lab_url}" + _LOOP_INSTRUCTION
         )
     except Exception as e:
         return f"ERROR initializing project: {e}"
@@ -700,7 +742,9 @@ async def autolab_init(
 
 @mcp.tool()
 async def autolab_resume(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """Resume an interrupted Autonomous Lab session.
 
@@ -723,6 +767,7 @@ async def autolab_resume(
         str: Full recovery briefing + instructions to continue
     """
     from .lab.state import (
+        get_domain_config,
         get_editorial,
         get_meeting_summaries,
         get_paper_progress,
@@ -751,6 +796,8 @@ async def autolab_resume(
     # Open the monitoring UI (force open since this is an explicit resume)
     _ensure_lab_ui(project_directory, force_open=True)
 
+    dcfg = get_domain_config(project_directory)
+
     # Gather context
     idea = load_idea(project_directory)
     iteration = state.get("iteration", 0)
@@ -771,15 +818,25 @@ async def autolab_resume(
     file_summary_parts = []
     for category, files in file_listings.items():
         if files:
-            file_summary_parts.append(f"  {category}/: {len(files)} file(s) — {', '.join(files[:5])}")
-    file_summary = "\n".join(file_summary_parts) if file_summary_parts else "  (no files yet)"
+            file_summary_parts.append(
+                f"  {category}/: {len(files)} file(s) — {', '.join(files[:5])}"
+            )
+    file_summary = (
+        "\n".join(file_summary_parts) if file_summary_parts else "  (no files yet)"
+    )
 
     # Build paper progress summary
     paper_parts = []
     for section, info in paper_progress.items():
         word_count = info.get("words", 0)
-        paper_parts.append(f"  {section}: {word_count} words" if word_count > 0 else f"  {section}: not written")
-    paper_summary = "\n".join(paper_parts) if paper_parts else "  (no paper sections yet)"
+        paper_parts.append(
+            f"  {section}: {word_count} words"
+            if word_count > 0
+            else f"  {section}: not written"
+        )
+    paper_summary = (
+        "\n".join(paper_parts) if paper_parts else "  (no paper sections yet)"
+    )
 
     # Build editorial status
     editorial_phase = editorial.get("phase", "none")
@@ -799,11 +856,20 @@ async def autolab_resume(
             editorial_summary += f"  Reviews completed: {', '.join(done_reviews)}\n"
 
     # Expert consultants
+    consultant_label = dcfg.get("consultant_label", "Consultant")
     expert_summary = ""
     if experts:
-        expert_summary = "\n\nActive Consultants:\n"
+        expert_summary = f"\n\nActive {consultant_label}s:\n"
         for ex in experts:
             expert_summary += f"  - {ex.get('name', '?')} ({ex.get('role', '?')})\n"
+
+    # Map internal role id to display label
+    if role == "pi":
+        role_display = dcfg["senior_label"]
+    elif role == "trainee":
+        role_display = dcfg["junior_label"]
+    else:
+        role_display = role  # reviewer_N etc.
 
     # Determine the right instruction based on current state
     if status in ("submitted_to_editor", "reviews_complete"):
@@ -815,21 +881,22 @@ async def autolab_resume(
         f"[AUTOLAB] SESSION RECOVERED — Resuming from saved state\n"
         f"{'=' * 60}\n\n"
         f"Project: {project_directory}\n"
+        f"Domain: {dcfg['senior_label']}/{dcfg['junior_label']}/{dcfg['overseer_label']}\n"
         f"Started: {created_at}\n"
         f"Iteration: {iteration}\n"
         f"Status: {status}\n"
         f"Progress: {progress}%\n"
-        f"Next role: {role}\n"
+        f"Next role: {role_display}\n"
         f"{editorial_summary}"
         f"{expert_summary}\n\n"
         f"Project Idea:\n{idea[:500]}{'...' if len(idea) > 500 else ''}\n\n"
         f"Files:\n{file_summary}\n\n"
-        f"Paper Progress:\n{paper_summary}\n\n"
-        f"Recent Meeting History (last 5 turns):\n"
+        f"{dcfg['artifact']} Progress:\n{paper_summary}\n\n"
+        f"Recent {dcfg['meeting_log_name']} (last 5 turns):\n"
         f"{'─' * 40}\n"
         f"{recent_meetings if recent_meetings.strip() else '(no meeting history yet)'}\n"
         f"{'─' * 40}\n\n"
-        f"Meeting Summaries:\n"
+        f"{dcfg['meeting_log_name']} Summaries:\n"
         f"{summaries[:1000] if summaries.strip() else '(none yet)'}\n\n"
         f"{'=' * 60}\n"
         f"Recovery complete. The monitoring UI should be open.\n"
@@ -842,7 +909,9 @@ async def autolab_resume(
 
 @mcp.tool()
 async def autolab_next(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """Get the next role prompt for the Autonomous Lab session.
 
@@ -878,6 +947,7 @@ async def autolab_next(
         build_trainee_prompt,
     )
     from .lab.state import (
+        get_domain_config,
         get_editorial,
         get_meeting_summaries,
         get_paper_progress,
@@ -901,8 +971,10 @@ async def autolab_next(
     idea = load_idea(project_directory)
     role = state["next_role"]
     iteration = state["iteration"]
+    dcfg = get_domain_config(project_directory)
     # Drain accumulated user feedback queue (combines all pending messages)
     from .lab.state import drain_feedback_queue
+
     user_feedback = drain_feedback_queue(project_directory)
     meeting_history = get_recent_meetings(project_directory, n=3)
     summaries = get_meeting_summaries(project_directory)
@@ -912,7 +984,10 @@ async def autolab_next(
     # --- Editorial workflow routing ---
 
     # 1. PI is preparing submission (ready_for_review)
-    if state.get("status") == "ready_for_review" and editorial.get("phase", "none") == "none":
+    if (
+        state.get("status") == "ready_for_review"
+        and editorial.get("phase", "none") == "none"
+    ):
         paper_progress = get_paper_progress(project_directory)
         prompt = build_submission_prompt(paper_progress, file_listings, meeting_history)
         return (
@@ -926,23 +1001,23 @@ async def autolab_next(
         phase = editorial.get("phase", "none")
         if phase == "submitted":
             return (
-                f"[AUTOLAB] AWAITING EDITOR -- Iteration {iteration}\n\n"
-                f"The manuscript has been submitted to the Editor.\n"
-                f"The Editor (user) will decide: Desk Reject or Invite Reviewers."
+                f"[AUTOLAB] AWAITING {dcfg['overseer_label'].upper()} -- Iteration {iteration}\n\n"
+                f"The {dcfg['artifact'].lower()} has been submitted to the {dcfg['overseer_label']}.\n"
+                f"The {dcfg['overseer_label']} (user) will decide: Desk Reject or Invite {dcfg['reviewer_label']}s."
                 + _EDITORIAL_INSTRUCTION
             )
         if phase == "reviews_complete":
             return (
-                f"[AUTOLAB] AWAITING EDITORIAL DECISION -- Iteration {iteration}\n\n"
-                f"All reviewer reports are in.\n"
-                f"The Editor (user) will decide: Accept / Minor Revision / Major Revision / Reject."
+                f"[AUTOLAB] AWAITING {dcfg['overseer_label'].upper()} DECISION -- Iteration {iteration}\n\n"
+                f"All {dcfg['reviewer_label'].lower()} reports are in.\n"
+                f"The {dcfg['overseer_label']} (user) will decide: {' / '.join(dcfg['decisions'])}."
                 + _EDITORIAL_INSTRUCTION
             )
         # Catch-all for transitional editorial states
         return (
-            f"[AUTOLAB] EDITORIAL IN PROGRESS -- Iteration {iteration}\n\n"
+            f"[AUTOLAB] {dcfg['review_process'].upper()} IN PROGRESS -- Iteration {iteration}\n\n"
             f"Editorial phase: {phase}, Status: {state.get('status')}\n"
-            f"The editorial workflow is in progress."
+            f"The {dcfg['review_process'].lower()} is in progress."
             + _EDITORIAL_INSTRUCTION
         )
 
@@ -970,17 +1045,17 @@ async def autolab_next(
             f"After completing your review, call autolab_record, then follow the MANDATORY NEXT STEPS."
         )
 
-    # 4. Paper accepted — PI wraps up
+    # 4. Artifact accepted — senior wraps up
     if state.get("status") == "accepted":
         return (
-            f"[AUTOLAB] PAPER ACCEPTED -- Iteration {iteration}\n\n"
-            f"Congratulations! The manuscript has been accepted by the Editor.\n"
-            f"As PI, write a brief acknowledgment, finalize the paper, and celebrate.\n"
+            f"[AUTOLAB] {dcfg['artifact'].upper()} ACCEPTED -- Iteration {iteration}\n\n"
+            f"Congratulations! The {dcfg['artifact'].lower()} has been accepted by the {dcfg['overseer_label']}.\n"
+            f"As {dcfg['senior_label']}, write a brief acknowledgment, finalize the {dcfg['artifact'].lower()}, and celebrate.\n"
             f"If there is nothing left to do, inform the user the project is complete."
             + _LOOP_INSTRUCTION
         )
 
-    # 5. PI handling revision
+    # 5. Senior handling revision
     if state.get("status") in ("revision_requested", "rejected"):
         profile = load_profile(project_directory, "pi")
         reviews = editorial.get("reviews", {})
@@ -996,6 +1071,7 @@ async def autolab_next(
             meeting_history=meeting_history,
             file_listings=file_listings,
             round_number=round_num,
+            domain_config=dcfg,
         )
         return (
             f"[AUTOLAB] REVISION MODE -- Round {round_num}\n"
@@ -1008,6 +1084,9 @@ async def autolab_next(
     # --- Normal lab workflow ---
     profile = load_profile(project_directory, role)
 
+    # Map internal role ids to display labels
+    role_label = dcfg["senior_label"] if role == "pi" else dcfg["junior_label"]
+
     if role == "pi":
         prompt = build_pi_prompt(
             idea=idea,
@@ -1017,6 +1096,7 @@ async def autolab_next(
             file_listings=file_listings,
             user_feedback=user_feedback,
             iteration=iteration,
+            domain_config=dcfg,
         )
     else:
         prompt = build_trainee_prompt(
@@ -1027,23 +1107,37 @@ async def autolab_next(
             file_listings=file_listings,
             user_feedback=user_feedback,
             iteration=iteration,
+            domain_config=dcfg,
         )
 
     return (
-        f"[AUTOLAB] {role.upper()} TURN -- Iteration {iteration}\n\n"
+        f"[AUTOLAB] {role_label.upper()} TURN -- Iteration {iteration}\n\n"
         f"{prompt}\n\n"
-        f"After completing your actions as {role.upper()}, call autolab_record, then follow the MANDATORY NEXT STEPS."
+        f"After completing your actions as {role_label}, call autolab_record, then follow the MANDATORY NEXT STEPS."
     )
 
 
 @mcp.tool()
 async def autolab_record(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    role: Annotated[str, Field(description="Role that just acted: 'pi' or 'trainee'")] = "",
-    summary: Annotated[str, Field(description="Brief summary of what was done this turn")] = "",
-    content: Annotated[str, Field(description="Full content of the turn (review, agenda, results, etc.)")] = "",
-    status: Annotated[str, Field(description="Status: 'continue' or 'ready_for_review'")] = "continue",
-    progress: Annotated[int, Field(description="PI overall project progress 0-100 (set only by PI)")] = -1,
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    role: Annotated[
+        str, Field(description="Role that just acted: 'pi' or 'trainee'")
+    ] = "",
+    summary: Annotated[
+        str, Field(description="Brief summary of what was done this turn")
+    ] = "",
+    content: Annotated[
+        str,
+        Field(description="Full content of the turn (review, agenda, results, etc.)"),
+    ] = "",
+    status: Annotated[
+        str, Field(description="Status: 'continue' or 'ready_for_review'")
+    ] = "continue",
+    progress: Annotated[
+        int, Field(description="PI overall project progress 0-100 (set only by PI)")
+    ] = -1,
 ) -> str:
     """Record a completed turn. Non-blocking — updates state and returns immediately.
 
@@ -1076,6 +1170,7 @@ async def autolab_record(
     from .lab.state import (
         append_meeting_log,
         compress_old_meetings,
+        get_domain_config,
         load_state,
         record_review,
         save_state,
@@ -1096,6 +1191,7 @@ async def autolab_record(
         return f"ERROR: {e}"
 
     iteration = state["iteration"]
+    dcfg = get_domain_config(project_directory)
 
     # 1. Append to meeting log
     append_meeting_log(project_directory, role, iteration, summary, content)
@@ -1104,12 +1200,18 @@ async def autolab_record(
     if role.startswith("reviewer_"):
         # Extract recommendation from content (flexible matching)
         import re
+
         rec_match = re.search(
             r"(?:RECOMMENDATION|OVERALL\s+RECOMMENDATION|DECISION)[:\s]*([A-Za-z][A-Za-z _]*)",
-            content, re.IGNORECASE,
+            content,
+            re.IGNORECASE,
         )
         conf_match = re.search(r"CONFIDENCE[^:]*:\s*(\d)", content, re.IGNORECASE)
-        recommendation = rec_match.group(1).strip().lower().replace(" ", "_") if rec_match else "major_revision"
+        recommendation = (
+            rec_match.group(1).strip().lower().replace(" ", "_")
+            if rec_match
+            else "major_revision"
+        )
         confidence = int(conf_match.group(1)) if conf_match else 3
 
         review_data = {
@@ -1118,33 +1220,41 @@ async def autolab_record(
             "report": content,
         }
         editorial = record_review(project_directory, role, review_data)
-        remaining = [r["id"] for r in editorial.get("reviewers", [])
-                     if r["id"] not in editorial.get("reviews", {})]
+        remaining = [
+            r["id"]
+            for r in editorial.get("reviewers", [])
+            if r["id"] not in editorial.get("reviews", {})
+        ]
 
         if remaining:
             next_reviewer = remaining[0]
-            # Find reviewer name for clarity
-            rev_name = next((r.get("name", next_reviewer) for r in editorial.get("reviewers", [])
-                           if r["id"] == next_reviewer), next_reviewer)
+            rev_name = next(
+                (
+                    r.get("name", next_reviewer)
+                    for r in editorial.get("reviewers", [])
+                    if r["id"] == next_reviewer
+                ),
+                next_reviewer,
+            )
             return (
-                f"Review by {role} recorded successfully.\n"
-                f"Next reviewer: {rev_name} ({next_reviewer}).\n\n"
+                f"{dcfg['reviewer_label']} review by {role} recorded successfully.\n"
+                f"Next {dcfg['reviewer_label'].lower()}: {rev_name} ({next_reviewer}).\n\n"
                 f"---\n"
                 f"MANDATORY NEXT STEPS:\n"
-                f"1. Call autolab_next NOW — it will give you {rev_name}'s reviewer prompt.\n"
-                f"2. Act as that reviewer and write the review.\n"
+                f"1. Call autolab_next NOW — it will give you {rev_name}'s {dcfg['reviewer_label'].lower()} prompt.\n"
+                f"2. Act as that {dcfg['reviewer_label'].lower()} and write the review.\n"
                 f"3. Call autolab_record with role='{next_reviewer}'.\n"
-                f"4. Then repeat: autolab_next for the next reviewer (or autolab_editorial if done).\n"
-                f"NEVER stop. NEVER call lab_meeting between reviewer turns — go straight to autolab_next."
+                f"4. Then repeat: autolab_next for the next {dcfg['reviewer_label'].lower()} (or autolab_editorial if done).\n"
+                f"NEVER stop. NEVER call lab_meeting between {dcfg['reviewer_label'].lower()} turns — go straight to autolab_next."
             )
         else:
             return (
-                f"Review by {role} recorded. ALL REVIEWS ARE COMPLETE.\n\n"
-                f"The Editor (user) will now make a final decision."
+                f"{dcfg['reviewer_label']} review by {role} recorded. ALL REVIEWS ARE COMPLETE.\n\n"
+                f"The {dcfg['overseer_label']} (user) will now make a final decision."
                 + _EDITORIAL_INSTRUCTION
             )
 
-    # --- PI submission handling ---
+    # --- Senior submission handling ---
     if role == "pi" and status == "ready_for_review":
         submit_manuscript(project_directory, content)
         if progress >= 0:
@@ -1152,20 +1262,21 @@ async def autolab_record(
             st["progress"] = max(0, min(100, progress))
             save_state(project_directory, st)
         return (
-            f"Manuscript submitted to Editor.\n"
-            f"Cover letter and manuscript summary recorded.\n"
-            f"The Editor (user) will now review via the monitoring UI."
+            f"{dcfg['artifact']} submitted to {dcfg['overseer_label']}.\n"
+            f"Cover letter and {dcfg['artifact'].lower()} summary recorded.\n"
+            f"The {dcfg['overseer_label']} (user) will now review via the monitoring UI."
             + _EDITORIAL_INSTRUCTION
         )
 
     # --- Normal turn handling ---
     next_role = "trainee" if role == "pi" else "pi"
+    next_role_label = dcfg["junior_label"] if role == "pi" else dcfg["senior_label"]
     new_iteration = iteration + (1 if role == "trainee" else 0)
     state = load_state(project_directory)  # reload in case reviewer updated it
     state["iteration"] = new_iteration
     state["next_role"] = next_role
     state["status"] = status if status != "ready_for_review" else "active"
-    # PI can set overall progress (0-100)
+    # Senior can set overall progress (0-100)
     if progress >= 0 and role == "pi":
         state["progress"] = max(0, min(100, progress))
     save_state(project_directory, state)
@@ -1177,34 +1288,47 @@ async def autolab_record(
     # Check if user left feedback via the web UI (peek, don't drain —
     # the feedback will be properly drained in autolab_next or lab_meeting)
     from .lab.state import has_pending_feedback
+
     pending_fb = has_pending_feedback(project_directory)
 
     if pending_fb:
         return (
-            f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n\n"
+            f"Turn recorded. Iteration {new_iteration}, next: {next_role_label.upper()}.\n\n"
             f"User feedback is queued — it will be included in the next autolab_next call."
             + _LOOP_INSTRUCTION
         )
 
     return (
-        f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}."
+        f"Turn recorded. Iteration {new_iteration}, next: {next_role_label.upper()}."
         + _LOOP_INSTRUCTION
     )
 
 
 @mcp.tool()
 async def autolab_consult(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    expert_name: Annotated[str, Field(description="Expert's name (e.g., 'Dr. Sarah Chen')")] = "",
-    expert_role: Annotated[str, Field(description="Expert's specialty (e.g., 'Statistician', 'Immunologist')")] = "",
-    expert_avatar: Annotated[str, Field(
-        description="Avatar key for the UI sprite: reviewer, bioethicist, science_writer, grant_reviewer, "
-                    "immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, "
-                    "pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, "
-                    "statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, "
-                    "clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic"
-    )] = "generic",
-    question: Annotated[str, Field(description="The specific question or topic to consult about")] = "",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    expert_name: Annotated[
+        str, Field(description="Expert's name (e.g., 'Dr. Sarah Chen')")
+    ] = "",
+    expert_role: Annotated[
+        str,
+        Field(description="Expert's specialty (e.g., 'Statistician', 'Immunologist')"),
+    ] = "",
+    expert_avatar: Annotated[
+        str,
+        Field(
+            description="Avatar key for the UI sprite: reviewer, bioethicist, science_writer, grant_reviewer, "
+            "immunologist, oncologist, neuroscientist, geneticist, cell_biologist, microbiologist, "
+            "pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist, "
+            "statistician, bioinformatician, data_scientist, ml_engineer, comp_biologist, "
+            "clinician, radiologist, surgeon, chemist, physicist, engineer, psychologist, ecologist, generic"
+        ),
+    ] = "generic",
+    question: Annotated[
+        str, Field(description="The specific question or topic to consult about")
+    ] = "",
 ) -> str:
     """Invite a domain expert for a one-time consultation during a PI turn.
 
@@ -1225,7 +1349,7 @@ async def autolab_consult(
     Returns:
         str: Expert consultation prompt — the AI should role-play as the expert
     """
-    from .lab.state import load_state, save_state
+    from .lab.state import get_domain_config, load_state, save_state
 
     project_directory = os.path.abspath(project_directory)
 
@@ -1237,15 +1361,21 @@ async def autolab_consult(
     except FileNotFoundError as e:
         return f"ERROR: {e}"
 
+    dcfg = get_domain_config(project_directory)
+    senior = dcfg["senior_label"]
+    consultant = dcfg.get("consultant_label", "Consultant")
+
     # Add expert to the list (dedup by name)
     experts = state.get("experts", [])
     existing = next((e for e in experts if e["name"] == expert_name), None)
     if not existing:
-        experts.append({
-            "name": expert_name,
-            "role": expert_role,
-            "avatar": expert_avatar,
-        })
+        experts.append(
+            {
+                "name": expert_name,
+                "role": expert_role,
+                "avatar": expert_avatar,
+            }
+        )
         state["experts"] = experts
         save_state(project_directory, state)
 
@@ -1253,12 +1383,14 @@ async def autolab_consult(
     idea = ""
     try:
         from .lab.state import load_idea
+
         idea = load_idea(project_directory)
     except Exception:
         pass
 
     # Look up domain-specific resources
     from .lab.prompts import CONSULTANT_DOMAINS, CONSULTANT_GENERIC
+
     avatar_key = expert_avatar.lower().replace(" ", "_")
     role_key = expert_role.lower().replace(" ", "_")
     domain_knowledge = (
@@ -1268,40 +1400,52 @@ async def autolab_consult(
     )
 
     return (
-        f"[CONSULTATION] Expert: {expert_name} ({expert_role})\n"
+        f"[{consultant.upper()}] Expert: {expert_name} ({expert_role})\n"
         f"{'=' * 50}\n\n"
         f"You are now briefly acting as **{expert_name}**, a specialist in **{expert_role}**.\n\n"
         f"**Your domain knowledge and standards:**\n{domain_knowledge}\n\n"
-        f"The PI has asked you the following question:\n\n"
+        f"The {senior} has asked you the following question:\n\n"
         f"> {question}\n\n"
         f"Project context (brief):\n{idea[:500]}{'...' if len(idea) > 500 else ''}\n\n"
         f"Provide a concise, expert response (2-4 paragraphs). Be direct and specific.\n"
         f"Ground your advice in the specific frameworks, guidelines, and standards listed above.\n"
         f"Include:\n"
         f"- Your expert opinion on the question, citing relevant standards or guidelines\n"
-        f"- Key considerations the PI should be aware of\n"
+        f"- Key considerations the {senior} should be aware of\n"
         f"- Specific methodological recommendations with justification\n"
         f"- Potential pitfalls or caveats in your domain\n\n"
-        f"After providing the consultation, IMMEDIATELY return to acting as the PI.\n"
-        f"The PI should evaluate the consultant's advice and decide what to adopt.\n"
-        f"Do NOT call autolab_record for this consultation — it's part of the PI's turn.\n"
-        f"Continue with whatever the PI was doing before the consultation."
+        f"After providing the consultation, IMMEDIATELY return to acting as the {senior}.\n"
+        f"The {senior} should evaluate the {consultant.lower()}'s advice and decide what to adopt.\n"
+        f"Do NOT call autolab_record for this consultation — it's part of the {senior}'s turn.\n"
+        f"Continue with whatever the {senior} was doing before the consultation."
     )
 
 
 @mcp.tool()
 async def autolab_cite(
-    action: Annotated[str, Field(
-        description="Action: 'search' (find papers by topic), 'doi' (get BibTeX from DOI), "
-                    "'validate' (check references.bib for errors)"
-    )] = "search",
-    query: Annotated[str, Field(
-        description="For 'search': topic description. For 'doi': the DOI string. "
-                    "For 'validate': path to .bib file (default: paper/references.bib)"
-    )] = "",
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    count: Annotated[int, Field(description="Number of results for search (max 10)")] = 5,
-    from_year: Annotated[int, Field(description="Only papers from this year onward (0 = no filter)")] = 0,
+    action: Annotated[
+        str,
+        Field(
+            description="Action: 'search' (find papers by topic), 'doi' (get BibTeX from DOI), "
+            "'validate' (check references.bib for errors)"
+        ),
+    ] = "search",
+    query: Annotated[
+        str,
+        Field(
+            description="For 'search': topic description. For 'doi': the DOI string. "
+            "For 'validate': path to .bib file (default: paper/references.bib)"
+        ),
+    ] = "",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    count: Annotated[
+        int, Field(description="Number of results for search (max 10)")
+    ] = 5,
+    from_year: Annotated[
+        int, Field(description="Only papers from this year onward (0 = no filter)")
+    ] = 0,
 ) -> str:
     """Look up, search, and validate citations using CrossRef API.
 
@@ -1350,7 +1494,9 @@ async def autolab_cite(
             if not query:
                 return "ERROR: 'query' must describe what you need to cite (e.g., 'CRISPR efficiency in human cells')"
             year_filter = from_year if from_year > 0 else None
-            results = search_papers(query, rows=min(count, 10), filter_from_year=year_filter)
+            results = search_papers(
+                query, rows=min(count, 10), filter_from_year=year_filter
+            )
             if not results or (len(results) == 1 and "error" in results[0]):
                 return f"No papers found for: {query}\nTry broader search terms or remove the year filter."
 
@@ -1373,7 +1519,11 @@ async def autolab_cite(
             return "\n".join(output_parts)
 
         elif action == "validate":
-            bib_path = query if query else os.path.join(project_directory, "paper", "references.bib")
+            bib_path = (
+                query
+                if query
+                else os.path.join(project_directory, "paper", "references.bib")
+            )
             if not os.path.exists(bib_path):
                 return f"ERROR: BibTeX file not found: {bib_path}"
             report = validate_bibtex_file(bib_path)
@@ -1403,7 +1553,9 @@ async def autolab_cite(
             return "\n".join(lines)
 
         else:
-            return f"ERROR: Unknown action '{action}'. Use 'search', 'doi', or 'validate'."
+            return (
+                f"ERROR: Unknown action '{action}'. Use 'search', 'doi', or 'validate'."
+            )
 
     except Exception as e:
         return f"Citation tool error: {e}\n\nYou can still manually look up papers at https://doi.org/ or https://scholar.google.com/"
@@ -1411,7 +1563,9 @@ async def autolab_cite(
 
 @mcp.tool()
 async def autolab_editorial(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """Wait for the Editor (user) to act on the submitted manuscript.
 
@@ -1435,7 +1589,7 @@ async def autolab_editorial(
     """
     import asyncio
 
-    from .lab.state import load_state, get_editor_timeout_seconds
+    from .lab.state import load_state, get_domain_config, get_editor_timeout_seconds
 
     project_directory = os.path.abspath(project_directory)
 
@@ -1452,25 +1606,31 @@ async def autolab_editorial(
     iteration = state.get("iteration", 0)
     current_status = state.get("status", "")
     next_role = state.get("next_role", "")
+    dcfg = get_domain_config(project_directory)
 
-    debug_log(f"autolab_editorial: starting phase={starting_phase}, status={current_status}, next_role={next_role}")
+    debug_log(
+        f"autolab_editorial: starting phase={starting_phase}, status={current_status}, next_role={next_role}"
+    )
 
     # ── Immediate returns: if the state already advanced, don't poll ──
 
     # Already in reviewer phase → return immediately with reviewer instructions
-    if starting_phase in ("reviewers_invited", "under_review") and next_role.startswith("reviewer_"):
+    if starting_phase in ("reviewers_invited", "under_review") and next_role.startswith(
+        "reviewer_"
+    ):
         reviewers = editorial.get("reviewers", [])
         reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+        rl = dcfg["reviewer_label"].lower()
         return (
-            f"[EDITORIAL] Reviewers invited: {reviewer_names}\n\n"
-            f"The editor has invited {len(reviewers)} reviewer(s) and reviews are in progress.\n"
-            f"You must now play each reviewer role in sequence.\n\n"
+            f"[EDITORIAL] {dcfg['reviewer_label']}s invited: {reviewer_names}\n\n"
+            f"The {dcfg['overseer_label'].lower()} has invited {len(reviewers)} {rl}(s) and reviews are in progress.\n"
+            f"You must now play each {rl} role in sequence.\n\n"
             f"MANDATORY NEXT STEPS:\n"
-            f"1. Call autolab_next — it will return the current reviewer's prompt.\n"
-            f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
-            f"3. Call autolab_next immediately for the next reviewer (do NOT call lab_meeting between reviewers).\n"
+            f"1. Call autolab_next — it will return the current {rl}'s prompt.\n"
+            f"2. Act as that {rl}, then call autolab_record with role='reviewer_N'.\n"
+            f"3. Call autolab_next immediately for the next {rl} (do NOT call lab_meeting between {rl}s).\n"
             f"4. Repeat until all reviews are done.\n"
-            f"5. After the LAST review, call autolab_editorial to wait for the editor's final decision.\n"
+            f"5. After the LAST review, call autolab_editorial to wait for the {dcfg['overseer_label'].lower()}'s final decision.\n"
             f"NEVER stop. Continue the loop."
         )
 
@@ -1481,10 +1641,9 @@ async def autolab_editorial(
         dec_display = decision.upper().replace("_", " ")
         return (
             f"[EDITORIAL] Decision: {dec_display}\n\n"
-            f"Editor feedback: {feedback}\n\n"
-            f"The editorial process for this round is complete.\n"
-            f"Decision: {dec_display}"
-            + _LOOP_INSTRUCTION
+            f"{dcfg['overseer_label']} feedback: {feedback}\n\n"
+            f"The {dcfg['review_process'].lower()} for this round is complete.\n"
+            f"Decision: {dec_display}" + _LOOP_INSTRUCTION
         )
 
     # Reviews already complete → wait for decision only
@@ -1522,33 +1681,33 @@ async def autolab_editorial(
         current_status = state.get("status", "")
         next_role = state.get("next_role", "")
 
-        # --- Case 1: We were waiting for editor after submission ---
+        # --- Case 1: We were waiting for overseer after submission ---
         if starting_phase == "submitted":
             if current_phase in ("reviewers_invited", "under_review"):
-                # Editor invited reviewers → AI must now play reviewer roles
+                # Overseer invited reviewers → AI must now play reviewer roles
                 reviewers = editorial.get("reviewers", [])
                 reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+                rl = dcfg["reviewer_label"].lower()
                 return (
-                    f"[EDITORIAL] Reviewers invited: {reviewer_names}\n\n"
-                    f"The editor has invited {len(reviewers)} reviewer(s).\n"
-                    f"You must now play each reviewer role in sequence.\n\n"
+                    f"[EDITORIAL] {dcfg['reviewer_label']}s invited: {reviewer_names}\n\n"
+                    f"The {dcfg['overseer_label'].lower()} has invited {len(reviewers)} {rl}(s).\n"
+                    f"You must now play each {rl} role in sequence.\n\n"
                     f"MANDATORY NEXT STEPS:\n"
-                    f"1. Call autolab_next — it will return the first reviewer's prompt.\n"
-                    f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
-                    f"3. Call autolab_next immediately for the next reviewer (do NOT call lab_meeting between reviewers).\n"
+                    f"1. Call autolab_next — it will return the first {rl}'s prompt.\n"
+                    f"2. Act as that {rl}, then call autolab_record with role='reviewer_N'.\n"
+                    f"3. Call autolab_next immediately for the next {rl} (do NOT call lab_meeting between {rl}s).\n"
                     f"4. Repeat until all reviews are done.\n"
-                    f"5. After the LAST review, call autolab_editorial to wait for the editor's final decision.\n"
+                    f"5. After the LAST review, call autolab_editorial to wait for the {dcfg['overseer_label'].lower()}'s final decision.\n"
                     f"NEVER stop. Continue the loop."
                 )
             if current_phase == "decision_made":
-                # Desk reject (editor decided without reviewers)
+                # Desk reject (overseer decided without reviewers)
                 decision = editorial.get("decision", "reject")
                 feedback = editorial.get("decision_feedback", "")
                 return (
                     f"[EDITORIAL] Decision: {decision.upper().replace('_', ' ')}\n\n"
-                    f"The editor has desk-rejected the manuscript.\n"
-                    f"Feedback: {feedback}\n"
-                    + _LOOP_INSTRUCTION
+                    f"The {dcfg['overseer_label'].lower()} has desk-rejected the {dcfg['artifact'].lower()}.\n"
+                    f"Feedback: {feedback}\n" + _LOOP_INSTRUCTION
                 )
 
         # --- Case 2: We were waiting for final decision after reviews ---
@@ -1559,22 +1718,25 @@ async def autolab_editorial(
                 dec_display = decision.upper().replace("_", " ")
                 return (
                     f"[EDITORIAL] Decision: {dec_display}\n\n"
-                    f"Editor feedback: {feedback}\n\n"
-                    f"The editorial process for this round is complete.\n"
-                    f"Decision: {dec_display}"
-                    + _LOOP_INSTRUCTION
+                    f"{dcfg['overseer_label']} feedback: {feedback}\n\n"
+                    f"The {dcfg['review_process'].lower()} for this round is complete.\n"
+                    f"Decision: {dec_display}" + _LOOP_INSTRUCTION
                 )
             # Reviewer role assigned while we're polling → break out to let AI play reviewer
-            if next_role.startswith("reviewer_") and current_phase in ("reviewers_invited", "under_review"):
+            if next_role.startswith("reviewer_") and current_phase in (
+                "reviewers_invited",
+                "under_review",
+            ):
                 reviewers = editorial.get("reviewers", [])
                 reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewers)
+                rl = dcfg["reviewer_label"].lower()
                 return (
-                    f"[EDITORIAL] Reviewer turn ready: {next_role}\n\n"
-                    f"Reviewers: {reviewer_names}\n\n"
+                    f"[EDITORIAL] {dcfg['reviewer_label']} turn ready: {next_role}\n\n"
+                    f"{dcfg['reviewer_label']}s: {reviewer_names}\n\n"
                     f"MANDATORY NEXT STEPS:\n"
-                    f"1. Call autolab_next to get the reviewer prompt.\n"
-                    f"2. Act as the reviewer, then call autolab_record with role='{next_role}'.\n"
-                    f"3. Call autolab_next immediately for the next reviewer (skip lab_meeting between reviewers).\n"
+                    f"1. Call autolab_next to get the {rl} prompt.\n"
+                    f"2. Act as the {rl}, then call autolab_record with role='{next_role}'.\n"
+                    f"3. Call autolab_next immediately for the next {rl} (skip lab_meeting between {rl}s).\n"
                     f"4. After the LAST review, call autolab_editorial again.\n"
                     f"NEVER stop."
                 )
@@ -1583,8 +1745,7 @@ async def autolab_editorial(
         if current_phase != starting_phase:
             return (
                 f"[EDITORIAL] Phase changed: {starting_phase} → {current_phase}\n"
-                f"Status: {current_status}\n"
-                + _LOOP_INSTRUCTION
+                f"Status: {current_status}\n" + _LOOP_INSTRUCTION
             )
 
         # ── Timeout check: if enabled and expired, switch to AI editor ──
@@ -1611,8 +1772,9 @@ def _build_ai_editor_return(
 ) -> str:
     """Construct the return value when editor timeout expires."""
     from .lab.prompts import build_ai_editor_prompt
-    from .lab.state import scan_project_files
+    from .lab.state import get_domain_config, scan_project_files
 
+    dcfg = get_domain_config(project_directory)
     file_listings = scan_project_files(project_directory)
     cover_letter = editorial.get("cover_letter", "")
     reviews = editorial.get("reviews", {})
@@ -1626,16 +1788,17 @@ def _build_ai_editor_return(
     )
 
     mins = elapsed_seconds // 60
+    rl = dcfg["reviewer_label"].lower()
     return (
-        f"[EDITORIAL — AI EDITOR ACTIVATED]\n\n"
-        f"The human editor did not respond within {mins} minutes.\n"
-        f"You must now act as the Editor-in-Chief and make a decision.\n\n"
+        f"[EDITORIAL — AI {dcfg['overseer_label'].upper()} ACTIVATED]\n\n"
+        f"The human {dcfg['overseer_label'].lower()} did not respond within {mins} minutes.\n"
+        f"You must now act as the {dcfg['overseer_label']} and make a decision.\n\n"
         f"{editor_prompt}\n\n"
         f"MANDATORY NEXT STEPS after making your decision:\n"
         f"1. Call `autolab_editor_act` with your action and feedback.\n"
         f"   - For desk reject: action='desk_reject', feedback='...'\n"
-        f"   - For invite reviewers: action='invite_reviewers', feedback='...', "
-        f"reviewers=[{{\"name\":\"Dr. X\",\"role\":\"Specialty\",\"avatar\":\"sprite_key\"}}]\n"
+        f"   - For invite {rl}s: action='invite_reviewers', feedback='...', "
+        f'reviewers=[{{"name":"Dr. X","role":"Specialty","avatar":"sprite_key"}}]\n'
         f"   - For final decision: action='accept'|'minor_revision'|'major_revision'|'reject', feedback='...'\n"
         f"2. Then follow the MANDATORY NEXT STEPS returned by autolab_editor_act.\n"
         f"NEVER stop. Continue the loop."
@@ -1644,19 +1807,27 @@ def _build_ai_editor_return(
 
 @mcp.tool()
 async def autolab_editor_act(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    action: Annotated[str, Field(
-        description="Editorial action: 'desk_reject', 'invite_reviewers', "
-                    "'accept', 'minor_revision', 'major_revision', 'reject'"
-    )] = "",
-    feedback: Annotated[str, Field(
-        description="Editor's feedback to the authors"
-    )] = "",
-    reviewers: Annotated[str, Field(
-        description="JSON array of reviewer dicts for invite_reviewers, "
-                    "e.g. [{\"name\":\"Dr. X\",\"role\":\"Statistician\",\"avatar\":\"statistician\"}]. "
-                    "Ignored for other actions."
-    )] = "[]",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    action: Annotated[
+        str,
+        Field(
+            description="Editorial action: 'desk_reject', 'invite_reviewers', "
+            "'accept', 'minor_revision', 'major_revision', 'reject'"
+        ),
+    ] = "",
+    feedback: Annotated[
+        str, Field(description="Editor's feedback to the authors")
+    ] = "",
+    reviewers: Annotated[
+        str,
+        Field(
+            description="JSON array of reviewer dicts for invite_reviewers, "
+            'e.g. [{"name":"Dr. X","role":"Statistician","avatar":"statistician"}]. '
+            "Ignored for other actions."
+        ),
+    ] = "[]",
 ) -> str:
     """Execute an editorial decision made by the AI editor (after timeout).
 
@@ -1671,7 +1842,10 @@ async def autolab_editor_act(
     Returns instructions to continue the loop.
     """
     from .lab.state import (
-        load_state, record_editorial_decision, invite_reviewers as _invite_reviewers
+        get_domain_config,
+        load_state,
+        record_editorial_decision,
+        invite_reviewers as _invite_reviewers,
     )
 
     project_directory = os.path.abspath(project_directory)
@@ -1681,22 +1855,27 @@ async def autolab_editor_act(
     except FileNotFoundError as e:
         return f"ERROR: {e}"
 
+    dcfg = get_domain_config(project_directory)
     action = action.strip().lower()
-    feedback = feedback.strip() or "(No feedback provided by AI editor)"
+    feedback = (
+        feedback.strip()
+        or f"(No feedback provided by AI {dcfg['overseer_label'].lower()})"
+    )
 
     debug_log(f"autolab_editor_act: action={action}")
 
     if action == "desk_reject":
         record_editorial_decision(project_directory, "reject", feedback)
         return (
-            f"[AI EDITOR] Manuscript desk-rejected.\n\n"
-            f"Feedback sent to PI: {feedback[:200]}...\n"
+            f"[AI {dcfg['overseer_label'].upper()}] {dcfg['artifact']} desk-rejected.\n\n"
+            f"Feedback sent to {dcfg['senior_label']}: {feedback[:200]}...\n"
             + _LOOP_INSTRUCTION
         )
 
     elif action == "invite_reviewers":
         # Parse reviewer list
         import json as _json
+
         try:
             reviewer_list = _json.loads(reviewers)
         except (ValueError, TypeError):
@@ -1705,9 +1884,24 @@ async def autolab_editor_act(
         if not reviewer_list or not isinstance(reviewer_list, list):
             # Fallback: generate 3 default reviewers
             reviewer_list = [
-                {"id": "reviewer_1", "name": "Dr. Methods", "role": "Statistician", "avatar": "statistician"},
-                {"id": "reviewer_2", "name": "Dr. Domain", "role": "Domain Expert", "avatar": "reviewer"},
-                {"id": "reviewer_3", "name": "Dr. Scope", "role": "Generalist", "avatar": "generic"},
+                {
+                    "id": "reviewer_1",
+                    "name": "Dr. Methods",
+                    "role": "Statistician",
+                    "avatar": "statistician",
+                },
+                {
+                    "id": "reviewer_2",
+                    "name": "Dr. Domain",
+                    "role": "Domain Expert",
+                    "avatar": "reviewer",
+                },
+                {
+                    "id": "reviewer_3",
+                    "name": "Dr. Scope",
+                    "role": "Generalist",
+                    "avatar": "generic",
+                },
             ]
 
         # Ensure each reviewer has an id
@@ -1717,14 +1911,15 @@ async def autolab_editor_act(
 
         _invite_reviewers(project_directory, reviewer_list)
         reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewer_list)
+        rl = dcfg["reviewer_label"].lower()
         return (
-            f"[AI EDITOR] Reviewers invited: {reviewer_names}\n\n"
-            f"Editor note: {feedback[:200]}\n\n"
-            f"You must now play each reviewer role in sequence.\n\n"
+            f"[AI {dcfg['overseer_label'].upper()}] {dcfg['reviewer_label']}s invited: {reviewer_names}\n\n"
+            f"{dcfg['overseer_label']} note: {feedback[:200]}\n\n"
+            f"You must now play each {rl} role in sequence.\n\n"
             f"MANDATORY NEXT STEPS:\n"
-            f"1. Call autolab_next — it will return the first reviewer's prompt.\n"
-            f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
-            f"3. Call autolab_next immediately for the next reviewer (skip lab_meeting between reviewers).\n"
+            f"1. Call autolab_next — it will return the first {rl}'s prompt.\n"
+            f"2. Act as that {rl}, then call autolab_record with role='reviewer_N'.\n"
+            f"3. Call autolab_next immediately for the next {rl} (skip lab_meeting between {rl}s).\n"
             f"4. After the LAST review, call autolab_editorial again.\n"
             f"NEVER stop."
         )
@@ -1733,9 +1928,8 @@ async def autolab_editor_act(
         record_editorial_decision(project_directory, action, feedback)
         dec_display = action.upper().replace("_", " ")
         return (
-            f"[AI EDITOR] Decision: {dec_display}\n\n"
-            f"Feedback: {feedback[:200]}...\n"
-            + _LOOP_INSTRUCTION
+            f"[AI {dcfg['overseer_label'].upper()}] Decision: {dec_display}\n\n"
+            f"Feedback: {feedback[:200]}...\n" + _LOOP_INSTRUCTION
         )
 
     else:
@@ -1748,7 +1942,9 @@ async def autolab_editor_act(
 
 @mcp.tool()
 async def autolab_status(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """Get the current status of an Autonomous Lab project.
 
@@ -1762,6 +1958,7 @@ async def autolab_status(
         str: Formatted status report
     """
     from .lab.state import (
+        get_domain_config,
         get_paper_progress,
         get_recent_meetings,
         load_state,
@@ -1775,9 +1972,19 @@ async def autolab_status(
     except FileNotFoundError as e:
         return f"ERROR: {e}"
 
+    dcfg = get_domain_config(project_directory)
     file_listings = scan_project_files(project_directory)
     paper_progress = get_paper_progress(project_directory)
     recent = get_recent_meetings(project_directory, n=2)
+
+    # Map internal role id to display label
+    next_role_id = state["next_role"]
+    if next_role_id == "pi":
+        next_role_display = dcfg["senior_label"]
+    elif next_role_id == "trainee":
+        next_role_display = dcfg["junior_label"]
+    else:
+        next_role_display = next_role_id  # reviewer_N etc.
 
     # Format file counts
     file_counts = {k: len(v) for k, v in file_listings.items()}
@@ -1794,8 +2001,9 @@ async def autolab_status(
 
     report = (
         f"# Autonomous Lab Status\n\n"
+        f"**Domain:** {dcfg.get('senior_label', 'PI')}/{dcfg.get('junior_label', 'Trainee')}/{dcfg.get('overseer_label', 'Editor')}\n"
         f"**Iteration:** {state['iteration']}\n"
-        f"**Next role:** {state['next_role']}\n"
+        f"**Next role:** {next_role_display}\n"
         f"**Status:** {state['status']}\n"
         f"**Last updated:** {state.get('last_updated', 'unknown')}\n\n"
         f"## File Counts\n"
@@ -1804,10 +2012,8 @@ async def autolab_status(
         f"  figures: {file_counts.get('figures', 0)} files\n"
         f"  results: {file_counts.get('results', 0)} files\n"
         f"  paper: {file_counts.get('paper', 0)} files\n\n"
-        f"## Paper Progress\n"
-        + "\n".join(paper_lines)
-        + "\n\n"
-        f"## Recent Meetings\n\n{recent if recent.strip() else 'No meetings yet.'}\n"
+        f"## {dcfg['artifact']} Progress\n" + "\n".join(paper_lines) + "\n\n"
+        f"## Recent {dcfg['meeting_log_name']}\n\n{recent if recent.strip() else 'No meetings yet.'}\n"
     )
 
     # Show queued feedback count (don't drain it — just peek)
@@ -1826,9 +2032,12 @@ async def autolab_status(
 # Wraps the optional Biomni package (snap-stanford/Biomni) behind
 # generic tool names so the Autonomous Lab API stays vendor-neutral.
 
+
 @mcp.tool()
 async def autolab_biotools_status(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """Check whether the optional biomedical toolkit is installed and enabled.
 
@@ -1843,6 +2052,7 @@ async def autolab_biotools_status(
     Returns JSON with: installed (bool), version, enabled, datalake path.
     """
     from .integrations.biomni import get_status
+
     project_directory = os.path.abspath(project_directory)
     status = get_status(project_directory)
     return json.dumps(status, indent=2)
@@ -1850,9 +2060,12 @@ async def autolab_biotools_status(
 
 @mcp.tool()
 async def autolab_biotools_install(
-    from_source: Annotated[bool, Field(
-        description="Install latest from GitHub (True) or stable from PyPI (False)"
-    )] = True,
+    from_source: Annotated[
+        bool,
+        Field(
+            description="Install latest from GitHub (True) or stable from PyPI (False)"
+        ),
+    ] = True,
 ) -> str:
     """Install the biomedical toolkit (one-time setup).
 
@@ -1864,6 +2077,7 @@ async def autolab_biotools_install(
     Set skip_datalake=True via autolab_biotools_configure to skip it.
     """
     from .integrations.biomni import install_biomni
+
     result = install_biomni(from_source=from_source)
     if result["success"]:
         return f"SUCCESS: {result['message']}"
@@ -1873,10 +2087,18 @@ async def autolab_biotools_install(
 
 @mcp.tool()
 async def autolab_biotools_configure(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    enabled: Annotated[bool, Field(description="Enable biomedical toolkit for this project")] = True,
-    data_path: Annotated[str, Field(description="Path for toolkit datalake")] = "./data",
-    skip_datalake: Annotated[bool, Field(description="Skip downloading the 11GB datalake")] = False,
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    enabled: Annotated[
+        bool, Field(description="Enable biomedical toolkit for this project")
+    ] = True,
+    data_path: Annotated[
+        str, Field(description="Path for toolkit datalake")
+    ] = "./data",
+    skip_datalake: Annotated[
+        bool, Field(description="Skip downloading the 11GB datalake")
+    ] = False,
 ) -> str:
     """Configure the biomedical toolkit for this project.
 
@@ -1887,6 +2109,7 @@ async def autolab_biotools_configure(
     any external LLM agent or pipeline.
     """
     from .integrations.biomni import save_biomni_config
+
     project_directory = os.path.abspath(project_directory)
     cfg = save_biomni_config(
         project_directory,
@@ -1899,7 +2122,9 @@ async def autolab_biotools_configure(
 
 @mcp.tool()
 async def autolab_biotools_list(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
 ) -> str:
     """List available biomedical tools and databases.
 
@@ -1915,6 +2140,7 @@ async def autolab_biotools_list(
         list_available_databases,
         list_available_tools,
     )
+
     if not is_biomni_available():
         return (
             "Biomedical toolkit is not installed.\n"
@@ -1926,7 +2152,7 @@ async def autolab_biotools_list(
     lines = ["## Available Biomedical Tools\n"]
     if tools:
         for t in tools:
-            desc = f" — {t['description']}" if t.get('description') else ""
+            desc = f" — {t['description']}" if t.get("description") else ""
             lines.append(f"  - **{t['name']}** (`{t['module']}`){desc}")
     else:
         lines.append("  (no tools detected)")
@@ -1934,7 +2160,7 @@ async def autolab_biotools_list(
     lines.append("\n## Available Databases\n")
     if dbs:
         for d in dbs:
-            desc = f" — {d['description']}" if d.get('description') else ""
+            desc = f" — {d['description']}" if d.get("description") else ""
             lines.append(f"  - **{d['name']}** (`{d['module']}`){desc}")
     else:
         lines.append("  (no databases detected)")
@@ -1957,6 +2183,7 @@ async def autolab_biotools_env() -> str:
     datalake status, and paths.
     """
     from .integrations.biomni import check_environment
+
     env = check_environment()
     return json.dumps(env, indent=2)
 
@@ -1965,55 +2192,127 @@ async def autolab_biotools_env() -> str:
 
 # Available avatar sprite keys (must match EXPERT_DEFS in sprites.js)
 _AVATAR_KEYS = [
-    "reviewer", "bioethicist", "science_writer", "grant_reviewer",
-    "immunologist", "oncologist", "neuroscientist", "geneticist",
-    "cell_biologist", "microbiologist", "pathologist", "pharmacologist",
-    "structural_bio", "systems_biologist", "epidemiologist", "statistician",
-    "bioinformatician", "data_scientist", "ml_engineer", "comp_biologist",
-    "clinician", "radiologist", "surgeon", "chemist", "physicist",
-    "engineer", "psychologist", "ecologist", "generic",
+    "reviewer",
+    "bioethicist",
+    "science_writer",
+    "grant_reviewer",
+    "immunologist",
+    "oncologist",
+    "neuroscientist",
+    "geneticist",
+    "cell_biologist",
+    "microbiologist",
+    "pathologist",
+    "pharmacologist",
+    "structural_bio",
+    "systems_biologist",
+    "epidemiologist",
+    "statistician",
+    "bioinformatician",
+    "data_scientist",
+    "ml_engineer",
+    "comp_biologist",
+    "clinician",
+    "radiologist",
+    "surgeon",
+    "chemist",
+    "physicist",
+    "engineer",
+    "psychologist",
+    "ecologist",
+    "generic",
 ]
 
 # Built-in skill catalog for reference (users can also create their own)
 _SKILL_CATALOG = {
     "Bioinformatics & Omics": [
-        "scanpy", "scvi-tools", "pydeseq2", "pysam", "deeptools",
-        "anndata", "cellxgene-census", "geniml", "gtars", "arboreto",
+        "scanpy",
+        "scvi-tools",
+        "pydeseq2",
+        "pysam",
+        "deeptools",
+        "anndata",
+        "cellxgene-census",
+        "geniml",
+        "gtars",
+        "arboreto",
     ],
     "Machine Learning & AI": [
-        "scikit-learn", "pytorch-lightning", "transformers", "accelerate",
-        "shap", "torch_geometric", "deepchem", "torchdrug", "umap-learn",
+        "scikit-learn",
+        "pytorch-lightning",
+        "transformers",
+        "accelerate",
+        "shap",
+        "torch_geometric",
+        "deepchem",
+        "torchdrug",
+        "umap-learn",
         "stable-baselines3",
     ],
     "Statistics & Modeling": [
-        "statistical-analysis", "statsmodels", "pymc", "scikit-survival",
-        "sympy", "pymoo",
+        "statistical-analysis",
+        "statsmodels",
+        "pymc",
+        "scikit-survival",
+        "sympy",
+        "pymoo",
     ],
     "Chemistry & Drug Discovery": [
-        "rdkit", "datamol", "medchem", "molfeat", "pytdc", "diffdock",
-        "rowan", "matchms",
+        "rdkit",
+        "datamol",
+        "medchem",
+        "molfeat",
+        "pytdc",
+        "diffdock",
+        "rowan",
+        "matchms",
     ],
     "Visualization": [
-        "scientific-visualization", "matplotlib", "seaborn", "plotly",
+        "scientific-visualization",
+        "matplotlib",
+        "seaborn",
+        "plotly",
     ],
     "Writing & Communication": [
-        "scientific-writing", "literature-review", "peer-review",
-        "scientific-brainstorming", "hypothesis-generation",
-        "venue-templates", "latex-posters", "scientific-slides",
+        "scientific-writing",
+        "literature-review",
+        "peer-review",
+        "scientific-brainstorming",
+        "hypothesis-generation",
+        "venue-templates",
+        "latex-posters",
+        "scientific-slides",
     ],
     "Clinical & Databases": [
-        "clinical-reports", "clinicaltrials-database", "clinvar-database",
-        "pubmed-database", "geo-database", "opentargets-database",
-        "string-database", "kegg-database", "reactome-database",
-        "uniprot-database", "pdb-database", "pubchem-database",
-        "chembl-database", "ensembl-database",
+        "clinical-reports",
+        "clinicaltrials-database",
+        "clinvar-database",
+        "pubmed-database",
+        "geo-database",
+        "opentargets-database",
+        "string-database",
+        "kegg-database",
+        "reactome-database",
+        "uniprot-database",
+        "pdb-database",
+        "pubchem-database",
+        "chembl-database",
+        "ensembl-database",
     ],
     "Infrastructure & MLOps": [
-        "weights-and-biases", "mlflow", "tensorboard", "modal",
-        "vllm", "sglang",
+        "weights-and-biases",
+        "mlflow",
+        "tensorboard",
+        "modal",
+        "vllm",
+        "sglang",
     ],
     "Data Processing": [
-        "polars", "dask", "vaex", "zarr-python", "geopandas",
+        "polars",
+        "dask",
+        "vaex",
+        "zarr-python",
+        "geopandas",
         "exploratory-data-analysis",
     ],
 }
@@ -2024,47 +2323,81 @@ _KNOWN_SKILLS = sorted({s for skills in _SKILL_CATALOG.values() for s in skills}
 
 @mcp.tool()
 async def autolab_create_character(
-    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    name: Annotated[str, Field(description="Character's display name (e.g., 'Dr. Maria Chen')")] = "",
-    role: Annotated[str, Field(description="Role type: 'pi', 'trainee', or 'collaborator'")] = "",
-    title: Annotated[str, Field(description="Professional title (e.g., 'Computational Biology PI')")] = "",
-    expertise: Annotated[str, Field(description="Areas of expertise (e.g., 'Single-cell genomics, machine learning')")] = "",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    name: Annotated[
+        str, Field(description="Character's display name (e.g., 'Dr. Maria Chen')")
+    ] = "",
+    role: Annotated[
+        str, Field(description="Role type: 'pi', 'trainee', or 'collaborator'")
+    ] = "",
+    title: Annotated[
+        str, Field(description="Professional title (e.g., 'Computational Biology PI')")
+    ] = "",
+    expertise: Annotated[
+        str,
+        Field(
+            description="Areas of expertise (e.g., 'Single-cell genomics, machine learning')"
+        ),
+    ] = "",
     goal: Annotated[str, Field(description="Character's research goal")] = "",
-    skills: Annotated[str, Field(
-        description="Comma-separated skill names "
-                    "(e.g., 'scanpy,scvi-tools,scientific-writing,my-custom-tool'). "
-                    "Can be built-in Cursor skills or your own custom SKILL.md names. "
-                    "Use list_skills=True to browse the built-in catalog."
-    )] = "",
-    personality: Annotated[str, Field(
-        description="Pipe-separated personality traits "
-                    "(e.g., 'Rigorous: demands statistical reproducibility|"
-                    "Visionary: spots novel research directions')"
-    )] = "",
-    avatar: Annotated[str, Field(
-        description="Avatar sprite key for the game UI: reviewer, bioethicist, "
-                    "science_writer, grant_reviewer, immunologist, oncologist, "
-                    "neuroscientist, geneticist, cell_biologist, microbiologist, "
-                    "pathologist, pharmacologist, structural_bio, systems_biologist, "
-                    "epidemiologist, statistician, bioinformatician, data_scientist, "
-                    "ml_engineer, comp_biologist, clinician, radiologist, surgeon, "
-                    "chemist, physicist, engineer, psychologist, ecologist, generic"
-    )] = "generic",
-    deploy_as: Annotated[str, Field(
-        description="Deploy locally as 'pi' or 'trainee' profile "
-                    "(saves to .autolab/profiles/). Leave empty to only generate the YAML."
-    )] = "",
-    github_repo: Annotated[str, Field(
-        description="Optional GitHub repo path for marketplace listing "
-                    "(e.g., 'username/autolab-char-name')"
-    )] = "",
-    list_skills: Annotated[bool, Field(
-        description="If True, ignore other params and return the built-in skill catalog "
-                    "(you can also use any custom skill name not listed here)"
-    )] = False,
-    list_avatars: Annotated[bool, Field(
-        description="If True, ignore other params and return all available avatar keys"
-    )] = False,
+    skills: Annotated[
+        str,
+        Field(
+            description="Comma-separated skill names "
+            "(e.g., 'scanpy,scvi-tools,scientific-writing,my-custom-tool'). "
+            "Can be built-in Cursor skills or your own custom SKILL.md names. "
+            "Use list_skills=True to browse the built-in catalog."
+        ),
+    ] = "",
+    personality: Annotated[
+        str,
+        Field(
+            description="Pipe-separated personality traits "
+            "(e.g., 'Rigorous: demands statistical reproducibility|"
+            "Visionary: spots novel research directions')"
+        ),
+    ] = "",
+    avatar: Annotated[
+        str,
+        Field(
+            description="Avatar sprite key for the game UI: reviewer, bioethicist, "
+            "science_writer, grant_reviewer, immunologist, oncologist, "
+            "neuroscientist, geneticist, cell_biologist, microbiologist, "
+            "pathologist, pharmacologist, structural_bio, systems_biologist, "
+            "epidemiologist, statistician, bioinformatician, data_scientist, "
+            "ml_engineer, comp_biologist, clinician, radiologist, surgeon, "
+            "chemist, physicist, engineer, psychologist, ecologist, generic"
+        ),
+    ] = "generic",
+    deploy_as: Annotated[
+        str,
+        Field(
+            description="Deploy locally as 'pi' or 'trainee' profile "
+            "(saves to .autolab/profiles/). Leave empty to only generate the YAML."
+        ),
+    ] = "",
+    github_repo: Annotated[
+        str,
+        Field(
+            description="Optional GitHub repo path for marketplace listing "
+            "(e.g., 'username/autolab-char-name')"
+        ),
+    ] = "",
+    list_skills: Annotated[
+        bool,
+        Field(
+            description="If True, ignore other params and return the built-in skill catalog "
+            "(you can also use any custom skill name not listed here)"
+        ),
+    ] = False,
+    list_avatars: Annotated[
+        bool,
+        Field(
+            description="If True, ignore other params and return all available avatar keys"
+        ),
+    ] = False,
 ) -> str:
     """Create a character profile for the Autonomous Lab research team.
 
@@ -2105,7 +2438,9 @@ async def autolab_create_character(
 
     if list_skills:
         lines = ["# Built-in Cursor Skills (Reference Catalog)\n"]
-        lines.append(f"Total: {len(_KNOWN_SKILLS)} built-in skills across {len(_SKILL_CATALOG)} domains\n")
+        lines.append(
+            f"Total: {len(_KNOWN_SKILLS)} built-in skills across {len(_SKILL_CATALOG)} domains\n"
+        )
         for domain, skill_list in _SKILL_CATALOG.items():
             lines.append(f"\n## {domain}")
             for s in skill_list:
@@ -2130,9 +2465,7 @@ async def autolab_create_character(
         for a in _AVATAR_KEYS:
             lines.append(f"  - {a}")
         lines.append(
-            "\n---\n"
-            "Pass your chosen avatar key:\n"
-            "  avatar='neuroscientist'"
+            "\n---\n" "Pass your chosen avatar key:\n" "  avatar='neuroscientist'"
         )
         return "\n".join(lines)
 
@@ -2152,9 +2485,13 @@ async def autolab_create_character(
     if not skills:
         errors.append("'skills' is required (comma-separated Cursor skill names)")
     if not personality:
-        errors.append("'personality' is required (pipe-separated 'Trait: description' entries)")
+        errors.append(
+            "'personality' is required (pipe-separated 'Trait: description' entries)"
+        )
     if avatar not in _AVATAR_KEYS:
-        errors.append(f"'avatar' must be one of: {', '.join(_AVATAR_KEYS[:5])}... (use list_avatars=True)")
+        errors.append(
+            f"'avatar' must be one of: {', '.join(_AVATAR_KEYS[:5])}... (use list_avatars=True)"
+        )
     if deploy_as and deploy_as not in ("pi", "trainee"):
         errors.append("'deploy_as' must be 'pi' or 'trainee' (or empty)")
 
