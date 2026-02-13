@@ -14,7 +14,19 @@ The server runs inside your existing agentic coding tool (Cursor, Claude Code, C
   </a>
 </p>
 
+## Why this exists
+
+Autonomous Lab is an MCP server. It runs inside the coding agent you already pay for. That means:
+
+- **No API key required.** You don't need an OpenAI/Anthropic/Google key. The intelligence comes from whichever model your coding tool already uses.
+- **No extra cost.** Your existing Cursor Pro, Claude Max, Windsurf, or Codex subscription is all you need.
+- **No new app to learn.** It plugs into your current workflow as a set of MCP tools.
+
 ## Install
+
+The easiest way: paste this README link into your coding agent (Claude Code, Cursor, Codex CLI) and ask it to install Autonomous Lab for you. It will handle everything.
+
+Or do it manually:
 
 ```bash
 # From PyPI
@@ -75,6 +87,7 @@ When work is ready, you review it. Accept, request revisions, or reject. The loo
 
 ## Key capabilities
 
+- **Zero additional cost**: runs on your existing coding agent subscription. No separate API keys, no usage-based billing, no new accounts.
 - **Skill containers**: configure characters with any combination of SKILL.md files you already have. A PI with `scanpy + scientific-writing + statistical-analysis` skills behaves differently from a Tech Lead with `react + typescript + code-review` skills.
 - **24-hour sessions**: the loop runs indefinitely. No timeout, no context loss. Sessions persist across disconnects with `autolab_resume`.
 - **Fully configurable**: YAML character profiles control personality, expertise, goals, and available tools. Swap them in seconds.
