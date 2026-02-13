@@ -1030,7 +1030,7 @@
   // Characters link to their source GitHub repos.
   // Users fork the template, create their character,
   // and list their repo. Ranked by GitHub stars.
-  // Official characters from MarcusOfficial get a badge.
+  // Official characters from albert-ying get a badge.
   // ============================================================
   const CHARACTERS = [
     {
@@ -1047,7 +1047,7 @@
         "Rigorous: demands reproducible computational pipelines with version control",
         "Collaborative: bridges wet lab and dry lab teams effectively"
       ],
-      github: "MarcusOfficial/autolab-char-compbio-pi",
+      github: "albert-ying/autolab-char-compbio-pi",
       stars: 342,
       official: true
     },
@@ -1065,7 +1065,7 @@
         "Technical: writes self-contained, reproducible code with proper testing",
         "Proactive: identifies additional analyses that strengthen the narrative"
       ],
-      github: "MarcusOfficial/autolab-char-bioinfo-trainee",
+      github: "albert-ying/autolab-char-bioinfo-trainee",
       stars: 256,
       official: true
     },
@@ -1083,7 +1083,7 @@
         "Data-driven: demands SAR analysis before advancing any lead series",
         "Publication-savvy: structures work for high-impact medicinal chemistry journals"
       ],
-      github: "jchem-lab/autolab-medchem-pi",
+      github: "albert-ying/autolab-char-medchem-pi",
       stars: 189,
       official: false
     },
@@ -1101,7 +1101,7 @@
         "Systematic: benchmarks every change with rigorous ablation studies",
         "Clear communicator: documents architecture decisions and trade-offs"
       ],
-      github: "jparkml/autolab-ml-engineer",
+      github: "albert-ying/autolab-char-ml-engineer",
       stars: 198,
       official: false
     },
@@ -1119,7 +1119,7 @@
         "Critical: identifies confounders and biases in study designs",
         "Translational: connects statistical findings to clinical implications"
       ],
-      github: "evasquez-epi/autolab-clinical-epi",
+      github: "albert-ying/autolab-char-clinical-epi",
       stars: 145,
       official: false
     },
@@ -1137,7 +1137,7 @@
         "Educational: explains complex methods in accessible terms",
         "Conservative: prefers well-validated methods over trendy approaches"
       ],
-      github: "MarcusOfficial/autolab-char-biostatistician",
+      github: "albert-ying/autolab-char-biostatistician",
       stars: 267,
       official: true
     },
@@ -1159,7 +1159,7 @@
         const card = document.createElement("div");
         card.className = "mp-card";
         card.dataset.role = ch.role;
-        const officialBadge = ch.official ? '<span class="mp-official-badge" title="Official character by MarcusOfficial">&#x2705; Official</span>' : '';
+        const officialBadge = ch.official ? '<span class="mp-official-badge" title="Official character by albert-ying">&#x2705; Official</span>' : '';
         card.innerHTML = `
           <div class="mp-card-top">
             <div class="mp-card-avatar"><canvas width="40" height="64" data-expert="${ch.avatar}"></canvas></div>
