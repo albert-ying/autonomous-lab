@@ -81,6 +81,12 @@ autolab_next → (AI acts as role) → autolab_record → lab_meeting → autola
 
 When work is ready, you review it. Accept, request revisions, or reject. The loop continues until you're satisfied.
 
+<p align="center">
+  <img src="docs/fig2_dissection.png" alt="Anatomy of the monitoring interface and editorial workflow" width="800">
+</p>
+
+<p align="center"><em>Anatomy of the monitoring interface and editorial workflow. Top: the research loop (characters, meeting log, inventory, marketplace). Bottom: the editorial office (reviewer selection, reports, decision).</em></p>
+
 ## Key capabilities
 
 - **Zero additional cost**: runs on your existing coding agent subscription. No separate API keys, no usage-based billing, no new accounts.
