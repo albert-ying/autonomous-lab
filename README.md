@@ -1,8 +1,18 @@
 # Autonomous Lab
 
+[![Website](https://img.shields.io/badge/Website-autolab.kejunying.com-8B5CF6?style=flat&logo=googlechrome&logoColor=white)](https://autolab.kejunying.com)
+[![PyPI](https://img.shields.io/pypi/v/autonomous-lab?color=8B5CF6)](https://pypi.org/project/autonomous-lab/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-8B5CF6)](LICENSE)
+
 MCP server that turns any senior-junior workflow into an autonomous loop. AI handles the execution. You make the decisions.
 
 The server runs inside your existing agentic coding tool (Cursor, Claude Code, Codex CLI, Windsurf, or any MCP client). Your SKILL.md files become character configurations. The loop runs for hours without stopping. You step in as editor when the work is ready for judgment.
+
+<p align="center">
+  <a href="https://autolab.kejunying.com">
+    <img src="docs/screenshot.png" alt="Autonomous Lab" width="700">
+  </a>
+</p>
 
 ## Install
 
@@ -10,7 +20,7 @@ The server runs inside your existing agentic coding tool (Cursor, Claude Code, C
 # From PyPI
 uv pip install autonomous-lab
 
-# With biomedical toolkit (optional)
+# With optional biomedical toolkit (biomni)
 uv pip install autonomous-lab[biotools]
 ```
 
@@ -119,7 +129,7 @@ Autonomous Lab builds on these open-source projects:
 - [The Virtual Lab](https://github.com/zou-group/virtual-lab) by James Zou Lab, Stanford (MIT) -- the concept of LLM agents as PI and scientists iterating through structured research meetings ([Swanson et al., Nature 2025](https://www.nature.com/articles/s41586-025-09442-9))
 - [mcp-feedback-enhanced](https://github.com/Minidoracat/mcp-feedback-enhanced) by Minidoracat (MIT) -- Web UI, feedback loop, session management, and i18n infrastructure
 - [interactive-feedback-mcp](https://github.com/fabiomlferreira/interactive-feedback-mcp) by Fábio Ferreira (MIT) -- the original MCP feedback server
-- [BiomNI](https://github.com/snap-stanford/Biomni) by Jure Leskovec Lab, Stanford (Apache 2.0) -- optional biomedical toolkit integration
+- [biomni](https://github.com/snap-stanford/Biomni) by Jure Leskovec Lab, Stanford (Apache 2.0) -- optional biomedical toolkit integration
 
 ## License
 

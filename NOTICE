@@ -27,14 +27,14 @@ This project builds on the following open-source work:
    The original MCP feedback server that mcp-feedback-enhanced
    was built upon.
 
-4. BiomNI
+4. biomni
    By Jure Leskovec Lab, Stanford University, Apache 2.0 License
    https://github.com/snap-stanford/Biomni
 
-   The optional biomedical toolkit integration wraps BiomNI's
-   tools and databases. BiomNI is not bundled; it is installed
+   The optional biomedical toolkit integration wraps biomni's
+   tools and databases. biomni is not bundled; it is installed
    at runtime when the user opts in. Some integrated tools and
-   databases within BiomNI carry their own licenses.
+   databases within biomni carry their own licenses.
 
 The original MIT-licensed code from (2) and (3) has been
 substantially modified, extended, and re-architected for the
