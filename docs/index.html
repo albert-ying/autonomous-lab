@@ -502,7 +502,7 @@
                             <span class="link-repo-num">1</span>
                             <div>
                                 <strong>Fork the template repo</strong>
-                                <p>Start from our character template which includes the YAML schema, a README, and example files.</p>
+                                <p>Start from our template which includes the YAML schema, a <code>skills/</code> folder with example SKILL.md files, and a README.</p>
                                 <a href="https://github.com/albert-ying/autolab-character-template/fork" target="_blank" rel="noopener" class="btn-primary btn-sm">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75v-.878a2.25 2.25 0 111.5 0v.878a2.25 2.25 0 01-2.25 2.25h-1.5v2.128a2.251 2.251 0 11-1.5 0V8.5h-1.5A2.25 2.25 0 013.5 6.25v-.878a2.25 2.25 0 111.5 0zm-1 0a.75.75 0 10-1.5 0 .75.75 0 001.5 0zm6 0a.75.75 0 10-1.5 0 .75.75 0 001.5 0zM8 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z"/></svg>
                                     Fork Template Repo
@@ -513,20 +513,16 @@
                         <div class="link-repo-step">
                             <span class="link-repo-num">2</span>
                             <div>
-                                <strong>Create your character YAML</strong>
-                                <p>Edit the <code>character.yaml</code> in your forked repo. Define the persona, skills, and personality.</p>
-                                <pre class="gs-code link-repo-yaml"><code><span class="yaml-key">name:</span> <span class="yaml-val">Dr. Your Name</span>
-<span class="yaml-key">role:</span> <span class="yaml-val">pi</span>  <span class="code-comment"># pi | trainee | collaborator</span>
-<span class="yaml-key">avatar:</span> <span class="yaml-val">neuroscientist</span>
-<span class="yaml-key">title:</span> <span class="yaml-val">Your Title Here</span>
-<span class="yaml-key">expertise:</span> <span class="yaml-val">your domain expertise</span>
-<span class="yaml-key">goal:</span> <span class="yaml-val">what this character aims to achieve</span>
-<span class="yaml-key">skills:</span>  <span class="code-comment"># Cursor skill names</span>
-  <span class="yaml-val">- scanpy</span>
-  <span class="yaml-val">- scientific-writing</span>
-  <span class="yaml-val">- statistical-analysis</span>
-<span class="yaml-key">personality:</span>
-  <span class="yaml-val">- "Trait: description"</span></code></pre>
+                                <strong>Add character YAML + skill folders</strong>
+                                <p>Each character is a self-contained skill bundle. The <code>skills/</code> folder contains Cursor-compatible SKILL.md files.</p>
+                                <pre class="gs-code link-repo-yaml"><code><span class="code-comment">your-character/</span>
+<span class="code-comment">&#x251C;&#x2500;&#x2500;</span> <span class="yaml-key">character.yaml</span>
+<span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-key">skills/</span>
+    <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> <span class="yaml-val">my-analysis/</span>
+    <span class="code-comment">&#x2502;</span>   <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> SKILL.md
+    <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">my-writing/</span>
+        <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> SKILL.md
+        <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">scripts/</span>  <span class="code-comment"># optional</span></code></pre>
                             </div>
                         </div>
 
