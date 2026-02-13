@@ -6,7 +6,7 @@ MCP server for iterative PI/Trainee research sessions.
 Fork of mcp-feedback-enhanced with virtual lab extensions.
 """
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 __author__ = "Albert Ying"
 
 from .server import main as run_server
@@ -26,4 +26,5 @@ __all__ = [
 def main():
     """Main entry point"""
     from .__main__ import main as cli_main
+
     return cli_main()

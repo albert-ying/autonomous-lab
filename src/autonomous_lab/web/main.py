@@ -32,18 +32,60 @@ from .utils.compression_config import get_compression_manager
 from .utils.port_manager import PortManager
 
 
+def _is_remote_environment() -> bool:
+    """Detect whether we are running in a remote / SSH / container environment.
+
+    When True, the web UI should bind to 0.0.0.0 by default so that users
+    on the other end of the SSH session (or outside the container) can reach
+    the monitoring page without setting up a separate tunnel.
+
+    Detection signals (any one is sufficient):
+      - SSH_CLIENT / SSH_TTY / SSH_CONNECTION env vars  (SSH session)
+      - /.dockerenv or /run/.containerenv exists        (container)
+      - REMOTE_CONTAINERS / CODESPACES env vars         (dev-containers)
+      - KUBERNETES_SERVICE_HOST env var                  (K8s pod)
+    """
+    # SSH session indicators
+    ssh_vars = ("SSH_CLIENT", "SSH_TTY", "SSH_CONNECTION")
+    if any(os.getenv(v) for v in ssh_vars):
+        return True
+
+    # Container indicators
+    container_markers = ("/.dockerenv", "/run/.containerenv")
+    if any(os.path.exists(p) for p in container_markers):
+        return True
+
+    # Remote dev-environment indicators
+    remote_vars = ("REMOTE_CONTAINERS", "CODESPACES", "KUBERNETES_SERVICE_HOST")
+    if any(os.getenv(v) for v in remote_vars):
+        return True
+
+    return False
+
+
 class WebUIManager:
     """Web UI 管理器 - 重構為單一活躍會話模式"""
 
     def __init__(self, host: str = "127.0.0.1", port: int | None = None):
-        # 確定偏好主機：環境變數 > 參數 > 預設值 127.0.0.1
+        # Host priority: env var > explicit param > auto-detect > 127.0.0.1
         env_host = os.getenv("MCP_WEB_HOST")
         if env_host:
             self.host = env_host
             debug_log(f"使用環境變數指定的主機: {self.host}")
+        elif host != "127.0.0.1":
+            # Caller passed an explicit non-default host
+            self.host = host
+            debug_log(f"Using explicitly provided host: {self.host}")
+        elif _is_remote_environment():
+            # Auto-detect SSH / container / headless — bind to all interfaces
+            self.host = "0.0.0.0"
+            debug_log(
+                "Auto-detected remote/SSH environment — defaulting to 0.0.0.0 "
+                "(override with MCP_WEB_HOST=127.0.0.1 to restrict)"
+            )
         else:
             self.host = host
-            debug_log(f"未設定 MCP_WEB_HOST 環境變數，使用預設主機 {self.host}")
+            debug_log(f"Local environment detected, using {self.host}")
 
         # 確定偏好端口：環境變數 > 參數 > 預設值 8765
         preferred_port = 8765
@@ -146,6 +188,22 @@ class WebUIManager:
         self._init_basic_components()
 
         debug_log(f"WebUIManager 基本初始化完成，將在 {self.host}:{self.port} 啟動")
+        if self.host in ("0.0.0.0", "::"):
+            debug_log(
+                f"Remote access enabled — binding to all interfaces ({self.host})"
+            )
+            debug_log(f"  Local:  http://127.0.0.1:{self.port}")
+            import socket
+
+            try:
+                hostname = socket.gethostname()
+                ip = socket.gethostbyname(hostname)
+                if ip and ip != "127.0.0.1":
+                    debug_log(f"  Remote: http://{ip}:{self.port}")
+            except Exception:
+                debug_log(f"  Remote: http://<server-ip>:{self.port}")
+        else:
+            debug_log(f"Localhost only — set MCP_WEB_HOST=0.0.0.0 for remote access")
         debug_log("回饋模式: web")
 
     def _init_basic_components(self):
@@ -859,8 +917,32 @@ class WebUIManager:
             return False
 
     def get_server_url(self) -> str:
-        """獲取伺服器 URL"""
-        return f"http://{self.host}:{self.port}"
+        """獲取伺服器 URL（本地可瀏覽的地址）
+
+        When bound to 0.0.0.0, returns 127.0.0.1 for local browser access
+        since 0.0.0.0 is a bind address, not a browsable address.
+        """
+        display_host = "127.0.0.1" if self.host in ("0.0.0.0", "::") else self.host
+        return f"http://{display_host}:{self.port}"
+
+    def get_remote_url(self) -> str | None:
+        """Get the remote-accessible URL when bound to 0.0.0.0.
+
+        Returns None if bound to localhost only. Otherwise returns a URL
+        using the machine's hostname that remote clients can connect to.
+        """
+        if self.host not in ("0.0.0.0", "::"):
+            return None
+        import socket
+
+        try:
+            hostname = socket.gethostname()
+            ip = socket.gethostbyname(hostname)
+            if ip and ip != "127.0.0.1":
+                return f"http://{ip}:{self.port}"
+        except Exception:
+            pass
+        return f"http://<server-ip>:{self.port}"
 
     def cleanup_expired_sessions(self) -> int:
         """清理過期會話"""
@@ -1015,9 +1097,9 @@ class WebUIManager:
         stats.update(
             {
                 "active_sessions": len(self.sessions),
-                "current_session_id": self.current_session.session_id
-                if self.current_session
-                else None,
+                "current_session_id": (
+                    self.current_session.session_id if self.current_session else None
+                ),
                 "expired_sessions": sum(
                     1 for s in self.sessions.values() if s.is_expired()
                 ),

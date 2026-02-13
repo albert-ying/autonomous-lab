@@ -132,6 +132,47 @@ personality:
   - "Rigorous: demands statistical reproducibility"
 ```
 
+## Remote / SSH environments
+
+The monitoring web UI binds to `127.0.0.1` by default (local only). On a remote server, SSH session, or container, the UI will attempt to auto-detect and bind to `0.0.0.0` instead. If auto-detection doesn't match your setup, use one of the methods below.
+
+**Method 1: Environment variable (recommended)**
+
+Set `MCP_WEB_HOST` to `0.0.0.0` in your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "autonomous-lab": {
+      "command": "uvx",
+      "args": ["autonomous-lab"],
+      "timeout": 600,
+      "env": {
+        "MCP_WEB_HOST": "0.0.0.0",
+        "MCP_WEB_PORT": "8766"
+      }
+    }
+  }
+}
+```
+
+Then open `http://<remote-host-ip>:8766/lab` in your local browser.
+
+**Method 2: SSH port forwarding**
+
+Keep the default config (`127.0.0.1`) and forward the port:
+
+```bash
+ssh -L 8766:localhost:8766 user@remote-host
+```
+
+Then open `http://localhost:8766/lab` locally.
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MCP_WEB_HOST` | Bind address | auto-detected (`0.0.0.0` if SSH/container, else `127.0.0.1`) |
+| `MCP_WEB_PORT` | Web UI port | `8765` |
+
 ## Requirements
 
 - Python >= 3.11

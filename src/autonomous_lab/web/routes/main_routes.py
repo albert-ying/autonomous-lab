@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 
 from ... import __version__
 from ...debug import web_debug_log as debug_log
@@ -54,10 +59,19 @@ def load_user_layout_settings() -> str:
 def _guess_language(suffix: str) -> str:
     """Map file extension to a display language label."""
     return {
-        ".py": "python", ".tex": "latex", ".bib": "bibtex",
-        ".r": "r", ".R": "r", ".sh": "bash", ".json": "json",
-        ".yaml": "yaml", ".yml": "yaml", ".csv": "csv",
-        ".tsv": "tsv", ".md": "markdown", ".txt": "text",
+        ".py": "python",
+        ".tex": "latex",
+        ".bib": "bibtex",
+        ".r": "r",
+        ".R": "r",
+        ".sh": "bash",
+        ".json": "json",
+        ".yaml": "yaml",
+        ".yml": "yaml",
+        ".csv": "csv",
+        ".tsv": "tsv",
+        ".md": "markdown",
+        ".txt": "text",
     }.get(suffix, "text")
 
 
@@ -320,32 +334,39 @@ def setup_routes(manager: "WebUIManager"):
             biotools_info = {"installed": False}
             try:
                 from ...integrations.biomni import get_status
+
                 biotools_info = get_status(project_dir)
             except Exception:
                 pass
 
             editorial = state.get("editorial", {"phase": "none"})
 
-            return JSONResponse(content={
-                "active": True,
-                "project_dir": str(project_dir),
-                "iteration": state.get("iteration", 0),
-                "next_role": state.get("next_role", "pi"),
-                "status": state.get("status", "active"),
-                "user_feedback": state.get("user_feedback", ""),
-                "feedback_queue_count": len(state.get("feedback_queue", [])) if isinstance(state.get("feedback_queue"), list) else 0,
-                "progress": state.get("progress", 0),
-                "experts": state.get("experts", []),
-                "created_at": state.get("created_at", ""),
-                "editorial": editorial,
-                "editor_timeout_minutes": config.get("editor_timeout_minutes", 30),
-                "figures": figures,
-                "paper_progress": paper_progress,
-                "file_counts": {k: len(v) for k, v in file_listings.items()},
-                "files": file_listings,
-                "biotools": biotools_info,
-                "domain_config": domain_config,
-            })
+            return JSONResponse(
+                content={
+                    "active": True,
+                    "project_dir": str(project_dir),
+                    "iteration": state.get("iteration", 0),
+                    "next_role": state.get("next_role", "pi"),
+                    "status": state.get("status", "active"),
+                    "user_feedback": state.get("user_feedback", ""),
+                    "feedback_queue_count": (
+                        len(state.get("feedback_queue", []))
+                        if isinstance(state.get("feedback_queue"), list)
+                        else 0
+                    ),
+                    "progress": state.get("progress", 0),
+                    "experts": state.get("experts", []),
+                    "created_at": state.get("created_at", ""),
+                    "editorial": editorial,
+                    "editor_timeout_minutes": config.get("editor_timeout_minutes", 30),
+                    "figures": figures,
+                    "paper_progress": paper_progress,
+                    "file_counts": {k: len(v) for k, v in file_listings.items()},
+                    "files": file_listings,
+                    "biotools": biotools_info,
+                    "domain_config": domain_config,
+                }
+            )
         except Exception as e:
             debug_log(f"Autolab state API error: {e}")
             return JSONResponse(content={"active": False, "error": str(e)})
@@ -354,7 +375,9 @@ def setup_routes(manager: "WebUIManager"):
     async def get_meeting_log(request: Request):
         """Get parsed meeting log turns for the game UI conversation panel"""
         try:
-            project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
+            project_dir = request.query_params.get("project") or getattr(
+                manager, "lab_project_dir", None
+            )
             if not project_dir:
                 return JSONResponse(content={"turns": []})
 
@@ -372,7 +395,9 @@ def setup_routes(manager: "WebUIManager"):
 
         Security: only serves files under allowed subdirectories.
         """
-        project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
+        project_dir = request.query_params.get("project") or getattr(
+            manager, "lab_project_dir", None
+        )
         if not project_dir:
             return JSONResponse(status_code=400, content={"error": "No active project"})
 
@@ -398,22 +423,36 @@ def setup_routes(manager: "WebUIManager"):
         # Determine if it's a text or binary file
         mime_type, _ = mimetypes.guess_type(str(resolved))
         TEXT_EXTENSIONS = {
-            ".py", ".tex", ".txt", ".md", ".csv", ".tsv", ".json",
-            ".yaml", ".yml", ".r", ".R", ".sh", ".bib", ".log",
+            ".py",
+            ".tex",
+            ".txt",
+            ".md",
+            ".csv",
+            ".tsv",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".r",
+            ".R",
+            ".sh",
+            ".bib",
+            ".log",
         }
 
         suffix = resolved.suffix.lower()
         if suffix in TEXT_EXTENSIONS:
             try:
                 content = resolved.read_text(encoding="utf-8", errors="replace")
-                return JSONResponse(content={
-                    "type": "text",
-                    "path": path,
-                    "name": resolved.name,
-                    "content": content[:50000],  # cap at 50KB text
-                    "size": len(content),
-                    "language": _guess_language(suffix),
-                })
+                return JSONResponse(
+                    content={
+                        "type": "text",
+                        "path": path,
+                        "name": resolved.name,
+                        "content": content[:50000],  # cap at 50KB text
+                        "size": len(content),
+                        "language": _guess_language(suffix),
+                    }
+                )
             except Exception as e:
                 return JSONResponse(status_code=500, content={"error": str(e)})
         else:
@@ -446,6 +485,7 @@ def setup_routes(manager: "WebUIManager"):
             return JSONResponse(content={"phase": "none"})
         try:
             from ...lab.state import get_editorial
+
             editorial = get_editorial(project_dir)
             return JSONResponse(content=editorial)
         except Exception as e:
@@ -459,19 +499,27 @@ def setup_routes(manager: "WebUIManager"):
             data = await request.json()
             project_dir = _resolve_project_dir(data.get("project_dir"))
             if not project_dir:
-                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "No active project — project_dir not set"},
+                )
 
             reviewers = data.get("reviewers", [])
             if not reviewers or len(reviewers) < 1:
-                return JSONResponse(status_code=400, content={"error": "Select at least 1 reviewer"})
+                return JSONResponse(
+                    status_code=400, content={"error": "Select at least 1 reviewer"}
+                )
             if len(reviewers) > 5:
-                return JSONResponse(status_code=400, content={"error": "Maximum 5 reviewers"})
+                return JSONResponse(
+                    status_code=400, content={"error": "Maximum 5 reviewers"}
+                )
 
             # Assign IDs
             for i, r in enumerate(reviewers):
                 r["id"] = f"reviewer_{i + 1}"
 
             from ...lab.state import invite_reviewers
+
             editorial = invite_reviewers(project_dir, reviewers)
             debug_log(f"Reviewers invited: {[r['name'] for r in reviewers]}")
             return JSONResponse(content={"status": "ok", "editorial": editorial})
@@ -486,18 +534,25 @@ def setup_routes(manager: "WebUIManager"):
             data = await request.json()
             project_dir = _resolve_project_dir(data.get("project_dir"))
             if not project_dir:
-                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "No active project — project_dir not set"},
+                )
 
             decision = data.get("decision", "")
             feedback = data.get("feedback", "")
 
             valid = ("accept", "minor_revision", "major_revision", "reject")
             if decision not in valid:
-                return JSONResponse(status_code=400, content={
-                    "error": f"Invalid decision. Must be one of: {', '.join(valid)}"
-                })
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": f"Invalid decision. Must be one of: {', '.join(valid)}"
+                    },
+                )
 
             from ...lab.state import record_editorial_decision
+
             editorial = record_editorial_decision(project_dir, decision, feedback)
             debug_log(f"Editorial decision: {decision}")
             return JSONResponse(content={"status": "ok", "editorial": editorial})
@@ -512,11 +567,15 @@ def setup_routes(manager: "WebUIManager"):
             data = await request.json()
             project_dir = _resolve_project_dir(data.get("project_dir"))
             if not project_dir:
-                return JSONResponse(status_code=400, content={"error": "No active project — project_dir not set"})
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "No active project — project_dir not set"},
+                )
 
             feedback = data.get("feedback", "Desk rejected by editor.")
 
             from ...lab.state import record_editorial_decision
+
             editorial = record_editorial_decision(project_dir, "reject", feedback)
             debug_log("Manuscript desk-rejected")
             return JSONResponse(content={"status": "ok", "editorial": editorial})
@@ -532,7 +591,9 @@ def setup_routes(manager: "WebUIManager"):
             project_dir = _resolve_project_dir(data.get("project_dir"))
             if not project_dir:
                 # Also check query param
-                project_dir = request.query_params.get("project") or getattr(manager, "lab_project_dir", None)
+                project_dir = request.query_params.get("project") or getattr(
+                    manager, "lab_project_dir", None
+                )
             if not project_dir:
                 return JSONResponse(
                     status_code=400,
@@ -548,7 +609,9 @@ def setup_routes(manager: "WebUIManager"):
                 return JSONResponse(content={"status": "empty"})
 
             store_user_feedback(project_dir, feedback_text, target_role)
-            debug_log(f"Lab feedback stored: target={target_role}, len={len(feedback_text)}")
+            debug_log(
+                f"Lab feedback stored: target={target_role}, len={len(feedback_text)}"
+            )
             return JSONResponse(content={"status": "ok"})
         except Exception as e:
             debug_log(f"Lab feedback error: {e}")

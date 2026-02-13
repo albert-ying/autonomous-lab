@@ -6,7 +6,6 @@ Each role is grounded in specific real-world resources, frameworks, and
 guidelines so the AI produces substantively different outputs per role.
 """
 
-
 # ---------------------------------------------------------------------------
 # Shared resource constants — real frameworks each role draws on
 # ---------------------------------------------------------------------------
@@ -761,7 +760,11 @@ def build_reviewer_prompt(
     files_str = _format_file_listings(file_listings)
 
     # Look up domain-specific resources for this reviewer's specialty
-    reviewer_role_key = reviewer.get("avatar", reviewer.get("role", "generic")).lower().replace(" ", "_")
+    reviewer_role_key = (
+        reviewer.get("avatar", reviewer.get("role", "generic"))
+        .lower()
+        .replace(" ", "_")
+    )
     domain_knowledge = CONSULTANT_DOMAINS.get(reviewer_role_key, "")
     if not domain_knowledge:
         # Try matching the role text
@@ -1002,9 +1005,7 @@ def _format_file_listings(file_listings: dict) -> str:
     for dirname, files in file_listings.items():
         if files:
             file_list = "\n".join(f"  - {f}" for f in files[:30])
-            count_note = (
-                f" (showing 30 of {len(files)})" if len(files) > 30 else ""
-            )
+            count_note = f" (showing 30 of {len(files)})" if len(files) > 30 else ""
             parts.append(f"**{dirname}/**{count_note}\n{file_list}")
         else:
             parts.append(f"**{dirname}/** (empty)")
