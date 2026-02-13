@@ -914,6 +914,24 @@ h1, h2, .badge-value, .char-name, .panel-icon {
     overflow-y: auto;
     white-space: pre-wrap;
 }
+.editor-textarea {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    resize: vertical;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+.editor-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 6px rgba(166, 227, 233, 0.3);
+}
 .editor-manuscript-info {
     background: var(--bg-dark);
     border: 1px solid var(--border);

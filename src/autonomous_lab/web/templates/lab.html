@@ -202,6 +202,20 @@
                     <button class="editor-btn reject-btn" id="btn-desk-reject">&#x274C; Desk Reject</button>
                     <button class="editor-btn invite-btn" id="btn-invite-reviewers">&#x1F4E9; Send to Reviewers</button>
                 </div>
+                <!-- Desk reject feedback panel (hidden until Desk Reject clicked) -->
+                <div id="desk-reject-panel" class="editor-section" style="display:none;">
+                    <h3>&#x270F; Feedback to Authors</h3>
+                    <p style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">
+                        Explain why the manuscript is being desk-rejected. The PI will receive this feedback and may revise and resubmit.
+                    </p>
+                    <textarea id="desk-reject-feedback" class="editor-textarea"
+                        placeholder="e.g. The study lacks a clear hypothesis... The statistical methods are not appropriate for..."
+                        rows="5"></textarea>
+                    <div class="editor-actions" style="margin-top:8px;">
+                        <button class="editor-btn" id="btn-cancel-reject" style="background:#555;">Cancel</button>
+                        <button class="editor-btn reject-btn" id="btn-confirm-reject">&#x274C; Confirm Desk Reject</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Phase: Reviewer selection -->

@@ -935,14 +935,34 @@
       }
     }
 
-    // Desk reject — uses inline textarea instead of prompt()
-    document.getElementById("btn-desk-reject").addEventListener("click", async () => {
-      // Use the feedback textarea already in the submitted panel, or a simple confirm
-      const reason = window.prompt("Reason for desk rejection (optional):");
-      if (reason === null) return; // user cancelled
-      await editorialFetch("/api/autolab/editorial/desk-reject", {
-        feedback: reason || "Desk rejected by editor.",
-      });
+    // Desk reject — show inline feedback panel
+    document.getElementById("btn-desk-reject").addEventListener("click", () => {
+      // Hide the action buttons, show the feedback panel
+      const actionsDiv = document.getElementById("btn-desk-reject").closest(".editor-actions");
+      if (actionsDiv) actionsDiv.style.display = "none";
+      const panel = document.getElementById("desk-reject-panel");
+      panel.style.display = "block";
+      const textarea = document.getElementById("desk-reject-feedback");
+      textarea.value = "";
+      textarea.focus();
+    });
+
+    // Cancel desk reject — go back to action buttons
+    document.getElementById("btn-cancel-reject").addEventListener("click", () => {
+      document.getElementById("desk-reject-panel").style.display = "none";
+      // Re-show the action buttons
+      const actionsDiv = document.querySelector("#editor-phase-submitted .editor-actions");
+      if (actionsDiv) actionsDiv.style.display = "";
+    });
+
+    // Confirm desk reject — send feedback
+    document.getElementById("btn-confirm-reject").addEventListener("click", async () => {
+      const feedback = document.getElementById("desk-reject-feedback").value.trim();
+      if (!feedback) {
+        showEditorToast("Please provide feedback to the authors before rejecting.");
+        return;
+      }
+      await editorialFetch("/api/autolab/editorial/desk-reject", { feedback });
     });
 
     // Invite reviewers
