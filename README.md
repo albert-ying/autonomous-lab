@@ -6,25 +6,31 @@
 
 MCP server that turns any senior-junior workflow into an autonomous loop. AI handles the execution. You make the decisions.
 
-The server runs inside your existing agentic coding tool (Cursor, Claude Code, Codex CLI, Windsurf, or any MCP client). Your SKILL.md files become character configurations. The loop runs for hours without stopping. You step in as editor when the work is ready for judgment.
-
 <p align="center">
   <a href="https://autolab.kejunying.com">
     <img src="docs/screenshot.png" alt="Autonomous Lab" width="700">
   </a>
 </p>
 
+## Vision
+
+The bottleneck in knowledge work has never been execution. It is judgment -- knowing which questions matter, which results are meaningful, which directions to pursue. The people best equipped to make those calls spend most of their time on tasks that don't require their specific expertise.
+
+Autonomous Lab shifts the hierarchy up by one level. AI agents assume the working roles -- principal investigator and trainee, tech lead and developer, attending and resident -- running the full design-execute-review loop. The human moves into the editorial position: the one who curates, judges, and steers. Your taste and judgment, rather than your labor, become the primary input.
+
+This is not a copilot. It is a reorganization of the work unit itself.
+
 ## Why this exists
 
-Autonomous Lab is an MCP server. It runs inside the coding agent you already pay for. That means:
+Autonomous Lab is an MCP server. It runs inside the coding agent you already pay for -- Cursor, Claude Code, Windsurf, Codex CLI, or any MCP-compatible client. That means:
 
 - **No API key required.** You don't need an OpenAI/Anthropic/Google key. The intelligence comes from whichever model your coding tool already uses.
-- **No extra cost.** Your existing Cursor Pro, Claude Max, Windsurf, or Codex subscription is all you need.
+- **No extra cost.** Your existing Cursor Pro, Claude Max, Windsurf, or Codex subscription is all you need. You are reusing an investment you have already made.
 - **No new app to learn.** It plugs into your current workflow as a set of MCP tools.
 
 ## Install
 
-The easiest way: paste this README link into your coding agent (Claude Code, Cursor, Codex CLI) and ask it to install Autonomous Lab for you. It will handle everything.
+The easiest way: copy this page link into **Claude Code**, Cursor, or any coding agent and ask it to install Autonomous Lab for you. It will handle everything.
 
 Or do it manually:
 

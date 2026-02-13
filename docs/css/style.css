@@ -46,8 +46,8 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg-dark);
     color: var(--text);
-    font-size: 15px;
-    line-height: 1.6;
+    font-size: 17px;
+    line-height: 1.7;
     overflow-x: hidden;
 }
 
@@ -95,12 +95,12 @@ code {
 }
 
 .nav-left { display: flex; align-items: center; gap: 10px; }
-.nav-icon { font-size: 22px; }
-.nav-title { font-size: 10px; color: var(--gold); letter-spacing: 2px; }
+.nav-icon { font-size: 26px; }
+.nav-title { font-size: 12px; color: var(--gold); letter-spacing: 2px; }
 
 .nav-links { display: flex; gap: 4px; }
 .nav-link {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-dim);
     padding: 8px 14px;
     border-radius: 4px;
@@ -115,9 +115,9 @@ code {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-dim);
-    padding: 6px 12px;
+    padding: 8px 14px;
     border: 1px solid var(--border);
     border-radius: 4px;
     transition: all 0.2s;
@@ -130,24 +130,24 @@ code {
 .section {
     min-height: 100vh;
     padding: 80px 48px 60px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
 .section-header {
     text-align: center;
-    margin-bottom: 48px;
+    margin-bottom: 56px;
 }
 .section-title {
-    font-size: 16px;
+    font-size: 22px;
     color: var(--gold);
     letter-spacing: 2px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 .section-subtitle {
-    font-size: 15px;
+    font-size: 17px;
     color: var(--text-dim);
-    max-width: 500px;
+    max-width: 650px;
     margin: 0 auto;
 }
 
@@ -163,7 +163,7 @@ code {
     padding-top: 56px;
 }
 
-.hero-content { max-width: 720px; }
+.hero-content { max-width: 880px; }
 
 .hero-sprites {
     display: flex;
@@ -186,14 +186,14 @@ code {
 .hero-char canvas {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 80px;
-    height: 128px;
+    width: 96px;
+    height: 152px;
     animation: hero-bob 3s ease-in-out infinite;
 }
-.hero-you-icon { font-size: 64px; line-height: 1; }
+.hero-you-icon { font-size: 80px; line-height: 1; }
 .hero-char-label {
     font-family: 'Press Start 2P', monospace;
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1px;
     white-space: nowrap;        /* Prevent wrapping during rotation */
 }
@@ -218,41 +218,41 @@ code {
     background: var(--border);
 }
 .arrow-label {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-muted);
     font-style: italic;
 }
 
 .hero-kicker {
     font-family: 'Inter', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--text-dim);
-    margin-bottom: 18px;
+    margin-bottom: 20px;
     opacity: 0.7;
 }
 .hero-title {
-    font-size: 28px;
+    font-size: 38px;
     color: var(--gold);
     letter-spacing: 3px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     text-shadow: 0 0 30px rgba(245, 197, 66, 0.2);
 }
 .hero-subtitle {
-    font-size: 16px;
+    font-size: 20px;
     color: var(--accent);
-    margin-bottom: 20px;
+    margin-bottom: 22px;
     font-style: italic;
     min-height: 1.4em;          /* Prevent vertical jump during rotation */
 }
 .hero-description {
-    font-size: 15px;
+    font-size: 17px;
     color: var(--text-dim);
     line-height: 1.8;
-    max-width: 560px;
-    margin: 0 auto 28px;
+    max-width: 700px;
+    margin: 0 auto 32px;
     min-height: 5.4em;          /* Prevent vertical jump during rotation */
 }
 .hero-description strong { color: var(--text); }
@@ -267,8 +267,8 @@ code {
 }
 .domain-pill {
     font-family: 'Press Start 2P', monospace;
-    font-size: 7px;
-    padding: 8px 14px;
+    font-size: 9px;
+    padding: 10px 18px;
     background: var(--bg-panel);
     color: var(--text-dim);
     border: 2px solid var(--border);
@@ -319,30 +319,30 @@ code {
     background: rgba(245, 197, 66, 0.06);
     border: 1px solid rgba(245, 197, 66, 0.25);
     border-radius: 8px;
-    max-width: 480px;
+    max-width: 580px;
     margin-left: auto;
     margin-right: auto;
 }
 .mcp-label {
     font-family: 'Press Start 2P', monospace;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--gold);
     letter-spacing: 1px;
 }
 .mcp-desc {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-dim);
 }
 .mcp-tools {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
     justify-content: center;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 .mcp-tool {
-    font-size: 11px;
-    padding: 3px 10px;
+    font-size: 13px;
+    padding: 5px 12px;
     background: var(--bg-panel);
     color: var(--text);
     border: 1px solid var(--border);
@@ -359,8 +359,8 @@ code {
 
 .btn-primary, .btn-secondary {
     font-family: 'Press Start 2P', monospace;
-    font-size: 10px;
-    padding: 14px 24px;
+    font-size: 12px;
+    padding: 16px 28px;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
@@ -398,11 +398,11 @@ code {
     flex-wrap: wrap;
 }
 .badge {
-    font-size: 8px;
+    font-size: 10px;
     color: var(--text-dim);
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    padding: 6px 12px;
+    padding: 8px 14px;
     border-radius: 3px;
     letter-spacing: 0.5px;
 }
@@ -416,7 +416,7 @@ code {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(107, 94, 138, 0.1);
-    max-width: 1100px;
+    max-width: 1300px;
     margin: 0 auto;
     position: relative;
     z-index: 2;
@@ -1069,14 +1069,14 @@ code {
 }
 .char-explainer-name {
     font-family: 'Press Start 2P', monospace;
-    font-size: 8px;
+    font-size: 10px;
     color: var(--pi-color);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 .char-explainer-title {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-dim);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 .char-explainer-skills {
     display: flex;
@@ -1137,9 +1137,9 @@ code {
 .yaml-val { color: var(--trainee-color); }
 
 .char-explainer-text h3 {
-    font-size: 11px;
+    font-size: 14px;
     color: var(--gold);
-    margin-bottom: 20px;
+    margin-bottom: 22px;
     letter-spacing: 1px;
 }
 
@@ -1165,14 +1165,14 @@ code {
 }
 .explainer-step strong {
     display: block;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--text);
     margin-bottom: 4px;
 }
 .explainer-step p {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-dim);
-    line-height: 1.6;
+    line-height: 1.7;
 }
 
 /* ============================================================
@@ -1553,23 +1553,23 @@ code {
     border-radius: 4px;
 }
 .gs-card h3 {
-    font-size: 10px;
+    font-size: 13px;
     color: var(--text);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     letter-spacing: 1px;
 }
 .gs-card p {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-dim);
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 .gs-code {
     background: var(--bg-dark);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 12px;
+    padding: 14px;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.6;
     overflow-x: auto;
     color: var(--text-dim);
