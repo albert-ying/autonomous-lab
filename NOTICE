@@ -1,10 +1,33 @@
 Autonomous Lab
 Copyright 2025-2026 Albert Ying
 
-This project contains code originally derived from work by:
+This project builds on the following open-source work:
 
-  - Fábio Ferreira (2024), MIT License
-  - Minidoracat (2024), MIT License (modifications and enhancements)
+1. mcp-feedback-enhanced
+   By Minidoracat (2024), MIT License
+   https://github.com/Minidoracat/mcp-feedback-enhanced
 
-The original MIT-licensed code has been substantially modified,
-extended, and re-architected for the Autonomous Lab project.
+   The Web UI, feedback loop, session management, and i18n
+   infrastructure are derived from this project.
+
+2. interactive-feedback-mcp
+   By Fábio Ferreira (2024), MIT License
+   https://github.com/fabiomlferreira/interactive-feedback-mcp
+
+   The original MCP feedback server that mcp-feedback-enhanced
+   was built upon.
+
+3. BiomNI
+   By James Zou Lab, Stanford University, Apache 2.0 License
+   https://github.com/snap-stanford/Biomni
+
+   The optional biomedical toolkit integration wraps BiomNI's
+   tools and databases. BiomNI is not bundled; it is installed
+   at runtime when the user opts in. Some integrated tools and
+   databases within BiomNI carry their own licenses.
+
+The original MIT-licensed code from (1) and (2) has been
+substantially modified, extended, and re-architected for the
+Autonomous Lab project (autonomous PI/Trainee loop, editorial
+workflow, character system, skill containers, citation engine,
+game-style monitoring UI).

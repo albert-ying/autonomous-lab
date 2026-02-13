@@ -112,6 +112,14 @@ personality:
 - Python >= 3.11
 - An MCP-compatible client (Cursor, Claude Code, Codex CLI, Windsurf, etc.)
 
+## Acknowledgments
+
+Autonomous Lab builds on these open-source projects:
+
+- [mcp-feedback-enhanced](https://github.com/Minidoracat/mcp-feedback-enhanced) by Minidoracat (MIT) -- Web UI, feedback loop, session management, and i18n infrastructure
+- [interactive-feedback-mcp](https://github.com/fabiomlferreira/interactive-feedback-mcp) by Fábio Ferreira (MIT) -- the original MCP feedback server
+- [BiomNI](https://github.com/snap-stanford/Biomni) by James Zou Lab, Stanford (Apache 2.0) -- optional biomedical toolkit integration (100+ tools and databases)
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
