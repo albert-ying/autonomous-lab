@@ -20,6 +20,15 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering",
 ]
+
+[project.urls]
+Homepage = "https://autolab.kejunying.com"
+Repository = "https://github.com/albert-ying/autonomous-lab"
+Issues = "https://github.com/albert-ying/autonomous-lab/issues"
+
+[project.optional-dependencies]
+biotools = ["biomni"]
+
 dependencies = [
     "fastmcp>=2.0.0",
     "psutil>=7.0.0",
