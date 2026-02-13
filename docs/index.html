@@ -580,13 +580,9 @@
                 <pre class="gs-code"><code>{
   "mcpServers": {
     "autonomous-lab": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/autonomous-lab",
-        "run", "autonomous-lab"
-      ],
-      "timeout": 86400,
+      "command": "uvx",
+      "args": ["autonomous-lab"],
+      "timeout": 600,
       "env": {
         "MCP_WEB_PORT": "8766"
       }
