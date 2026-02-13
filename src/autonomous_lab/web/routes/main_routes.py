@@ -302,6 +302,7 @@ def setup_routes(manager: "WebUIManager"):
 
             from ...lab.state import (
                 get_paper_progress,
+                load_config,
                 load_state,
                 scan_project_files,
             )
@@ -309,14 +310,15 @@ def setup_routes(manager: "WebUIManager"):
             state = load_state(project_dir)
             file_listings = scan_project_files(project_dir)
             paper_progress = get_paper_progress(project_dir)
+            config = load_config(project_dir)
 
             figures = file_listings.get("figures", [])
 
-            # Biomni integration status (lightweight check)
-            biomni_info = {"installed": False}
+            # Biomedical toolkit integration status (lightweight check)
+            biotools_info = {"installed": False}
             try:
                 from ...integrations.biomni import get_status
-                biomni_info = get_status(project_dir)
+                biotools_info = get_status(project_dir)
             except Exception:
                 pass
 
@@ -334,11 +336,12 @@ def setup_routes(manager: "WebUIManager"):
                 "experts": state.get("experts", []),
                 "created_at": state.get("created_at", ""),
                 "editorial": editorial,
+                "editor_timeout_minutes": config.get("editor_timeout_minutes", 30),
                 "figures": figures,
                 "paper_progress": paper_progress,
                 "file_counts": {k: len(v) for k, v in file_listings.items()},
                 "files": file_listings,
-                "biomni": biomni_info,
+                "biotools": biotools_info,
             })
         except Exception as e:
             debug_log(f"Autolab state API error: {e}")

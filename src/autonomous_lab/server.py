@@ -1403,18 +1403,21 @@ async def autolab_editorial(
     2. After all reviewer reports are complete.
        Waits for the editor to make a final decision (Accept/Minor/Major/Reject).
 
-    This tool BLOCKS with NO TIMEOUT — it can wait minutes or hours.
-    The editor acts via the monitoring UI (Editor's Desk overlay).
+    This tool BLOCKS until the editor acts OR the configured timeout expires
+    (default 30 min, configurable via editor_timeout_minutes in config.yaml,
+    set to 0 to wait forever). When timeout expires, returns an AI Editor
+    prompt — you must then act as editor and call autolab_editor_act.
 
     Returns:
       - If reviewers invited: instructions to run the reviewer loop
         (call autolab_next for each reviewer, then autolab_editorial again)
       - If decision made (accept/minor/major/reject): the decision + instructions
         to call lab_meeting then autolab_next to continue PI/Trainee loop.
+      - If timeout: AI Editor prompt + instructions to call autolab_editor_act.
     """
     import asyncio
 
-    from .lab.state import load_state
+    from .lab.state import load_state, get_editor_timeout_seconds
 
     project_directory = os.path.abspath(project_directory)
 
@@ -1467,11 +1470,17 @@ async def autolab_editorial(
     if starting_phase == "reviews_complete":
         debug_log("autolab_editorial: all reviews done, waiting for editor decision")
 
+    # ── Timeout configuration ──
+    timeout_seconds = get_editor_timeout_seconds(project_directory)
+    elapsed_seconds = 0
+    debug_log(f"autolab_editorial: timeout={timeout_seconds}s (0=disabled)")
+
     # ── Poll loop: wait for the editorial phase to advance ──
 
     poll_interval = 5  # seconds
     while True:
         await asyncio.sleep(poll_interval)
+        elapsed_seconds += poll_interval
 
         try:
             state = load_state(project_directory)
@@ -1548,10 +1557,163 @@ async def autolab_editorial(
                 + _LOOP_INSTRUCTION
             )
 
+        # ── Timeout check: if enabled and expired, switch to AI editor ──
+        if timeout_seconds > 0 and elapsed_seconds >= timeout_seconds:
+            debug_log(
+                f"autolab_editorial: editor timeout after {elapsed_seconds}s — "
+                f"switching to AI editor for phase={current_phase}"
+            )
+            return _build_ai_editor_return(
+                project_directory, editorial, current_phase, elapsed_seconds
+            )
+
         # Still waiting — continue polling
         # Gradually increase poll interval up to 15s to reduce disk I/O
         if poll_interval < 15:
             poll_interval = min(poll_interval + 1, 15)
+
+
+def _build_ai_editor_return(
+    project_directory: str,
+    editorial: dict,
+    phase: str,
+    elapsed_seconds: int,
+) -> str:
+    """Construct the return value when editor timeout expires."""
+    from .lab.prompts import build_ai_editor_prompt
+    from .lab.state import scan_project_files
+
+    file_listings = scan_project_files(project_directory)
+    cover_letter = editorial.get("cover_letter", "")
+    reviews = editorial.get("reviews", {})
+
+    editor_prompt = build_ai_editor_prompt(
+        editorial=editorial,
+        phase=phase,
+        cover_letter=cover_letter,
+        reviews=reviews,
+        file_listings=file_listings,
+    )
+
+    mins = elapsed_seconds // 60
+    return (
+        f"[EDITORIAL — AI EDITOR ACTIVATED]\n\n"
+        f"The human editor did not respond within {mins} minutes.\n"
+        f"You must now act as the Editor-in-Chief and make a decision.\n\n"
+        f"{editor_prompt}\n\n"
+        f"MANDATORY NEXT STEPS after making your decision:\n"
+        f"1. Call `autolab_editor_act` with your action and feedback.\n"
+        f"   - For desk reject: action='desk_reject', feedback='...'\n"
+        f"   - For invite reviewers: action='invite_reviewers', feedback='...', "
+        f"reviewers=[{{\"name\":\"Dr. X\",\"role\":\"Specialty\",\"avatar\":\"sprite_key\"}}]\n"
+        f"   - For final decision: action='accept'|'minor_revision'|'major_revision'|'reject', feedback='...'\n"
+        f"2. Then follow the MANDATORY NEXT STEPS returned by autolab_editor_act.\n"
+        f"NEVER stop. Continue the loop."
+    )
+
+
+@mcp.tool()
+async def autolab_editor_act(
+    project_directory: Annotated[str, Field(description="Project directory path")] = ".",
+    action: Annotated[str, Field(
+        description="Editorial action: 'desk_reject', 'invite_reviewers', "
+                    "'accept', 'minor_revision', 'major_revision', 'reject'"
+    )] = "",
+    feedback: Annotated[str, Field(
+        description="Editor's feedback to the authors"
+    )] = "",
+    reviewers: Annotated[str, Field(
+        description="JSON array of reviewer dicts for invite_reviewers, "
+                    "e.g. [{\"name\":\"Dr. X\",\"role\":\"Statistician\",\"avatar\":\"statistician\"}]. "
+                    "Ignored for other actions."
+    )] = "[]",
+) -> str:
+    """Execute an editorial decision made by the AI editor (after timeout).
+
+    Called by the AI after autolab_editorial returns an AI-editor prompt
+    due to the human editor not responding within the configured timeout.
+
+    Actions:
+    - desk_reject: reject without review, feedback required
+    - invite_reviewers: send to peer review, reviewers JSON required
+    - accept / minor_revision / major_revision / reject: final decision after reviews
+
+    Returns instructions to continue the loop.
+    """
+    from .lab.state import (
+        load_state, record_editorial_decision, invite_reviewers as _invite_reviewers
+    )
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    action = action.strip().lower()
+    feedback = feedback.strip() or "(No feedback provided by AI editor)"
+
+    debug_log(f"autolab_editor_act: action={action}")
+
+    if action == "desk_reject":
+        record_editorial_decision(project_directory, "reject", feedback)
+        return (
+            f"[AI EDITOR] Manuscript desk-rejected.\n\n"
+            f"Feedback sent to PI: {feedback[:200]}...\n"
+            + _LOOP_INSTRUCTION
+        )
+
+    elif action == "invite_reviewers":
+        # Parse reviewer list
+        import json as _json
+        try:
+            reviewer_list = _json.loads(reviewers)
+        except (ValueError, TypeError):
+            reviewer_list = []
+
+        if not reviewer_list or not isinstance(reviewer_list, list):
+            # Fallback: generate 3 default reviewers
+            reviewer_list = [
+                {"id": "reviewer_1", "name": "Dr. Methods", "role": "Statistician", "avatar": "statistician"},
+                {"id": "reviewer_2", "name": "Dr. Domain", "role": "Domain Expert", "avatar": "reviewer"},
+                {"id": "reviewer_3", "name": "Dr. Scope", "role": "Generalist", "avatar": "generic"},
+            ]
+
+        # Ensure each reviewer has an id
+        for i, r in enumerate(reviewer_list):
+            if "id" not in r:
+                r["id"] = f"reviewer_{i + 1}"
+
+        _invite_reviewers(project_directory, reviewer_list)
+        reviewer_names = ", ".join(r.get("name", r["id"]) for r in reviewer_list)
+        return (
+            f"[AI EDITOR] Reviewers invited: {reviewer_names}\n\n"
+            f"Editor note: {feedback[:200]}\n\n"
+            f"You must now play each reviewer role in sequence.\n\n"
+            f"MANDATORY NEXT STEPS:\n"
+            f"1. Call autolab_next — it will return the first reviewer's prompt.\n"
+            f"2. Act as that reviewer, then call autolab_record with role='reviewer_N'.\n"
+            f"3. Call autolab_next immediately for the next reviewer (skip lab_meeting between reviewers).\n"
+            f"4. After the LAST review, call autolab_editorial again.\n"
+            f"NEVER stop."
+        )
+
+    elif action in ("accept", "minor_revision", "major_revision", "reject"):
+        record_editorial_decision(project_directory, action, feedback)
+        dec_display = action.upper().replace("_", " ")
+        return (
+            f"[AI EDITOR] Decision: {dec_display}\n\n"
+            f"Feedback: {feedback[:200]}...\n"
+            + _LOOP_INSTRUCTION
+        )
+
+    else:
+        return (
+            f"ERROR: Unknown action '{action}'. Must be one of: "
+            f"desk_reject, invite_reviewers, accept, minor_revision, major_revision, reject.\n"
+            f"Call autolab_editor_act again with a valid action."
+        )
 
 
 @mcp.tool()
@@ -1630,26 +1792,25 @@ async def autolab_status(
     return report
 
 
-# ===== Biomni Integration MCP Tools =====
+# ===== Biomedical Toolkit Integration =====
+# Wraps the optional Biomni package (snap-stanford/Biomni) behind
+# generic tool names so the Autonomous Lab API stays vendor-neutral.
 
 @mcp.tool()
-async def autolab_biomni_status(
+async def autolab_biotools_status(
     project_directory: Annotated[str, Field(description="Project directory path")] = ".",
 ) -> str:
-    """Check Biomni integration status.
+    """Check whether the optional biomedical toolkit is installed and enabled.
 
-    Returns whether Biomni is installed, its version, whether it is enabled
-    for this project, and datalake availability.
+    The biomedical toolkit provides 100+ curated tools and databases for
+    life-science research (ADMET prediction, scRNA-seq analysis, CRISPR
+    screen planning, pathway enrichment, etc.).
 
-    Biomni (https://github.com/snap-stanford/Biomni) is an optional
-    integration that provides 100+ biomedical tools and workflows.
-    It is NOT bundled with Autonomous Lab — users must opt in.
+    It is NOT bundled with Autonomous Lab — users opt in by calling
+    autolab_biotools_install. Once installed, the Trainee can import
+    individual functions directly in Python scripts.
 
-    Args:
-        project_directory: Path to the project directory
-
-    Returns:
-        str: JSON status report
+    Returns JSON with: installed (bool), version, enabled, datalake path.
     """
     from .integrations.biomni import get_status
     project_directory = os.path.abspath(project_directory)
@@ -1658,23 +1819,19 @@ async def autolab_biomni_status(
 
 
 @mcp.tool()
-async def autolab_biomni_install(
-    from_source: Annotated[bool, Field(description="Install from GitHub (True) or PyPI (False)")] = True,
+async def autolab_biotools_install(
+    from_source: Annotated[bool, Field(
+        description="Install latest from GitHub (True) or stable from PyPI (False)"
+    )] = True,
 ) -> str:
-    """Install Biomni from GitHub or PyPI.
+    """Install the biomedical toolkit (one-time setup).
 
-    This downloads and installs the Biomni package at runtime.
-    Biomni is Apache 2.0 licensed, but some of its integrated tools
-    may have more restrictive licenses — review before commercial use.
+    Downloads and installs the package at runtime.
+    Apache 2.0 licensed core; some integrated tools may carry
+    more restrictive licenses — review before commercial use.
 
-    NOTE: The full datalake (~11 GB) is downloaded on first agent use.
-    Set skip_datalake=True in config to skip it.
-
-    Args:
-        from_source: If True, install latest from GitHub main. If False, use PyPI.
-
-    Returns:
-        str: Installation result
+    The full datalake (~11 GB) downloads on first use.
+    Set skip_datalake=True via autolab_biotools_configure to skip it.
     """
     from .integrations.biomni import install_biomni
     result = install_biomni(from_source=from_source)
@@ -1685,28 +1842,19 @@ async def autolab_biomni_install(
 
 
 @mcp.tool()
-async def autolab_biomni_configure(
+async def autolab_biotools_configure(
     project_directory: Annotated[str, Field(description="Project directory path")] = ".",
-    enabled: Annotated[bool, Field(description="Enable Biomni integration")] = True,
-    data_path: Annotated[str, Field(description="Path to Biomni datalake")] = "./data",
+    enabled: Annotated[bool, Field(description="Enable biomedical toolkit for this project")] = True,
+    data_path: Annotated[str, Field(description="Path for toolkit datalake")] = "./data",
     skip_datalake: Annotated[bool, Field(description="Skip downloading the 11GB datalake")] = False,
 ) -> str:
-    """Configure Biomni integration for this project.
+    """Configure the biomedical toolkit for this project.
 
-    Saves settings to .autolab/biomni_config.json.
-    Biomni must be installed separately (use autolab_biomni_install).
+    Saves settings to .autolab/biotools_config.json.
+    The toolkit must be installed first (autolab_biotools_install).
 
-    NOTE: Biomni is used as a tool/database library only — we do NOT
-    instantiate the Biomni A1 agent or use their LLM pipeline.
-
-    Args:
-        project_directory: Path to the project directory
-        enabled: Whether to enable Biomni for this project
-        data_path: Path for Biomni's data/datalake
-        skip_datalake: If True, skip the ~11GB datalake download
-
-    Returns:
-        str: Saved configuration
+    NOTE: The toolkit is used as a library only — we do NOT instantiate
+    any external LLM agent or pipeline.
     """
     from .integrations.biomni import save_biomni_config
     project_directory = os.path.abspath(project_directory)
@@ -1716,25 +1864,21 @@ async def autolab_biomni_configure(
         data_path=data_path,
         skip_datalake=skip_datalake,
     )
-    return f"Biomni config saved:\n{json.dumps(cfg, indent=2)}"
+    return f"Biotools config saved:\n{json.dumps(cfg, indent=2)}"
 
 
 @mcp.tool()
-async def autolab_biomni_tools(
+async def autolab_biotools_list(
     project_directory: Annotated[str, Field(description="Project directory path")] = ".",
 ) -> str:
-    """List available Biomni tools and databases.
+    """List available biomedical tools and databases.
 
-    Biomni provides curated biomedical tools (ADMET prediction,
-    scRNA-seq analysis, CRISPR screen planning, etc.) and database
-    connectors.  This lists what's available for import in scripts.
+    Returns curated tools (ADMET prediction, scRNA-seq analysis,
+    CRISPR screen planning, etc.) and database connectors that the
+    Trainee can import directly in Python scripts.
 
-    NOTE: We use Biomni as a tool/database library, NOT as an agent.
-    The Trainee imports and calls individual functions directly in
-    their Python scripts.
-
-    Returns:
-        str: Available tools and databases, or installation instructions
+    Use this when the PI or Trainee needs to discover what analysis
+    capabilities are available beyond standard Python packages.
     """
     from .integrations.biomni import (
         is_biomni_available,
@@ -1743,14 +1887,13 @@ async def autolab_biomni_tools(
     )
     if not is_biomni_available():
         return (
-            "Biomni is not installed.\n"
-            "Install with: autolab_biomni_install()\n"
-            "See: https://github.com/snap-stanford/Biomni"
+            "Biomedical toolkit is not installed.\n"
+            "Install with: autolab_biotools_install()\n"
         )
     tools = list_available_tools()
     dbs = list_available_databases()
 
-    lines = ["## Available Biomni Tools\n"]
+    lines = ["## Available Biomedical Tools\n"]
     if tools:
         for t in tools:
             desc = f" — {t['description']}" if t.get('description') else ""
@@ -1758,7 +1901,7 @@ async def autolab_biomni_tools(
     else:
         lines.append("  (no tools detected)")
 
-    lines.append("\n## Available Biomni Databases\n")
+    lines.append("\n## Available Databases\n")
     if dbs:
         for d in dbs:
             desc = f" — {d['description']}" if d.get('description') else ""
@@ -1768,25 +1911,20 @@ async def autolab_biomni_tools(
 
     lines.append(
         "\n## Usage\n"
-        "Import tools directly in scripts:\n"
+        "Import tools directly in analysis scripts:\n"
         "```python\n"
         "from biomni.tools.<tool_name> import *\n"
-        "```\n"
-        "Do NOT instantiate the Biomni A1 agent."
+        "```"
     )
     return "\n".join(lines)
 
 
 @mcp.tool()
-async def autolab_biomni_env(
-) -> str:
-    """Check Biomni environment details.
+async def autolab_biotools_env() -> str:
+    """Check biomedical toolkit environment details.
 
-    Shows which Biomni sub-packages are available, the active conda
-    environment, datalake status, and Python path.
-
-    Returns:
-        str: Environment report
+    Shows available sub-packages, active Python environment,
+    datalake status, and paths.
     """
     from .integrations.biomni import check_environment
     env = check_environment()

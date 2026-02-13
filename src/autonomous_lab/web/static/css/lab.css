@@ -889,6 +889,28 @@ h1, h2, .badge-value, .char-name, .panel-icon {
     font-size: 9px;
     color: var(--text-dim);
 }
+.editor-timeout-badge {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--gold);
+    margin-left: 10px;
+    padding: 2px 6px;
+    border: 1px solid var(--gold);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.editor-timeout-badge:empty {
+    display: none;
+}
+.editor-timeout-badge.urgent {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+    animation: pulse-urgent 1s ease-in-out infinite;
+}
+@keyframes pulse-urgent {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 .editor-phase { animation: fadeIn 0.3s ease-in; }
 @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }

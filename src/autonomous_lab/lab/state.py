@@ -93,9 +93,15 @@ def init_project(
         yaml.dump(trainee, f, default_flow_style=False, allow_unicode=True)
 
     # Write config
-    cfg = config or {"max_iterations": 50, "target_journal": "Nature"}
+    default_cfg = {
+        "max_iterations": 50,
+        "target_journal": "Nature",
+        "editor_timeout_minutes": 30,   # 0 = no timeout (wait forever)
+    }
+    if config:
+        default_cfg.update(config)
     with open(autolab / CONFIG_FILE, "w", encoding="utf-8") as f:
-        yaml.dump(cfg, f, default_flow_style=False)
+        yaml.dump(default_cfg, f, default_flow_style=False)
 
     # Initialize state
     now = datetime.now(timezone.utc).isoformat()
@@ -344,6 +350,13 @@ def load_config(project_dir: str) -> dict:
     return {}
 
 
+def get_editor_timeout_seconds(project_dir: str) -> int:
+    """Return the editor timeout in seconds (0 = wait forever)."""
+    cfg = load_config(project_dir)
+    minutes = cfg.get("editor_timeout_minutes", 30)
+    return max(0, int(minutes)) * 60
+
+
 # ---------------------------------------------------------------------------
 # Meeting log parsing (for frontend)
 # ---------------------------------------------------------------------------
@@ -511,6 +524,7 @@ def submit_manuscript(project_dir: str, cover_letter: str) -> dict:
     editorial["decision"] = ""
     editorial["decision_feedback"] = ""
     editorial["round"] = editorial.get("round", 0) + 1
+    editorial["waiting_since"] = datetime.now(timezone.utc).isoformat()
     state["editorial"] = editorial
     state["status"] = "submitted_to_editor"
     save_state(project_dir, state)
@@ -557,6 +571,7 @@ def record_review(project_dir: str, reviewer_id: str, report: dict) -> dict:
         editorial["phase"] = "under_review"
     else:
         editorial["phase"] = "reviews_complete"
+        editorial["waiting_since"] = datetime.now(timezone.utc).isoformat()
         state["status"] = "reviews_complete"
         state["next_role"] = "editor"  # signal UI to show decision panel
 

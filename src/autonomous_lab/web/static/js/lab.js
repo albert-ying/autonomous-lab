@@ -2,7 +2,7 @@
    AUTONOMOUS LAB — Game UI Frontend
    Pixel art characters, live polling, inventory, conversation,
    file preview modal, character thought bubbles, markdown,
-   expert consultants, Biomni integration status
+   expert consultants, biomedical toolkit integration
    ============================================================== */
 
 (function () {
@@ -489,7 +489,7 @@
       "Invite a reviewer?",
       "What about controls?",
       "Need a statistician...",
-      "Consider Biomni tools?",
+      "Check biomedical toolkit?",
     ],
     trainee: [
       "Running the pipeline...",
@@ -690,6 +690,7 @@
   let _manualOpen = false;          // flag: user manually opened the overlay
   let _editorialBusy = false;       // flag: an editorial API call is in flight
   let _userDismissedPhase = null;   // phase the user dismissed — don't re-show until phase changes
+  let _lastEditorialHash = "";      // fingerprint of last-rendered editorial state
 
   function openEditorDesk() {
     const overlay = document.getElementById("editor-desk-overlay");
@@ -775,6 +776,54 @@
     // Update round
     const roundEl = document.getElementById("editor-round");
     if (roundEl) roundEl.textContent = `Round ${editorial.round || 1}`;
+
+    // Update timeout countdown badge
+    const badge = document.getElementById("editor-timeout-badge");
+    if (badge) {
+      const timeoutMin = state.editor_timeout_minutes || 0;
+      const waitingSince = editorial.waiting_since || "";
+      const needsAction = ["submitted", "reviews_complete"].includes(phase);
+
+      if (timeoutMin > 0 && waitingSince && needsAction) {
+        const started = new Date(waitingSince);
+        const now = new Date();
+        const elapsedMs = now - started;
+        const timeoutMs = timeoutMin * 60 * 1000;
+        const remainMs = Math.max(0, timeoutMs - elapsedMs);
+        const remainMin = Math.floor(remainMs / 60000);
+        const remainSec = Math.floor((remainMs % 60000) / 1000);
+
+        if (remainMs <= 0) {
+          badge.textContent = "AI EDITOR ACTIVE";
+          badge.classList.add("urgent");
+        } else {
+          const padSec = String(remainSec).padStart(2, "0");
+          badge.textContent = `AI in ${remainMin}:${padSec}`;
+          badge.classList.toggle("urgent", remainMin < 5);
+        }
+      } else if (timeoutMin === 0 && needsAction) {
+        badge.textContent = "NO TIMEOUT";
+        badge.classList.remove("urgent");
+      } else {
+        badge.textContent = "";
+        badge.classList.remove("urgent");
+      }
+    }
+
+    // ── Fingerprint the editorial state to avoid redundant re-renders ──
+    // Re-rendering destroys DOM elements and resets scroll positions.
+    const editorialHash = JSON.stringify({
+      p: phase,
+      r: editorial.round,
+      rv: Object.keys(editorial.reviews || {}),
+      d: editorial.decision,
+    });
+
+    if (editorialHash === _lastEditorialHash) {
+      // Nothing changed — skip the expensive DOM rebuild to preserve scroll
+      return;
+    }
+    _lastEditorialHash = editorialHash;
 
     // Hide all phases
     document.querySelectorAll(".editor-phase").forEach(el => el.style.display = "none");

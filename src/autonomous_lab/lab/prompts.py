@@ -259,6 +259,149 @@ CONSULTANT_GENERIC = (
 )
 
 
+# ── AI Editor persona (used when editor timeout expires) ──
+AI_EDITOR_RESOURCES = """
+### Editorial Decision Framework
+
+You are acting as the **Editor-in-Chief** of a high-impact journal. You evaluate
+manuscripts using the same standards as Nature, Science, and Cell editors.
+
+**Editorial Triage Criteria (for initial submission — "submitted" phase):**
+Based on Nature editorial guidelines and COPE (Committee on Publication Ethics):
+1. **Scope & Significance**: Does the work address an important question? Is the
+   advance sufficient for the journal's readership?
+2. **Novelty**: Is this truly new, or incremental over existing work?
+3. **Technical Soundness**: Are methods appropriate? Are controls adequate?
+   Is statistical analysis rigorous?
+4. **Completeness**: Are there obvious missing experiments or analyses that
+   prevent evaluation?
+5. **Presentation**: Is the writing clear? Are figures publication-quality?
+
+Desk-reject if: the work is outside scope, clearly incremental, has fundamental
+methodological flaws, or is too preliminary. Otherwise, send to reviewers.
+
+When sending to reviewers, select 3 reviewers with complementary expertise:
+- One methodological/statistical expert
+- One domain expert in the primary field
+- One with broader perspective (related field or translational)
+
+**Final Decision Framework (after reviews — "reviews_complete" phase):**
+Based on ICMJE and COPE guidelines:
+- **Accept**: All reviewers positive, no substantive concerns remaining.
+- **Minor Revision**: Reviewers broadly positive; remaining issues are
+  clarifications, additional analyses, or presentation improvements that
+  won't change conclusions.
+- **Major Revision**: Significant concerns about methodology, interpretation,
+  or missing data; conclusions may change with additional work.
+- **Reject**: Fundamental flaws that cannot be remedied by revision, or
+  the advance is not sufficient even if technically correct.
+
+Synthesize reviewer reports — do NOT simply average scores. Identify where
+reviewers agree, where they disagree, and apply your own editorial judgment
+for contradictions. Weight methodological concerns heavily.
+
+Write constructive feedback that tells the authors EXACTLY what is needed
+for each decision level.
+"""
+
+
+def build_ai_editor_prompt(
+    editorial: dict,
+    phase: str,
+    cover_letter: str,
+    reviews: dict,
+    file_listings: dict,
+) -> str:
+    """Build the prompt for the AI to play the Editor role after timeout."""
+    files_str = _format_file_listings(file_listings)
+
+    prompt = f"""You are now acting as the **Editor-in-Chief** because the human editor
+did not respond within the configured timeout. You must make an editorial decision
+NOW — do not defer or wait further.
+
+{AI_EDITOR_RESOURCES}
+
+## Current Manuscript State
+
+**Cover Letter:**
+{cover_letter or "(No cover letter provided)"}
+
+**Project Files:**
+{files_str}
+"""
+
+    if phase == "submitted":
+        prompt += """
+## Your Task: Initial Editorial Triage
+
+Read the cover letter and examine the manuscript files listed above.
+Make ONE of these decisions:
+
+### Option A: Send to Reviewers
+If the manuscript has potential, select 3 reviewers. You must return a JSON
+block with your selections:
+
+```json
+EDITORIAL_ACTION: invite_reviewers
+REVIEWERS:
+- name: "Dr. [Name]"
+  role: "[Specialty]"
+  avatar: "[sprite key]"
+- name: "Dr. [Name]"
+  role: "[Specialty]"
+  avatar: "[sprite key]"
+- name: "Dr. [Name]"
+  role: "[Specialty]"
+  avatar: "[sprite key]"
+FEEDBACK: "[Brief note to authors about the review process]"
+```
+
+Available avatar keys: reviewer, statistician, bioinformatician, immunologist,
+oncologist, neuroscientist, geneticist, cell_biologist, microbiologist,
+pathologist, pharmacologist, structural_bio, systems_biologist, epidemiologist,
+ml_engineer, comp_biologist, clinician, chemist, physicist, engineer, generic.
+
+### Option B: Desk Reject
+If the manuscript has fundamental problems:
+
+```
+EDITORIAL_ACTION: desk_reject
+FEEDBACK: "[Detailed explanation of why the manuscript is being rejected,
+with constructive suggestions for improvement]"
+```
+
+Choose ONE option and output the appropriate block.
+"""
+    elif phase == "reviews_complete":
+        # Format reviewer reports
+        review_text = ""
+        for rid, report in reviews.items():
+            r_report = report.get("report", "(no report)")
+            r_score = report.get("score", "N/A")
+            r_rec = report.get("recommendation", "N/A")
+            review_text += f"\n### {rid}\n**Score:** {r_score}/10\n**Recommendation:** {r_rec}\n\n{r_report}\n"
+
+        prompt += f"""
+## Reviewer Reports
+{review_text}
+
+## Your Task: Final Editorial Decision
+
+Synthesize the reviewer reports above. Do NOT simply average scores — use
+editorial judgment. Output ONE of these decisions:
+
+```
+EDITORIAL_ACTION: [accept | minor_revision | major_revision | reject]
+FEEDBACK: "[Your editorial synthesis and instructions to the authors.
+For revisions, specify EXACTLY which reviewer points must be addressed.
+For accept, note any minor copy-editing issues.
+For reject, explain why revision cannot address the concerns.]"
+```
+"""
+
+    return prompt
+
+
 # ---------------------------------------------------------------------------
 # PI prompt builder
 # ---------------------------------------------------------------------------
@@ -393,8 +536,8 @@ Assess overall project progress from 0-100. This drives the progress bar in the 
 
 Output: `PROGRESS: <number>`
 
-### 9. BIOMNI TOOLS (Optional)
-If Biomni is available in this environment (check via `autolab_biomni_status`), you may suggest using its curated biomedical tools and databases for specific tasks (e.g., ADMET prediction, CRISPR screen planning, scRNA-seq annotation). The Trainee should import Biomni tools directly in their scripts: `from biomni.tools.<name> import *`. Use `autolab_biomni_tools` to see what's available. Only mention if genuinely useful — do not force it.
+### 9. BIOMEDICAL TOOLKIT (Optional)
+If the biomedical toolkit is available (check via `autolab_biotools_status`), you may suggest using its curated tools and databases for specific tasks (e.g., ADMET prediction, CRISPR screen planning, scRNA-seq annotation). The Trainee should import tools directly in their scripts: `from biomni.tools.<name> import *`. Use `autolab_biotools_list` to see what's available. Only mention if genuinely useful — do not force it.
 
 ### 10. STATUS
 Output exactly one of:
@@ -501,7 +644,7 @@ For each task:
 
 Use the Shell tool to run your scripts. Use the file editing tools to write LaTeX.
 
-**Biomni Integration:** If the PI suggests using Biomni tools, and Biomni is available (check with `autolab_biomni_status`), import the relevant tools directly in your scripts: `from biomni.tools.<tool_name> import *`. Use `autolab_biomni_tools` to see what's available. Do NOT instantiate the Biomni A1 agent. If Biomni is not installed, proceed without it — all core work can be done with standard tools.
+**Biomedical Toolkit:** If the PI suggests using biomedical toolkit capabilities, and the toolkit is available (check with `autolab_biotools_status`), import the relevant tools directly in your scripts: `from biomni.tools.<tool_name> import *`. Use `autolab_biotools_list` to see what's available. If the toolkit is not installed, proceed without it — all core work can be done with standard Python packages.
 
 ### 3. RESULTS
 Key findings with exact numbers and statistics. Do not omit p-values, confidence intervals, effect sizes, or sample sizes where relevant.
