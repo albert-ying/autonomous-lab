@@ -329,6 +329,7 @@ def setup_routes(manager: "WebUIManager"):
                 "next_role": state.get("next_role", "pi"),
                 "status": state.get("status", "active"),
                 "user_feedback": state.get("user_feedback", ""),
+                "feedback_queue_count": len(state.get("feedback_queue", [])) if isinstance(state.get("feedback_queue"), list) else 0,
                 "progress": state.get("progress", 0),
                 "experts": state.get("experts", []),
                 "created_at": state.get("created_at", ""),

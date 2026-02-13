@@ -468,40 +468,30 @@ async def lab_meeting(
         # Ensure the game-style lab UI is open
         _ensure_lab_ui(project_directory)
 
-        # Clear any stale feedback from the previous turn
-        try:
-            from .lab.state import load_state, save_state
-            state = load_state(project_directory)
-            old_feedback = state.get("user_feedback", "")
-            if old_feedback:
-                state["user_feedback"] = ""
-                save_state(project_directory, state)
-        except Exception:
-            old_feedback = ""
+        from .lab.state import drain_feedback_queue, has_pending_feedback
 
         debug_log(f"lab_meeting: pausing {timeout}s for optional feedback")
 
-        # Poll for user feedback during the pause window
+        # Wait for the pause window, checking periodically for new feedback.
+        # Messages accumulate in the queue — we don't clear anything yet.
         poll_interval = 3  # seconds
         elapsed = 0
-        user_feedback = ""
         while elapsed < timeout:
             await asyncio.sleep(min(poll_interval, timeout - elapsed))
             elapsed += poll_interval
             try:
-                state = load_state(project_directory)
-                fb = state.get("user_feedback", "").strip()
-                if fb:
-                    user_feedback = fb
-                    # Clear the feedback so the next turn starts fresh
-                    state["user_feedback"] = ""
-                    save_state(project_directory, state)
-                    break  # Got feedback, no need to wait longer
+                if has_pending_feedback(project_directory):
+                    # Give user a moment to finish typing follow-up messages
+                    await asyncio.sleep(2)
+                    break
             except Exception:
                 continue
 
+        # Drain ALL accumulated messages at once
+        user_feedback = drain_feedback_queue(project_directory)
+
         if user_feedback:
-            debug_log(f"lab_meeting: got user feedback: {user_feedback[:80]}")
+            debug_log(f"lab_meeting: got user feedback ({len(user_feedback)} chars)")
             return (
                 f"User feedback received:\n{user_feedback}\n\n"
                 f"Incorporate this feedback into the next turn.\n"
@@ -893,7 +883,9 @@ async def autolab_next(
     idea = load_idea(project_directory)
     role = state["next_role"]
     iteration = state["iteration"]
-    user_feedback = state.get("user_feedback", "")
+    # Drain accumulated user feedback queue (combines all pending messages)
+    from .lab.state import drain_feedback_queue
+    user_feedback = drain_feedback_queue(project_directory)
     meeting_history = get_recent_meetings(project_directory, n=3)
     summaries = get_meeting_summaries(project_directory)
     file_listings = scan_project_files(project_directory)
@@ -1164,13 +1156,15 @@ async def autolab_record(
     if new_iteration > 0 and new_iteration % COMPRESS_EVERY == 0:
         compress_old_meetings(project_directory)
 
-    # Check if user left feedback via the web UI
-    user_feedback = state.get("user_feedback", "").strip()
+    # Check if user left feedback via the web UI (peek, don't drain —
+    # the feedback will be properly drained in autolab_next or lab_meeting)
+    from .lab.state import has_pending_feedback
+    pending_fb = has_pending_feedback(project_directory)
 
-    if user_feedback:
+    if pending_fb:
         return (
             f"Turn recorded. Iteration {new_iteration}, next: {next_role.upper()}.\n\n"
-            f"User feedback pending:\n{user_feedback}"
+            f"User feedback is queued — it will be included in the next autolab_next call."
             + _LOOP_INSTRUCTION
         )
 
@@ -1624,8 +1618,14 @@ async def autolab_status(
         f"## Recent Meetings\n\n{recent if recent.strip() else 'No meetings yet.'}\n"
     )
 
-    if state.get("user_feedback"):
-        report += f"\n## Pending User Feedback\n\n{state['user_feedback']}\n"
+    # Show queued feedback count (don't drain it — just peek)
+    queue = state.get("feedback_queue", [])
+    if not isinstance(queue, list):
+        queue = [queue] if queue else []
+    if queue:
+        report += f"\n## Pending User Feedback ({len(queue)} message(s) queued)\n\n"
+        for i, msg in enumerate(queue, 1):
+            report += f"  {i}. {msg[:100]}{'...' if len(msg) > 100 else ''}\n"
 
     return report
 

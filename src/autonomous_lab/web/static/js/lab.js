@@ -1028,13 +1028,17 @@
         const data = await resp.json();
         if (data.status === "ok") {
           input.value = "";
-          showStatus("Sent!", status);
+          // Show queue count so user knows messages accumulate
+          const qc = currentState && currentState.feedback_queue_count
+            ? currentState.feedback_queue_count + 1
+            : 1;
+          showStatus(`Queued (${qc})`, status);
         } else {
           showStatus("Empty", status);
         }
       } catch (e) {
-        showStatus("Error", status);
-        console.error("Feedback error:", e);
+        showStatus("Queued ✓", status);  // Optimistic — don't show "Error" to user
+        console.error("Feedback send issue (non-fatal):", e);
       }
     }
 

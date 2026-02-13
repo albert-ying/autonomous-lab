@@ -8,7 +8,9 @@ for iterative PI/Trainee research sessions.
 from .state import (
     append_meeting_log,
     compress_old_meetings,
+    drain_feedback_queue,
     get_paper_progress,
+    has_pending_feedback,
     init_project,
     load_state,
     parse_meeting_log,
@@ -20,7 +22,9 @@ from .state import (
 __all__ = [
     "append_meeting_log",
     "compress_old_meetings",
+    "drain_feedback_queue",
     "get_paper_progress",
+    "has_pending_feedback",
     "init_project",
     "load_state",
     "parse_meeting_log",

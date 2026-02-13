@@ -103,7 +103,8 @@ def init_project(
         "iteration": 0,
         "next_role": "pi",
         "status": "active",
-        "user_feedback": "",
+        "user_feedback": "",          # legacy compat (read by older code paths)
+        "feedback_queue": [],         # accumulates messages until drained
         "progress": 0,
         "experts": [],
         "created_at": now,
@@ -401,13 +402,61 @@ def parse_meeting_log(project_dir: str) -> list[dict]:
 
 
 def store_user_feedback(project_dir: str, feedback: str, target: str = "") -> None:
-    """Store user feedback from the web UI into state.json."""
+    """Append user feedback to the queue in state.json.
+
+    Messages accumulate in ``feedback_queue`` (a list) and are drained
+    by ``drain_feedback_queue`` when the AI is ready to process them.
+    This prevents messages from being lost when the user sends multiple
+    messages before the current cycle completes.
+    """
     state = load_state(project_dir)
-    if target:
-        state["user_feedback"] = f"[To {target.upper()}] {feedback}"
-    else:
-        state["user_feedback"] = feedback
+    queue = state.get("feedback_queue", [])
+    if not isinstance(queue, list):
+        # Migrate from old string format
+        queue = [queue] if queue else []
+
+    entry = f"[To {target.upper()}] {feedback}" if target else feedback
+    queue.append(entry)
+    state["feedback_queue"] = queue
+    # Also keep legacy field updated (last message) for compat
+    state["user_feedback"] = entry
     save_state(project_dir, state)
+
+
+def drain_feedback_queue(project_dir: str) -> str:
+    """Drain and return all queued user feedback as a single string.
+
+    Returns the combined feedback (empty string if none) and clears
+    both ``feedback_queue`` and the legacy ``user_feedback`` field.
+    """
+    state = load_state(project_dir)
+    queue = state.get("feedback_queue", [])
+    if not isinstance(queue, list):
+        queue = [queue] if queue else []
+
+    # Also grab legacy field in case something wrote there directly
+    legacy = state.get("user_feedback", "").strip()
+    if legacy and legacy not in queue:
+        queue.append(legacy)
+
+    combined = "\n\n".join(msg.strip() for msg in queue if msg.strip())
+
+    # Clear everything
+    state["feedback_queue"] = []
+    state["user_feedback"] = ""
+    save_state(project_dir, state)
+    return combined
+
+
+def has_pending_feedback(project_dir: str) -> bool:
+    """Check if there's any pending user feedback without draining it."""
+    state = load_state(project_dir)
+    queue = state.get("feedback_queue", [])
+    if not isinstance(queue, list):
+        return bool(queue)
+    if queue:
+        return True
+    return bool(state.get("user_feedback", "").strip())
 
 
 # ---------------------------------------------------------------------------
