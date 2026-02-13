@@ -744,21 +744,32 @@
     // If user manually opened the overlay and phase is "none", keep it open
     if (_manualOpen && phase === "none") return;
 
-    // Show/hide overlay
-    const showPhases = ["submitted","reviewers_invited","under_review","reviews_complete","decision_made"];
-    if (showPhases.includes(phase)) {
-      // If user dismissed this exact phase, don't re-show it
+    // ── Auto-show logic ──
+    // Only auto-pop the overlay when the EDITOR needs to act:
+    //   "submitted"        → editor decides: desk reject or invite reviewers
+    //   "reviews_complete"  → editor makes final decision (accept/minor/major/reject)
+    //
+    // Do NOT auto-pop during:
+    //   "reviewers_invited" / "under_review" → AI is playing reviewers, no editor action
+    //   "decision_made" → decision was already handled, PI revision loop is starting
+    //   "none" → no editorial workflow
+    //
+    // The user can ALWAYS manually view any phase via the "Editorial Office" button.
+    const actionPhases = ["submitted", "reviews_complete"];
+
+    if (actionPhases.includes(phase)) {
+      // Editor needs to act — auto-show (unless user dismissed this exact phase)
       if (_userDismissedPhase === phase) return;
-      // Phase changed since user's dismissal — clear the flag and show
       if (_userDismissedPhase && _userDismissedPhase !== phase) _userDismissedPhase = null;
       overlay.classList.remove("hidden");
-      _manualOpen = false; // system-driven now
-    } else if (!_manualOpen) {
+      _manualOpen = false;
+    } else if (_manualOpen) {
+      // User manually opened — keep open, update content below
+    } else {
+      // No action needed and not manually opened — hide
       overlay.classList.add("hidden");
       _selectingReviewers = false;
       return;
-    } else {
-      return; // manual open, non-active phase — leave as-is
     }
 
     // Update round
@@ -779,6 +790,10 @@
     } else if (phase === "decision_made") {
       _selectingReviewers = false;
       showPhaseDone(editorial);
+    } else if (phase === "none") {
+      // Show empty state for manual open
+      const emptyEl = document.getElementById("editor-phase-empty");
+      if (emptyEl) emptyEl.style.display = "block";
     }
   }
 
