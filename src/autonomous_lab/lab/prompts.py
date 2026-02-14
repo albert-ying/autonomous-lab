@@ -544,7 +544,17 @@ The tool returns a prompt for you to role-play as that expert briefly, then retu
 
 If you don't need expert consultation this turn, skip this section.
 
-### 8. PROGRESS
+### 8. SKILL ACQUISITION (When Stuck)
+If you or the {junior_label} tried something and failed because a specific technical skill is missing, call `autolab_acquire_skill` with the skill name (e.g., 'scanpy', 'survival-analysis', 'pytorch-lightning').
+
+This tool:
+1. **Searches the character marketplace** for published characters that already have this skill
+2. **Downloads the SKILL.md** if found — ready to use immediately
+3. **Returns creation instructions** if no match exists — you can train the skill via the Character Builder
+
+Use this BEFORE spending a full turn struggling with an unfamiliar tool. The marketplace has hundreds of community-contributed skills. Only create from scratch when nothing exists.
+
+### 9. PROGRESS
 Assess overall project progress from 0-100. This drives the progress bar in the monitoring UI. Consider:
 - 0-10: Project planning / initial research
 - 10-30: Core work running, preliminary results

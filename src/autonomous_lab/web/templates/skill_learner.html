@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Learner — Autonomous Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+    <style>
+    :root {
+        --bg-dark: #1a1428;
+        --bg-panel: #241e35;
+        --bg-panel-light: #2d2545;
+        --bg-input: #1e1830;
+        --border: #6b5e8a;
+        --border-light: #8a7eb0;
+        --border-glow: #a594d4;
+        --gold: #f5c542;
+        --gold-dim: #c49a20;
+        --accent: #bd93f9;
+        --text: #e8e0f0;
+        --text-dim: #9a8fb5;
+        --text-muted: #6b6080;
+        --red: #ff6b6b;
+        --green: #6bff6b;
+        --blue: #6bb5ff;
+        --bar-bg: #332b4a;
+        --bar-fill: #7c6bff;
+        --shadow: rgba(0, 0, 0, 0.4);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        min-height: 100vh;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    h1, h2, h3, .pixel-font { font-family: 'Press Start 2P', monospace; }
+    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Top bar */
+    #top-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 48px; padding: 0 20px;
+        background: var(--bg-panel); border-bottom: 2px solid var(--border);
+    }
+    .top-left { display: flex; align-items: center; gap: 10px; }
+    .top-left .icon { font-size: 20px; }
+    #top-bar h1 { font-size: 10px; color: var(--gold); letter-spacing: 2px; }
+    .top-right { display: flex; align-items: center; gap: 12px; }
+    .top-right a { color: var(--accent); text-decoration: none; font-size: 12px; }
+    .top-right a:hover { text-decoration: underline; }
+
+    /* Layout */
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+    .page-title { font-size: 12px; color: var(--gold); letter-spacing: 1px; margin-bottom: 4px; }
+    .page-subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+
+    /* Two modes */
+    .mode-selector {
+        display: flex; gap: 12px; margin-bottom: 24px;
+    }
+    .mode-btn {
+        flex: 1; padding: 16px; border: 2px solid var(--border);
+        border-radius: 8px; background: var(--bg-panel);
+        cursor: pointer; text-align: left; transition: all 0.2s;
+    }
+    .mode-btn:hover { border-color: var(--accent); }
+    .mode-btn.active { border-color: var(--gold); background: var(--bg-panel-light); }
+    .mode-btn h3 { font-size: 9px; color: var(--gold); margin-bottom: 6px; }
+    .mode-btn p { font-size: 12px; color: var(--text-dim); }
+
+    /* Input area */
+    .input-area {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 8px; padding: 20px; margin-bottom: 20px;
+    }
+    .input-area label {
+        display: block; font-size: 11px; color: var(--text-dim);
+        text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+    }
+    .input-area input, .input-area textarea {
+        width: 100%; padding: 10px 12px; font-size: 14px;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 6px; color: var(--text); font-family: inherit;
+    }
+    .input-area input:focus, .input-area textarea:focus {
+        outline: none; border-color: var(--accent);
+    }
+    .input-area textarea { resize: vertical; min-height: 80px; }
+    .input-row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .input-row > div { flex: 1; }
+
+    /* Buttons */
+    .btn {
+        padding: 10px 20px; border: 2px solid var(--border);
+        border-radius: 6px; background: var(--bg-panel-light);
+        color: var(--text); font-size: 13px; font-weight: 600;
+        cursor: pointer; transition: all 0.2s;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn-primary {
+        background: var(--bar-fill); border-color: var(--bar-fill);
+        color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 10px; margin-top: 16px; }
+
+    /* Progress panel */
+    .progress-panel {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 8px; overflow: hidden;
+    }
+    .progress-header {
+        padding: 12px 16px; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .progress-header h3 { font-size: 9px; color: var(--gold); }
+    .progress-bar-wrap {
+        height: 4px; background: var(--bar-bg); border-radius: 2px;
+        overflow: hidden; width: 120px;
+    }
+    .progress-bar {
+        height: 100%; background: var(--bar-fill); border-radius: 2px;
+        width: 0; transition: width 0.4s ease;
+    }
+    .progress-log {
+        padding: 12px 16px; max-height: 400px; overflow-y: auto;
+        font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        line-height: 1.8; color: var(--text-dim);
+    }
+    .progress-log .line { padding: 2px 0; }
+    .progress-log .line.success { color: var(--green); }
+    .progress-log .line.error { color: var(--red); }
+    .progress-log .line.info { color: var(--blue); }
+    .progress-log .line.step { color: var(--accent); }
+
+    /* File tree preview */
+    .file-tree {
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 6px; padding: 12px 16px; margin-top: 12px;
+        font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        color: var(--text-dim); white-space: pre; line-height: 1.6;
+    }
+
+    /* Status badges */
+    .badge {
+        display: inline-block; padding: 2px 8px; border-radius: 4px;
+        font-size: 10px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .badge-idle { background: var(--bar-bg); color: var(--text-muted); }
+    .badge-running { background: rgba(107, 181, 255, 0.2); color: var(--blue); }
+    .badge-done { background: rgba(107, 255, 107, 0.15); color: var(--green); }
+    .badge-error { background: rgba(255, 107, 107, 0.15); color: var(--red); }
+
+    /* Two-column layout */
+    .learner-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 800px) {
+        .learner-grid { grid-template-columns: 1fr; }
+    }
+
+    .skill-list { list-style: none; }
+    .skill-list li {
+        padding: 8px 12px; border: 1px solid var(--border);
+        border-radius: 6px; margin-bottom: 6px;
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--bg-panel-light);
+    }
+    .skill-list li .name { font-weight: 600; }
+    .skill-list li .status { font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div id="top-bar">
+    <div class="top-left">
+        <span class="icon">🧪</span>
+        <h1>SKILL LEARNER</h1>
+    </div>
+    <div class="top-right">
+        <a href="/lab">Lab</a>
+        <a href="/character-builder">Characters</a>
+    </div>
+</div>
+
+<div class="container">
+    <h2 class="page-title">SKILL ACQUISITION</h2>
+    <p class="page-subtitle">
+        Teach the agent a new skill by researching documentation, building a pipeline, and testing it.
+        Or distill skills from your existing project history.
+    </p>
+
+    <!-- Mode selector -->
+    <div class="mode-selector">
+        <div class="mode-btn active" data-mode="learn" onclick="selectMode('learn')">
+            <h3>LEARN FROM WEB</h3>
+            <p>Agent researches docs, writes the skill, runs tests, iterates until it works.</p>
+        </div>
+        <div class="mode-btn" data-mode="distill" onclick="selectMode('distill')">
+            <h3>DISTILL FROM HISTORY</h3>
+            <p>Extract skills from your existing code, notebooks, and workflows.</p>
+        </div>
+    </div>
+
+    <!-- Learn mode -->
+    <div id="learn-mode">
+        <div class="input-area">
+            <div class="input-row">
+                <div>
+                    <label>Skill name</label>
+                    <input type="text" id="skill-name" placeholder="e.g., scanpy, pytorch-lightning, deseq2">
+                </div>
+                <div>
+                    <label>Target character (optional)</label>
+                    <input type="text" id="target-char" placeholder="e.g., Dr. Maria Chen">
+                </div>
+            </div>
+            <div>
+                <label>Description (what the skill should do)</label>
+                <textarea id="skill-desc" placeholder="e.g., single-cell RNA-seq QC, normalization, clustering, and differential expression using scanpy. Should include leiden clustering, UMAP visualization, and rank_genes_groups."></textarea>
+            </div>
+            <div class="input-row" style="margin-top: 12px">
+                <div>
+                    <label>Test data or acceptance criteria (optional)</label>
+                    <input type="text" id="test-criteria" placeholder="e.g., must produce UMAP plot from pbmc3k dataset">
+                </div>
+                <div>
+                    <label>Max iterations</label>
+                    <input type="number" id="max-iters" value="5" min="1" max="20">
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="btn-learn" onclick="startLearning()">Start Learning</button>
+                <button class="btn" id="btn-stop" onclick="stopLearning()" style="display:none">Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Distill mode -->
+    <div id="distill-mode" style="display:none">
+        <div class="input-area">
+            <div>
+                <label>Project directory to scan</label>
+                <input type="text" id="scan-dir" placeholder="/path/to/your/project">
+            </div>
+            <div style="margin-top: 12px">
+                <label>File patterns to analyze</label>
+                <input type="text" id="file-patterns" placeholder="*.py, *.ipynb, *.R" value="*.py, *.ipynb">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="btn-distill" onclick="startDistill()">Scan and Distill</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress and results -->
+    <div class="learner-grid" style="margin-top: 20px;">
+        <div>
+            <div class="progress-panel">
+                <div class="progress-header">
+                    <h3>PROGRESS</h3>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="badge badge-idle" id="status-badge">IDLE</span>
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar" id="progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-log" id="log">
+                    <div class="line info">Ready. Enter a skill name and click "Start Learning".</div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="progress-panel">
+                <div class="progress-header">
+                    <h3>SKILL OUTPUT</h3>
+                    <span id="iter-count" style="font-size:11px; color:var(--text-muted);">iteration 0/5</span>
+                </div>
+                <div class="progress-log" id="output-preview" style="white-space: pre-wrap;">
+                    <div class="line info">Skill content will appear here as the agent learns...</div>
+                </div>
+            </div>
+            <div class="file-tree" id="file-tree" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMode = 'learn';
+let abortController = null;
+
+function selectMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    document.getElementById('learn-mode').style.display = mode === 'learn' ? 'block' : 'none';
+    document.getElementById('distill-mode').style.display = mode === 'distill' ? 'block' : 'none';
+}
+
+function addLog(text, cls = '') {
+    const log = document.getElementById('log');
+    const line = document.createElement('div');
+    line.className = 'line' + (cls ? ' ' + cls : '');
+    line.textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+
+function setStatus(status) {
+    const badge = document.getElementById('status-badge');
+    badge.textContent = status.toUpperCase();
+    badge.className = 'badge badge-' + status;
+}
+
+function setProgress(pct) {
+    document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+async function startLearning() {
+    const name = document.getElementById('skill-name').value.trim();
+    const desc = document.getElementById('skill-desc').value.trim();
+    const criteria = document.getElementById('test-criteria').value.trim();
+    const maxIters = parseInt(document.getElementById('max-iters').value) || 5;
+    const targetChar = document.getElementById('target-char').value.trim();
+
+    if (!name) { alert('Skill name is required'); return; }
+
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('output-preview').innerHTML = '';
+    setStatus('running');
+    setProgress(0);
+    document.getElementById('btn-learn').disabled = true;
+    document.getElementById('btn-stop').style.display = 'inline-block';
+
+    addLog('Starting skill acquisition: ' + name, 'step');
+    addLog('Max iterations: ' + maxIters, 'info');
+
+    abortController = new AbortController();
+
+    try {
+        const resp = await fetch('/api/skill/learn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                skill_name: name,
+                description: desc,
+                test_criteria: criteria,
+                max_iterations: maxIters,
+                target_character: targetChar,
+            }),
+            signal: abortController.signal,
+        });
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const evt = JSON.parse(line.slice(6));
+                    if (evt.log) addLog(evt.log, evt.cls || '');
+                    if (evt.progress !== undefined) setProgress(evt.progress);
+                    if (evt.iteration !== undefined) {
+                        document.getElementById('iter-count').textContent =
+                            'iteration ' + evt.iteration + '/' + maxIters;
+                    }
+                    if (evt.skill_content) {
+                        document.getElementById('output-preview').textContent = evt.skill_content;
+                    }
+                    if (evt.file_tree) {
+                        const ft = document.getElementById('file-tree');
+                        ft.textContent = evt.file_tree;
+                        ft.style.display = 'block';
+                    }
+                    if (evt.status === 'done') {
+                        setStatus('done');
+                        addLog('Skill acquired successfully.', 'success');
+                    }
+                    if (evt.status === 'error') {
+                        setStatus('error');
+                    }
+                } catch (e) { /* skip malformed SSE */ }
+            }
+        }
+    } catch (e) {
+        if (e.name !== 'AbortError') {
+            addLog('Error: ' + e.message, 'error');
+            setStatus('error');
+        }
+    }
+
+    document.getElementById('btn-learn').disabled = false;
+    document.getElementById('btn-stop').style.display = 'none';
+}
+
+async function startDistill() {
+    const scanDir = document.getElementById('scan-dir').value.trim();
+    const patterns = document.getElementById('file-patterns').value.trim();
+
+    if (!scanDir) { alert('Project directory is required'); return; }
+
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('output-preview').innerHTML = '';
+    setStatus('running');
+    setProgress(0);
+
+    addLog('Scanning: ' + scanDir, 'step');
+    addLog('Patterns: ' + patterns, 'info');
+
+    try {
+        const resp = await fetch('/api/skill/distill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_directory: scanDir,
+                file_patterns: patterns,
+            }),
+        });
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const evt = JSON.parse(line.slice(6));
+                    if (evt.log) addLog(evt.log, evt.cls || '');
+                    if (evt.progress !== undefined) setProgress(evt.progress);
+                    if (evt.skills) {
+                        let output = 'Distilled skills:\n\n';
+                        for (const s of evt.skills) {
+                            output += '--- ' + s.name + ' ---\n' + s.preview + '\n\n';
+                        }
+                        document.getElementById('output-preview').textContent = output;
+                    }
+                    if (evt.status === 'done') setStatus('done');
+                    if (evt.status === 'error') setStatus('error');
+                } catch (e) {}
+            }
+        }
+    } catch (e) {
+        addLog('Error: ' + e.message, 'error');
+        setStatus('error');
+    }
+}
+
+function stopLearning() {
+    if (abortController) {
+        abortController.abort();
+        addLog('Stopped by user.', 'error');
+        setStatus('idle');
+        document.getElementById('btn-learn').disabled = false;
+        document.getElementById('btn-stop').style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>

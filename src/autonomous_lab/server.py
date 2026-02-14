@@ -2680,6 +2680,201 @@ async def autolab_create_character(
     return "\n".join(output_lines)
 
 
+# ── Marketplace registry URL ──
+_REGISTRY_URL = (
+    "https://albert-ying.github.io/autonomous-lab/characters/index.json"
+)
+
+
+@mcp.tool()
+async def autolab_acquire_skill(
+    skill_name: Annotated[
+        str,
+        Field(
+            description="The skill to acquire (e.g., 'scanpy', 'survival-analysis', "
+            "'pytorch-lightning'). The tool first searches the character marketplace "
+            "for an existing character that has this skill. If found, it downloads "
+            "the SKILL.md. If not, it returns instructions to train the skill."
+        ),
+    ] = "",
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+) -> str:
+    """Search the character marketplace for a skill and acquire it.
+
+    When the PI or Trainee encounters a skill gap during the loop, call this
+    tool BEFORE attempting to build it from scratch. It checks the published
+    character registry for any character that already has the needed skill.
+
+    If a matching skill is found:
+      - Downloads the SKILL.md from the character's GitHub repo
+      - Saves it to .autolab/acquired_skills/<skill>/SKILL.md
+      - Returns the skill content so you can use it immediately
+
+    If no match is found:
+      - Returns instructions to create a new character with the skill
+      - Or to manually write the SKILL.md
+
+    This enables in-loop skill acquisition: the research never stops because
+    of a missing capability.
+
+    Args:
+        skill_name: Name of the skill to find
+        project_directory: Project directory path
+
+    Returns:
+        str: The SKILL.md content if found, or instructions to create it
+    """
+    import json
+    import urllib.parse
+    import urllib.request
+    from pathlib import Path
+
+    if not skill_name:
+        return "ERROR: skill_name is required (e.g., 'scanpy', 'survival-analysis')"
+
+    skill_name = skill_name.strip().lower()
+    project_dir = Path(os.path.abspath(project_directory))
+    acquired_dir = project_dir / ".autolab" / "acquired_skills" / skill_name
+    skill_md_path = acquired_dir / "SKILL.md"
+
+    # Check if already acquired
+    if skill_md_path.exists():
+        content = skill_md_path.read_text(encoding="utf-8")
+        return (
+            f"Skill '{skill_name}' already acquired locally.\n\n"
+            f"--- SKILL.md ---\n{content}\n--- End ---\n\n"
+            f"Read and follow the instructions above."
+        )
+
+    output = [f"Searching marketplace for skill: {skill_name}...\n"]
+
+    # Step 1: Fetch the character registry
+    matches = []
+    try:
+        req = urllib.request.Request(_REGISTRY_URL, headers={
+            "User-Agent": "AutonomousLab/0.5",
+            "Accept": "application/json",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            registry = json.loads(resp.read().decode("utf-8"))
+
+        for char in registry.get("characters", []):
+            char_skills = [s.lower() for s in char.get("skills", [])]
+            # Exact match or substring match
+            if skill_name in char_skills or any(
+                skill_name in s or s in skill_name for s in char_skills
+            ):
+                matches.append(char)
+    except Exception as e:
+        output.append(f"Registry fetch failed ({e}), trying GitHub search...\n")
+
+    # Step 2: Try GitHub search as fallback
+    if not matches:
+        try:
+            query = urllib.parse.quote(
+                f"autolab-char {skill_name} in:readme,name"
+            )
+            gh_url = (
+                f"https://api.github.com/search/repositories"
+                f"?q={query}+topic:autolab-character&per_page=5"
+            )
+            req = urllib.request.Request(gh_url, headers={
+                "User-Agent": "AutonomousLab/0.5",
+                "Accept": "application/vnd.github+json",
+            })
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                gh_data = json.loads(resp.read().decode("utf-8"))
+            for repo in gh_data.get("items", []):
+                matches.append({
+                    "name": repo.get("name", ""),
+                    "github": repo.get("full_name", ""),
+                    "title": repo.get("description", ""),
+                    "stars": repo.get("stargazers_count", 0),
+                    "skills": [],  # Unknown until we fetch character.yaml
+                })
+        except Exception:
+            pass
+
+    # Step 3: If found, try to download the SKILL.md
+    if matches:
+        best = max(matches, key=lambda c: c.get("stars", 0))
+        github_repo = best.get("github", "")
+        output.append(
+            f"Found matching character: {best.get('name', github_repo)}\n"
+            f"  Repo: https://github.com/{github_repo}\n"
+            f"  Stars: {best.get('stars', '?')}\n"
+        )
+
+        # Try to download the specific SKILL.md
+        skill_content = None
+        for try_name in [skill_name, skill_name.replace("-", "_")]:
+            try:
+                raw_url = (
+                    f"https://raw.githubusercontent.com/{github_repo}"
+                    f"/master/skills/{try_name}/SKILL.md"
+                )
+                req = urllib.request.Request(raw_url, headers={
+                    "User-Agent": "AutonomousLab/0.5",
+                })
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    skill_content = resp.read().decode("utf-8")
+                break
+            except Exception:
+                # Try main branch
+                try:
+                    raw_url = (
+                        f"https://raw.githubusercontent.com/{github_repo}"
+                        f"/main/skills/{try_name}/SKILL.md"
+                    )
+                    req = urllib.request.Request(raw_url, headers={
+                        "User-Agent": "AutonomousLab/0.5",
+                    })
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        skill_content = resp.read().decode("utf-8")
+                    break
+                except Exception:
+                    continue
+
+        if skill_content:
+            # Save locally
+            acquired_dir.mkdir(parents=True, exist_ok=True)
+            skill_md_path.write_text(skill_content, encoding="utf-8")
+
+            output.append(
+                f"Downloaded SKILL.md → {skill_md_path}\n\n"
+                f"--- SKILL.md ---\n{skill_content}\n--- End ---\n\n"
+                f"Skill acquired. Read and follow the instructions above."
+            )
+            return "\n".join(output)
+        else:
+            # Character found but skill folder not matching
+            output.append(
+                f"Character exists but skill '{skill_name}' not found as a "
+                f"separate SKILL.md in that repo.\n"
+                f"The character's skills: {best.get('skills', [])}\n"
+                f"You can still clone the full character:\n"
+                f"  git clone https://github.com/{github_repo} "
+                f".autolab/characters/{best.get('id', 'char')}\n"
+            )
+
+    # Step 4: Not found — provide instructions to create
+    if not matches:
+        output.append(f"No marketplace character found with skill '{skill_name}'.\n")
+
+    output.append(
+        f"\n--- Create This Skill ---\n"
+        f"Option 1: Use the Character Builder UI at /character-builder\n"
+        f"Option 2: Call autolab_create_character with skills='{skill_name}'\n"
+        f"Option 3: Manually create the skill:\n"
+        f"  mkdir -p .autolab/acquired_skills/{skill_name}\n"
+        f"  # Write a SKILL.md with: When to use, Standard workflow, Key decisions\n"
+        f"\nAfter creating, the skill will be available for all future sessions."
+    )
+    return "\n".join(output)
+
+
 # ===== Main entry point =====
 def main():
     """主要入口點，用於套件執行

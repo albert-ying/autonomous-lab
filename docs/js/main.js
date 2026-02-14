@@ -478,9 +478,12 @@
   // ============================================================
   // INITIALIZATION — Render all sprites on load
   // ============================================================
-  document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("DOMContentLoaded", async () => {
     const S = window.LabSprites;
     if (!S) return console.error("LabSprites not loaded");
+
+    // Load characters from registry before rendering marketplace
+    await fetchCharacters();
 
     // Hero sprites
     S.renderPI(document.getElementById("hero-pi-sprite"));
@@ -1031,117 +1034,20 @@
   // Users fork the template, create their character,
   // and list their repo. Ranked by GitHub stars.
   // Official characters from albert-ying get a badge.
+  // Now loaded dynamically from characters/index.json
   // ============================================================
-  const CHARACTERS = [
-    {
-      id: "maria-chen",
-      name: "Dr. Maria Chen",
-      role: "pi",
-      avatar: "neuroscientist",
-      title: "Computational Biology PI",
-      expertise: "Single-cell genomics, machine learning, and multi-modal data integration",
-      goal: "Discover cell-type-specific gene regulatory programs using multi-modal single-cell data",
-      skills: ["scanpy", "scvi-tools", "pytorch-lightning", "scientific-writing", "scientific-visualization", "statistical-analysis"],
-      personality: [
-        "Visionary: identifies novel biological questions from data patterns",
-        "Rigorous: demands reproducible computational pipelines with version control",
-        "Collaborative: bridges wet lab and dry lab teams effectively"
-      ],
-      github: "albert-ying/autolab-char-compbio-pi",
-      stars: 342,
-      official: true
-    },
-    {
-      id: "alex-kumar",
-      name: "Alex Kumar",
-      role: "trainee",
-      avatar: "bioinformatician",
-      title: "Bioinformatics Postdoc",
-      expertise: "NGS data analysis, pipeline development, and statistical genomics",
-      goal: "Build clean, reproducible analysis pipelines and generate publication-quality figures",
-      skills: ["scanpy", "pydeseq2", "pysam", "matplotlib", "seaborn", "scikit-learn", "deeptools"],
-      personality: [
-        "Dedicated: completes tasks thoroughly with comprehensive documentation",
-        "Technical: writes self-contained, reproducible code with proper testing",
-        "Proactive: identifies additional analyses that strengthen the narrative"
-      ],
-      github: "albert-ying/autolab-char-bioinfo-trainee",
-      stars: 256,
-      official: true
-    },
-    {
-      id: "sarah-oconnor",
-      name: "Dr. Sarah O'Connor",
-      role: "pi",
-      avatar: "chemist",
-      title: "Medicinal Chemistry PI",
-      expertise: "Drug discovery, QSAR modeling, and lead optimization",
-      goal: "Identify and optimize novel small molecule inhibitors through computational screening",
-      skills: ["rdkit", "datamol", "deepchem", "pytdc", "medchem", "pubchem-database"],
-      personality: [
-        "Strategic: prioritizes compounds with drug-like properties early",
-        "Data-driven: demands SAR analysis before advancing any lead series",
-        "Publication-savvy: structures work for high-impact medicinal chemistry journals"
-      ],
-      github: "albert-ying/autolab-char-medchem-pi",
-      stars: 189,
-      official: false
-    },
-    {
-      id: "james-park",
-      name: "James Park",
-      role: "trainee",
-      avatar: "ml_engineer",
-      title: "ML Research Engineer",
-      expertise: "Deep learning, model training, and inference optimization",
-      goal: "Implement and benchmark state-of-the-art models with clean, efficient code",
-      skills: ["pytorch-lightning", "transformers", "accelerate", "weights-and-biases", "vllm", "flash-attention"],
-      personality: [
-        "Efficient: writes highly optimized code with proper GPU utilization",
-        "Systematic: benchmarks every change with rigorous ablation studies",
-        "Clear communicator: documents architecture decisions and trade-offs"
-      ],
-      github: "albert-ying/autolab-char-ml-engineer",
-      stars: 198,
-      official: false
-    },
-    {
-      id: "elena-vasquez",
-      name: "Dr. Elena Vasquez",
-      role: "collaborator",
-      avatar: "epidemiologist",
-      title: "Clinical Epidemiologist",
-      expertise: "Clinical trial design, survival analysis, and real-world evidence",
-      goal: "Ensure robust clinical study designs and proper statistical interpretation",
-      skills: ["scikit-survival", "statistical-analysis", "statsmodels", "clinical-reports", "clinicaltrials-database"],
-      personality: [
-        "Methodical: insists on pre-registered analysis plans",
-        "Critical: identifies confounders and biases in study designs",
-        "Translational: connects statistical findings to clinical implications"
-      ],
-      github: "albert-ying/autolab-char-clinical-epi",
-      stars: 145,
-      official: false
-    },
-    {
-      id: "wei-zhang",
-      name: "Dr. Wei Zhang",
-      role: "collaborator",
-      avatar: "statistician",
-      title: "Biostatistician",
-      expertise: "Bayesian modeling, causal inference, and high-dimensional statistics",
-      goal: "Provide rigorous statistical frameworks and validate analytical approaches",
-      skills: ["pymc", "statistical-analysis", "statsmodels", "scikit-learn", "shap", "scientific-visualization"],
-      personality: [
-        "Precise: never allows hand-waving about statistical assumptions",
-        "Educational: explains complex methods in accessible terms",
-        "Conservative: prefers well-validated methods over trendy approaches"
-      ],
-      github: "albert-ying/autolab-char-biostatistician",
-      stars: 267,
-      official: true
-    },
-  ];
+  let CHARACTERS = []; // populated by fetchCharacters()
+
+  async function fetchCharacters() {
+    try {
+      const resp = await fetch("characters/index.json");
+      const data = await resp.json();
+      CHARACTERS = data.characters || [];
+    } catch (e) {
+      console.warn("Failed to load characters/index.json, using empty list:", e);
+      CHARACTERS = [];
+    }
+  }
 
   function initMarketplace() {
     const grid = document.getElementById("mp-grid");

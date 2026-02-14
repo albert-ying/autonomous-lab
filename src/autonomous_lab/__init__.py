@@ -6,7 +6,7 @@ MCP server for iterative PI/Trainee research sessions.
 Fork of mcp-feedback-enhanced with virtual lab extensions.
 """
 
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 __author__ = "Albert Ying"
 
 from .server import main as run_server
