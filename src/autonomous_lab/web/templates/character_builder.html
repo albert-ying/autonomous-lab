@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Builder — Autonomous Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+    <style>
+    /* --- Palette (matches lab.css) --- */
+    :root {
+        --bg-dark: #1a1428;
+        --bg-panel: #241e35;
+        --bg-panel-light: #2d2545;
+        --bg-input: #1e1830;
+        --border: #6b5e8a;
+        --border-light: #8a7eb0;
+        --border-glow: #a594d4;
+        --gold: #f5c542;
+        --gold-dim: #c49a20;
+        --accent: #bd93f9;
+        --text: #e8e0f0;
+        --text-dim: #9a8fb5;
+        --text-muted: #6b6080;
+        --pi-color: #6bb5ff;
+        --trainee-color: #6bffb0;
+        --expert-color: #ffb86b;
+        --red: #ff6b6b;
+        --green: #6bff6b;
+        --bar-bg: #332b4a;
+        --bar-fill: #7c6bff;
+        --shadow: rgba(0, 0, 0, 0.4);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        min-height: 100vh;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-dark);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    h1, h2, h3, .pixel-font { font-family: 'Press Start 2P', monospace; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* --- Top Bar --- */
+    #top-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 48px; padding: 0 20px;
+        background: var(--bg-panel); border-bottom: 2px solid var(--border);
+        box-shadow: 0 2px 8px var(--shadow);
+    }
+    .top-left { display: flex; align-items: center; gap: 10px; }
+    .top-left .icon { font-size: 20px; }
+    #top-bar h1 { font-size: 10px; color: var(--gold); letter-spacing: 2px; }
+    .top-right { display: flex; align-items: center; gap: 12px; }
+    .top-right a { color: var(--accent); text-decoration: none; font-size: 12px; }
+    .top-right a:hover { text-decoration: underline; }
+    .version { font-size: 10px; color: var(--text-muted); }
+
+    /* --- Layout --- */
+    .container {
+        max-width: 960px; margin: 0 auto; padding: 24px 20px;
+    }
+    .page-title {
+        font-size: 12px; color: var(--gold); letter-spacing: 1px;
+        margin-bottom: 4px;
+    }
+    .page-subtitle {
+        color: var(--text-dim); font-size: 13px; margin-bottom: 24px;
+    }
+
+    /* --- Two-column: Form + Preview --- */
+    .builder-grid {
+        display: grid; grid-template-columns: 1fr 340px; gap: 24px;
+    }
+    @media (max-width: 800px) { .builder-grid { grid-template-columns: 1fr; } }
+
+    /* --- Panels --- */
+    .panel {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 8px; padding: 20px;
+    }
+    .panel-header {
+        font-size: 9px; color: var(--accent); letter-spacing: 1.5px;
+        margin-bottom: 16px; text-transform: uppercase;
+    }
+
+    /* --- Form --- */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+        display: block; font-size: 12px; font-weight: 600;
+        color: var(--text-dim); margin-bottom: 4px;
+    }
+    .form-group input, .form-group textarea, .form-group select {
+        width: 100%; padding: 8px 12px;
+        background: var(--bg-input); color: var(--text);
+        border: 1px solid var(--border); border-radius: 4px;
+        font-family: inherit; font-size: 13px;
+        transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+        outline: none; border-color: var(--accent);
+    }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .form-group .hint {
+        font-size: 11px; color: var(--text-muted); margin-top: 2px;
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* --- Skills Tags --- */
+    .skills-input-wrap {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 4px; padding: 6px 8px; min-height: 40px;
+        cursor: text;
+    }
+    .skills-input-wrap:focus-within { border-color: var(--accent); }
+    .skill-tag {
+        display: inline-flex; align-items: center; gap: 4px;
+        background: var(--bg-panel-light); border: 1px solid var(--border);
+        border-radius: 3px; padding: 2px 8px;
+        font-size: 12px; color: var(--accent);
+    }
+    .skill-tag .remove {
+        cursor: pointer; color: var(--text-muted); font-size: 14px;
+        line-height: 1;
+    }
+    .skill-tag .remove:hover { color: var(--red); }
+    #skill-input {
+        border: none; background: transparent; color: var(--text);
+        font-size: 13px; flex: 1; min-width: 120px; outline: none;
+    }
+
+    /* --- Buttons --- */
+    .btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 10px 20px; border: 2px solid var(--border);
+        border-radius: 6px; background: var(--bg-panel-light);
+        color: var(--text); font-size: 13px; font-weight: 600;
+        cursor: pointer; transition: all 0.2s;
+    }
+    .btn:hover { border-color: var(--accent); background: var(--bg-panel); }
+    .btn-primary {
+        background: var(--accent); color: #1a1428;
+        border-color: var(--accent); font-weight: 700;
+    }
+    .btn-primary:hover { background: #caa8ff; }
+    .btn-gold {
+        background: var(--gold); color: #1a1428;
+        border-color: var(--gold); font-weight: 700;
+    }
+    .btn-gold:hover { background: #ffe066; }
+    .btn:disabled {
+        opacity: 0.5; cursor: not-allowed;
+    }
+    .btn-group { display: flex; gap: 8px; margin-top: 20px; }
+
+    /* --- Preview Card --- */
+    .preview-card {
+        background: var(--bg-panel-light); border: 1px solid var(--border);
+        border-radius: 6px; padding: 16px; margin-bottom: 16px;
+    }
+    .preview-name {
+        font-size: 10px; color: var(--gold); margin-bottom: 4px;
+    }
+    .preview-title {
+        font-size: 13px; color: var(--text-dim); margin-bottom: 8px;
+    }
+    .preview-skills {
+        display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+    }
+    .preview-skill-tag {
+        font-size: 11px; padding: 2px 8px;
+        background: rgba(189, 147, 249, 0.15); border: 1px solid var(--accent);
+        border-radius: 3px; color: var(--accent);
+    }
+    .preview-personality {
+        font-size: 12px; color: var(--text-dim); line-height: 1.6;
+    }
+
+    /* --- Training Progress --- */
+    #training-section { display: none; }
+    #training-section.active { display: block; }
+    .training-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 16px;
+    }
+    .skill-train-item {
+        background: var(--bg-panel-light); border: 1px solid var(--border);
+        border-radius: 6px; padding: 12px; margin-bottom: 8px;
+        transition: border-color 0.3s;
+    }
+    .skill-train-item.training { border-color: var(--gold); }
+    .skill-train-item.done { border-color: var(--green); }
+    .skill-train-item.error { border-color: var(--red); }
+    .skill-train-top {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 6px;
+    }
+    .skill-train-name { font-size: 13px; font-weight: 600; }
+    .skill-train-status {
+        font-size: 11px; padding: 2px 8px;
+        border-radius: 3px; font-weight: 600;
+    }
+    .status-pending { background: var(--bar-bg); color: var(--text-muted); }
+    .status-training { background: rgba(245, 197, 66, 0.2); color: var(--gold); }
+    .status-done { background: rgba(107, 255, 107, 0.15); color: var(--green); }
+    .status-error { background: rgba(255, 107, 107, 0.15); color: var(--red); }
+    .skill-progress-bar {
+        height: 4px; background: var(--bar-bg); border-radius: 2px;
+        overflow: hidden; margin-bottom: 4px;
+    }
+    .skill-progress-fill {
+        height: 100%; background: var(--bar-fill); border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+    .skill-train-log {
+        font-size: 11px; color: var(--text-muted); max-height: 80px;
+        overflow-y: auto; font-family: 'Courier New', monospace;
+    }
+
+    /* --- Folder Tree --- */
+    .folder-tree {
+        font-family: 'Courier New', monospace; font-size: 12px;
+        color: var(--text-dim); line-height: 1.8;
+        background: var(--bg-input); border-radius: 4px; padding: 12px;
+    }
+    .folder-tree .folder { color: var(--accent); }
+    .folder-tree .file { color: var(--text); }
+    .folder-tree .file.done { color: var(--green); }
+
+    /* --- Copy block --- */
+    .copy-block {
+        position: relative; background: var(--bg-input);
+        border: 1px solid var(--border); border-radius: 4px;
+        padding: 12px; margin-top: 12px;
+    }
+    .copy-block pre {
+        font-size: 12px; color: var(--text-dim); white-space: pre-wrap;
+        font-family: 'Courier New', monospace;
+    }
+    .copy-btn {
+        position: absolute; top: 8px; right: 8px;
+        background: var(--bg-panel-light); border: 1px solid var(--border);
+        color: var(--text-muted); padding: 2px 8px; border-radius: 3px;
+        font-size: 11px; cursor: pointer;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <header id="top-bar">
+        <div class="top-left">
+            <span class="icon">&#x1F9EA;</span>
+            <h1>CHARACTER BUILDER</h1>
+        </div>
+        <div class="top-right">
+            <a href="/lab">&#x2190; Back to Lab</a>
+            <span class="version">v{{ version }}</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <h2 class="page-title pixel-font">CREATE A CHARACTER</h2>
+        <p class="page-subtitle">
+            Define a persona, attach skills, and train the AI to master each one.
+        </p>
+
+        <!-- Phase 1: Form -->
+        <div id="form-section">
+            <div class="builder-grid">
+                <!-- Left: Form -->
+                <div class="panel">
+                    <div class="panel-header pixel-font">Identity</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="char-name" placeholder="Dr. Maria Chen">
+                        </div>
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select id="char-role">
+                                <option value="pi">PI / Senior</option>
+                                <option value="trainee">Trainee / Junior</option>
+                                <option value="collaborator">Collaborator</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="char-title" placeholder="Computational Biology PI">
+                    </div>
+                    <div class="form-group">
+                        <label>Expertise</label>
+                        <input type="text" id="char-expertise" placeholder="Single-cell genomics, machine learning">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <textarea id="char-goal" rows="2" placeholder="Discover cell-type-specific gene regulatory programs"></textarea>
+                    </div>
+
+                    <div class="panel-header pixel-font" style="margin-top:20px;">Skills</div>
+                    <div class="form-group">
+                        <label>Skill Set <span class="hint">(press Enter or comma to add)</span></label>
+                        <div class="skills-input-wrap" id="skills-wrap">
+                            <input type="text" id="skill-input" placeholder="Type a skill name...">
+                        </div>
+                        <div class="hint">
+                            Each skill becomes a <code>skills/&lt;name&gt;/SKILL.md</code> in the character folder.
+                            The AI will research and write detailed instructions for each.
+                        </div>
+                    </div>
+
+                    <div class="panel-header pixel-font" style="margin-top:20px;">Personality</div>
+                    <div class="form-group">
+                        <label>Traits</label>
+                        <textarea id="char-personality" rows="3"
+                            placeholder="Visionary: identifies novel research directions&#10;Rigorous: demands reproducible pipelines"></textarea>
+                        <div class="hint">One trait per line, format: "Trait: description"</div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Avatar</label>
+                            <select id="char-avatar">
+                                <option value="generic">generic</option>
+                                <option value="neuroscientist">neuroscientist</option>
+                                <option value="geneticist">geneticist</option>
+                                <option value="cell_biologist">cell_biologist</option>
+                                <option value="bioinformatician">bioinformatician</option>
+                                <option value="statistician">statistician</option>
+                                <option value="data_scientist">data_scientist</option>
+                                <option value="ml_engineer">ml_engineer</option>
+                                <option value="comp_biologist">comp_biologist</option>
+                                <option value="chemist">chemist</option>
+                                <option value="physicist">physicist</option>
+                                <option value="engineer">engineer</option>
+                                <option value="clinician">clinician</option>
+                                <option value="immunologist">immunologist</option>
+                                <option value="oncologist">oncologist</option>
+                                <option value="epidemiologist">epidemiologist</option>
+                                <option value="microbiologist">microbiologist</option>
+                                <option value="pathologist">pathologist</option>
+                                <option value="pharmacologist">pharmacologist</option>
+                                <option value="structural_bio">structural_bio</option>
+                                <option value="systems_biologist">systems_biologist</option>
+                                <option value="psychologist">psychologist</option>
+                                <option value="ecologist">ecologist</option>
+                                <option value="surgeon">surgeon</option>
+                                <option value="radiologist">radiologist</option>
+                                <option value="science_writer">science_writer</option>
+                                <option value="reviewer">reviewer</option>
+                                <option value="bioethicist">bioethicist</option>
+                                <option value="grant_reviewer">grant_reviewer</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Deploy As</label>
+                            <select id="char-deploy">
+                                <option value="">Don't deploy yet</option>
+                                <option value="pi">PI profile</option>
+                                <option value="trainee">Trainee profile</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="btn-create" onclick="createCharacter()">
+                            Create &amp; Train Skills
+                        </button>
+                        <button class="btn" id="btn-create-only" onclick="createCharacter(true)">
+                            Create Without Training
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Preview -->
+                <div>
+                    <div class="panel">
+                        <div class="panel-header pixel-font">Live Preview</div>
+                        <div class="preview-card">
+                            <div class="preview-name pixel-font" id="preview-name">Character Name</div>
+                            <div class="preview-title" id="preview-title">Title</div>
+                            <div class="preview-skills" id="preview-skills"></div>
+                            <div class="preview-personality" id="preview-personality"></div>
+                        </div>
+
+                        <div class="panel-header pixel-font" style="margin-top:16px;">Folder Structure</div>
+                        <div class="folder-tree" id="folder-tree">
+                            <span class="folder">autolab-char-*/</span><br>
+                            &nbsp;&nbsp;<span class="file">character.yaml</span><br>
+                            &nbsp;&nbsp;<span class="file">README.md</span><br>
+                            &nbsp;&nbsp;<span class="folder">skills/</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="file dim">( add skills )</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phase 2: Training Progress -->
+        <div id="training-section" class="panel">
+            <div class="training-header">
+                <div class="panel-header pixel-font" style="margin:0;">Skill Training</div>
+                <span id="training-overall" style="font-size:12px; color:var(--text-dim);">0 / 0 complete</span>
+            </div>
+            <div id="skill-train-list"></div>
+
+            <div id="training-done" style="display:none; margin-top:16px;">
+                <div class="panel-header pixel-font" style="color:var(--green);">Training Complete</div>
+                <p style="color:var(--text-dim); margin-bottom:12px;">
+                    All skills have been researched and documented. Review the SKILL.md files and refine as needed.
+                </p>
+
+                <div class="panel-header pixel-font" style="margin-top:16px;">Publish to GitHub</div>
+                <div class="copy-block">
+                    <button class="copy-btn" onclick="copyGitCmd()">Copy</button>
+                    <pre id="git-commands">cd autolab-char-*/
+git init && git add . && git commit -m "Character: Name"
+gh repo create username/autolab-char-name --public --source=. --push</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // === State ===
+    const skills = [];
+    let trainingActive = false;
+
+    // === Skill Tags ===
+    const skillInput = document.getElementById('skill-input');
+    const skillsWrap = document.getElementById('skills-wrap');
+
+    skillInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            const val = skillInput.value.replace(/,/g, '').trim();
+            if (val && !skills.includes(val)) {
+                skills.push(val);
+                renderSkills();
+                updatePreview();
+            }
+            skillInput.value = '';
+        }
+        if (e.key === 'Backspace' && !skillInput.value && skills.length) {
+            skills.pop();
+            renderSkills();
+            updatePreview();
+        }
+    });
+
+    skillsWrap.addEventListener('click', () => skillInput.focus());
+
+    function renderSkills() {
+        const tags = skillsWrap.querySelectorAll('.skill-tag');
+        tags.forEach(t => t.remove());
+        skills.forEach((s, i) => {
+            const tag = document.createElement('span');
+            tag.className = 'skill-tag';
+            tag.innerHTML = `${s}<span class="remove" onclick="removeSkill(${i})">&times;</span>`;
+            skillsWrap.insertBefore(tag, skillInput);
+        });
+        updateFolderTree();
+    }
+
+    function removeSkill(idx) {
+        skills.splice(idx, 1);
+        renderSkills();
+        updatePreview();
+    }
+
+    // === Live Preview ===
+    document.querySelectorAll('#char-name,#char-title,#char-expertise,#char-goal,#char-personality,#char-role')
+        .forEach(el => el.addEventListener('input', updatePreview));
+
+    function updatePreview() {
+        const name = document.getElementById('char-name').value || 'Character Name';
+        const title = document.getElementById('char-title').value || 'Title';
+        document.getElementById('preview-name').textContent = name;
+        document.getElementById('preview-title').textContent = title;
+
+        const skillsDiv = document.getElementById('preview-skills');
+        skillsDiv.innerHTML = skills.map(s =>
+            `<span class="preview-skill-tag">${s}</span>`
+        ).join('');
+
+        const pers = document.getElementById('char-personality').value;
+        const persDiv = document.getElementById('preview-personality');
+        if (pers) {
+            persDiv.innerHTML = pers.split('\n').filter(l => l.trim())
+                .map(l => `<div>&#x2022; ${l.trim()}</div>`).join('');
+        } else {
+            persDiv.innerHTML = '<div style="color:var(--text-muted)">Add personality traits...</div>';
+        }
+    }
+
+    function updateFolderTree() {
+        const name = document.getElementById('char-name').value || '*';
+        const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[.']/g, '');
+        let html = `<span class="folder">autolab-char-${slug}/</span><br>`;
+        html += `&nbsp;&nbsp;<span class="file">character.yaml</span><br>`;
+        html += `&nbsp;&nbsp;<span class="file">README.md</span><br>`;
+        html += `&nbsp;&nbsp;<span class="folder">skills/</span><br>`;
+        if (skills.length === 0) {
+            html += `&nbsp;&nbsp;&nbsp;&nbsp;<span class="file" style="color:var(--text-muted)">(add skills)</span><br>`;
+        }
+        skills.forEach(s => {
+            html += `&nbsp;&nbsp;&nbsp;&nbsp;<span class="folder">${s}/</span><br>`;
+            html += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file" id="tree-${s}">SKILL.md</span><br>`;
+        });
+        document.getElementById('folder-tree').innerHTML = html;
+    }
+
+    // === Create Character ===
+    async function createCharacter(skipTraining = false) {
+        const name = document.getElementById('char-name').value.trim();
+        const role = document.getElementById('char-role').value;
+        const title = document.getElementById('char-title').value.trim();
+        const expertise = document.getElementById('char-expertise').value.trim();
+        const goal = document.getElementById('char-goal').value.trim();
+        const personality = document.getElementById('char-personality').value.trim();
+        const avatar = document.getElementById('char-avatar').value;
+        const deploy = document.getElementById('char-deploy').value;
+
+        if (!name || !title || !expertise || !goal || !personality || skills.length === 0) {
+            alert('Please fill in all fields and add at least one skill.');
+            return;
+        }
+
+        document.getElementById('btn-create').disabled = true;
+        document.getElementById('btn-create-only').disabled = true;
+
+        try {
+            const resp = await fetch('/api/character/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name, role, title, expertise, goal,
+                    skills, personality, avatar, deploy_as: deploy,
+                }),
+            });
+            const data = await resp.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                document.getElementById('btn-create').disabled = false;
+                document.getElementById('btn-create-only').disabled = false;
+                return;
+            }
+
+            // Update git commands
+            const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[.']/g, '');
+            document.getElementById('git-commands').textContent =
+                `cd ${data.folder_path}\ngit init && git add . && git commit -m "Character: ${name}"\ngh repo create YOUR_USERNAME/autolab-char-${slug} --public --source=. --push`;
+
+            if (!skipTraining) {
+                startTraining(data.folder_path, skills);
+            } else {
+                showTrainingDone();
+            }
+        } catch (e) {
+            alert('Failed to create character: ' + e.message);
+            document.getElementById('btn-create').disabled = false;
+            document.getElementById('btn-create-only').disabled = false;
+        }
+    }
+
+    // === Training ===
+    function startTraining(folderPath, skillNames) {
+        document.getElementById('training-section').classList.add('active');
+        document.getElementById('form-section').style.display = 'none';
+        trainingActive = true;
+
+        const list = document.getElementById('skill-train-list');
+        list.innerHTML = '';
+        skillNames.forEach(s => {
+            list.innerHTML += `
+                <div class="skill-train-item" id="train-item-${s}">
+                    <div class="skill-train-top">
+                        <span class="skill-train-name">${s}</span>
+                        <span class="skill-train-status status-pending" id="train-status-${s}">Pending</span>
+                    </div>
+                    <div class="skill-progress-bar"><div class="skill-progress-fill" id="train-progress-${s}" style="width:0%"></div></div>
+                    <div class="skill-train-log" id="train-log-${s}"></div>
+                </div>`;
+        });
+        document.getElementById('training-overall').textContent = `0 / ${skillNames.length} complete`;
+
+        trainSkillsSequentially(folderPath, skillNames);
+    }
+
+    async function trainSkillsSequentially(folderPath, skillNames) {
+        let done = 0;
+        for (const skill of skillNames) {
+            updateSkillStatus(skill, 'training', 'Researching...');
+            updateSkillProgress(skill, 10);
+            appendLog(skill, '> Searching for documentation...');
+
+            try {
+                const resp = await fetch('/api/character/train-skill', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_path: folderPath, skill_name: skill }),
+                });
+
+                // Stream progress updates
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done: streamDone, value } = await reader.read();
+                    if (streamDone) break;
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Parse SSE-style events
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const evt = JSON.parse(line.slice(6));
+                                if (evt.progress) updateSkillProgress(skill, evt.progress);
+                                if (evt.log) appendLog(skill, evt.log);
+                                if (evt.status) updateSkillStatus(skill, evt.status, evt.label || '');
+                            } catch {}
+                        }
+                    }
+                }
+
+                updateSkillStatus(skill, 'done', 'Complete');
+                updateSkillProgress(skill, 100);
+                const treeEl = document.getElementById('tree-' + skill);
+                if (treeEl) treeEl.classList.add('done');
+            } catch (e) {
+                updateSkillStatus(skill, 'error', 'Failed');
+                appendLog(skill, '> Error: ' + e.message);
+            }
+
+            done++;
+            document.getElementById('training-overall').textContent = `${done} / ${skillNames.length} complete`;
+        }
+
+        showTrainingDone();
+    }
+
+    function updateSkillStatus(skill, status, label) {
+        const el = document.getElementById('train-status-' + skill);
+        const item = document.getElementById('train-item-' + skill);
+        if (!el) return;
+        el.className = 'skill-train-status status-' + status;
+        el.textContent = label;
+        item.className = 'skill-train-item ' + status;
+    }
+
+    function updateSkillProgress(skill, pct) {
+        const el = document.getElementById('train-progress-' + skill);
+        if (el) el.style.width = pct + '%';
+    }
+
+    function appendLog(skill, msg) {
+        const el = document.getElementById('train-log-' + skill);
+        if (el) { el.textContent += msg + '\n'; el.scrollTop = el.scrollHeight; }
+    }
+
+    function showTrainingDone() {
+        document.getElementById('training-section').classList.add('active');
+        document.getElementById('training-done').style.display = 'block';
+    }
+
+    function copyGitCmd() {
+        const text = document.getElementById('git-commands').textContent;
+        navigator.clipboard.writeText(text);
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+    }
+
+    // Init
+    updatePreview();
+    </script>
+</body>
+</html>

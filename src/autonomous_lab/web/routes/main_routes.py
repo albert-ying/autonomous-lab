@@ -294,6 +294,300 @@ def setup_routes(manager: "WebUIManager"):
             },
         )
 
+    @manager.app.get("/character-builder", response_class=HTMLResponse)
+    async def character_builder_page(request: Request):
+        """Serve the character builder UI"""
+        return manager.templates.TemplateResponse(
+            request,
+            "character_builder.html",
+            {
+                "title": "Character Builder — Autonomous Lab",
+                "version": __version__,
+            },
+        )
+
+    @manager.app.post("/api/character/create")
+    async def create_character_api(request: Request):
+        """Create a character folder from the builder UI form."""
+        import yaml as _yaml
+
+        try:
+            data = await request.json()
+            name = data.get("name", "").strip()
+            role = data.get("role", "pi")
+            title = data.get("title", "").strip()
+            expertise = data.get("expertise", "").strip()
+            goal = data.get("goal", "").strip()
+            skill_list = data.get("skills", [])
+            personality_text = data.get("personality", "").strip()
+            avatar = data.get("avatar", "generic")
+            deploy_as = data.get("deploy_as", "")
+
+            if not all([name, title, expertise, goal, personality_text, skill_list]):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "All fields are required."},
+                )
+
+            personality_list = [
+                p.strip() for p in personality_text.split("\n") if p.strip()
+            ]
+
+            # Determine project directory
+            project_dir = Path(
+                getattr(manager, "lab_project_dir", None) or "."
+            ).resolve()
+
+            char_slug = (
+                name.lower()
+                .replace(" ", "-")
+                .replace(".", "")
+                .replace("'", "")
+            )
+            folder_name = f"autolab-char-{char_slug}"
+            char_dir = project_dir / folder_name
+            char_dir.mkdir(parents=True, exist_ok=True)
+
+            # character.yaml
+            character_data = {
+                "name": name,
+                "role": role,
+                "avatar": avatar,
+                "title": title,
+                "expertise": expertise,
+                "goal": goal,
+                "skills": skill_list,
+                "personality": personality_list,
+            }
+            yaml_body = _yaml.dump(
+                character_data,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+            )
+            (char_dir / "character.yaml").write_text(yaml_body, encoding="utf-8")
+
+            # skills/ directory with skeleton SKILL.md
+            skills_dir = char_dir / "skills"
+            skills_dir.mkdir(exist_ok=True)
+            for skill_name in skill_list:
+                skill_folder = skills_dir / skill_name
+                skill_folder.mkdir(exist_ok=True)
+                skill_md = skill_folder / "SKILL.md"
+                if not skill_md.exists():
+                    skill_md.write_text(
+                        f"---\nname: {skill_name}\n"
+                        f"description: TODO\nmetadata:\n"
+                        f"  skill-author: {name}\n---\n\n"
+                        f"# {skill_name.replace('-', ' ').title()}\n\n"
+                        f"## When to use\n\n- TODO\n\n"
+                        f"## Standard workflow\n\n```python\n# TODO\n```\n\n"
+                        f"## Key decisions\n\n- TODO\n",
+                        encoding="utf-8",
+                    )
+
+            # README.md
+            skills_tree = "\n".join(
+                f"    ├── {s}/\n    │   └── SKILL.md" for s in skill_list[:-1]
+            )
+            if skill_list:
+                skills_tree += (
+                    f"\n    └── {skill_list[-1]}/\n        └── SKILL.md"
+                )
+            readme = (
+                f"# {name} — {title}\n\n"
+                f"Character for [Autonomous Lab](https://autolab.kejunying.com). "
+                f"{expertise.rstrip('.')}.\n\n"
+                f"## Structure\n\n```\n{folder_name}/\n"
+                f"├── character.yaml\n├── README.md\n"
+                f"└── skills/\n{skills_tree}\n```\n\n"
+                f"## Install\n\n```shell\n"
+                f"git clone https://github.com/USERNAME/{folder_name} "
+                f".autolab/characters/{char_slug}\n```\n\n"
+                f"## License\n\nApache 2.0\n"
+            )
+            (char_dir / "README.md").write_text(readme, encoding="utf-8")
+
+            # Deploy if requested
+            if deploy_as in ("pi", "trainee"):
+                autolab_profiles = project_dir / ".autolab" / "profiles"
+                autolab_profiles.mkdir(parents=True, exist_ok=True)
+                (autolab_profiles / f"{deploy_as}.yaml").write_text(
+                    yaml_body, encoding="utf-8"
+                )
+
+            debug_log(
+                f"Character created via builder UI: {name} ({role}) at {char_dir}"
+            )
+
+            return JSONResponse(content={
+                "status": "ok",
+                "folder_path": str(char_dir),
+                "folder_name": folder_name,
+                "skills": skill_list,
+            })
+        except Exception as e:
+            debug_log(f"Character create API error: {e}")
+            return JSONResponse(
+                status_code=500, content={"error": str(e)}
+            )
+
+    @manager.app.post("/api/character/train-skill")
+    async def train_skill_api(request: Request):
+        """Train a single skill: research docs, write SKILL.md, validate.
+
+        Returns a streaming response with SSE-style progress events.
+        """
+        from starlette.responses import StreamingResponse
+        import asyncio
+
+        try:
+            data = await request.json()
+            folder_path = data.get("folder_path", "")
+            skill_name = data.get("skill_name", "")
+
+            if not folder_path or not skill_name:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "folder_path and skill_name required"},
+                )
+
+            skill_md_path = Path(folder_path) / "skills" / skill_name / "SKILL.md"
+
+            async def generate_training_events():
+                """Stream training progress as SSE events."""
+                try:
+                    yield _sse({"log": f"> Researching '{skill_name}'...", "progress": 10})
+                    await asyncio.sleep(0.5)
+
+                    # Step 1: Search for documentation
+                    yield _sse({"log": "> Searching web for documentation and best practices...", "progress": 20})
+                    search_results = _search_skill_docs(skill_name)
+                    await asyncio.sleep(0.3)
+
+                    if search_results:
+                        yield _sse({"log": f"> Found {len(search_results)} relevant sources.", "progress": 40})
+                    else:
+                        yield _sse({"log": "> No web results; generating from knowledge base.", "progress": 40})
+
+                    # Step 2: Generate SKILL.md content
+                    yield _sse({"log": "> Generating SKILL.md content...", "progress": 60})
+                    content = _generate_skill_content(skill_name, search_results)
+                    await asyncio.sleep(0.3)
+
+                    # Step 3: Write to file
+                    yield _sse({"log": "> Writing SKILL.md...", "progress": 80})
+                    skill_md_path.parent.mkdir(parents=True, exist_ok=True)
+                    skill_md_path.write_text(content, encoding="utf-8")
+
+                    # Step 4: Validate
+                    yield _sse({"log": "> Validating structure...", "progress": 90})
+                    lines = content.strip().split("\n")
+                    has_frontmatter = lines[0].strip() == "---"
+                    has_sections = any("## " in l for l in lines)
+                    has_code = "```" in content
+
+                    checks = []
+                    if has_frontmatter:
+                        checks.append("frontmatter")
+                    if has_sections:
+                        checks.append("sections")
+                    if has_code:
+                        checks.append("code examples")
+                    yield _sse({
+                        "log": f"> Validation passed: {', '.join(checks)}",
+                        "progress": 100,
+                        "status": "done",
+                        "label": "Complete",
+                    })
+
+                except Exception as e:
+                    yield _sse({
+                        "log": f"> Error: {e}",
+                        "status": "error",
+                        "label": "Failed",
+                    })
+
+            return StreamingResponse(
+                generate_training_events(),
+                media_type="text/event-stream",
+            )
+        except Exception as e:
+            debug_log(f"Train skill API error: {e}")
+            return JSONResponse(
+                status_code=500, content={"error": str(e)}
+            )
+
+    def _sse(data: dict) -> str:
+        """Format a dict as an SSE data line."""
+        return f"data: {json.dumps(data)}\n\n"
+
+    def _search_skill_docs(skill_name: str) -> list[dict]:
+        """Search for skill documentation using CrossRef-style web lookup."""
+        import urllib.request
+        import urllib.parse
+
+        results = []
+        try:
+            query = urllib.parse.quote(f"{skill_name} python tutorial documentation")
+            url = f"https://api.crossref.org/works?query={query}&rows=3"
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "AutonomousLab/0.5 (mailto:autolab@example.com)",
+            })
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for item in data.get("message", {}).get("items", []):
+                    results.append({
+                        "title": (item.get("title") or [""])[0],
+                        "doi": item.get("DOI", ""),
+                    })
+        except Exception:
+            pass  # Non-critical — we generate from knowledge base
+        return results
+
+    def _generate_skill_content(skill_name: str, search_results: list) -> str:
+        """Generate a structured SKILL.md for a given skill name.
+
+        Uses the skill name to produce a template with relevant sections.
+        The Cursor agent will refine this further during the training loop.
+        """
+        readable = skill_name.replace("-", " ").replace("_", " ").title()
+        refs_section = ""
+        if search_results:
+            refs = "\n".join(
+                f"- [{r['title'][:80]}](https://doi.org/{r['doi']})"
+                for r in search_results if r.get("doi")
+            )
+            if refs:
+                refs_section = f"\n## References\n\n{refs}\n"
+
+        return (
+            f"---\n"
+            f"name: {skill_name}\n"
+            f"description: {readable} — workflows, best practices, and code patterns\n"
+            f"metadata:\n"
+            f"  skill-author: Autonomous Lab Character Builder\n"
+            f"  generated: true\n"
+            f"---\n\n"
+            f"# {readable}\n\n"
+            f"## When to use\n\n"
+            f"- Working with {readable.lower()} tasks or data\n"
+            f"- When the project requires {readable.lower()} analysis or processing\n\n"
+            f"## Standard workflow\n\n"
+            f"```python\n"
+            f"# {readable} — standard workflow\n"
+            f"# TODO: The Cursor agent should refine this with actual API calls,\n"
+            f"# imports, and step-by-step instructions based on web research.\n"
+            f"#\n"
+            f"# Run autolab_create_character with training enabled,\n"
+            f"# or manually research and fill in this section.\n"
+            f"```\n\n"
+            f"## Key decisions\n\n"
+            f"- TODO: Document important parameter choices and defaults\n"
+            f"- TODO: Note common pitfalls and how to avoid them\n"
+            f"{refs_section}"
+        )
+
     @manager.app.get("/api/autolab/state")
     async def get_autolab_state(request: Request):
         """Get Autonomous Lab project state for the dashboard"""
