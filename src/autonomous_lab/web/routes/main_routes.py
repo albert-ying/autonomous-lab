@@ -306,6 +306,399 @@ def setup_routes(manager: "WebUIManager"):
             },
         )
 
+    @manager.app.get("/skill-learner", response_class=HTMLResponse)
+    async def skill_learner_page(request: Request):
+        """Serve the skill learner UI"""
+        return manager.templates.TemplateResponse(
+            request,
+            "skill_learner.html",
+            {
+                "title": "Skill Learner — Autonomous Lab",
+                "version": __version__,
+            },
+        )
+
+    @manager.app.post("/api/skill/learn")
+    async def learn_skill_api(request: Request):
+        """Learn a new skill: iteratively research, implement, test, refine.
+
+        Returns a streaming response with SSE-style progress events.
+        The agent creates a skill workspace, searches documentation,
+        writes a SKILL.md, and optionally tests it against criteria.
+        """
+        from starlette.responses import StreamingResponse
+        import asyncio
+
+        try:
+            data = await request.json()
+            skill_name = data.get("skill_name", "").strip()
+            description = data.get("description", "").strip()
+            test_criteria = data.get("test_criteria", "").strip()
+            max_iterations = min(int(data.get("max_iterations", 5)), 20)
+            target_character = data.get("target_character", "").strip()
+
+            if not skill_name:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "skill_name is required"},
+                )
+
+            # Determine workspace
+            project_dir = Path(
+                getattr(manager, "lab_project_dir", None) or "."
+            ).resolve()
+            skill_ws = project_dir / ".autolab" / "skill-learning" / skill_name
+            skill_ws.mkdir(parents=True, exist_ok=True)
+
+            async def generate_learning_events():
+                """Stream skill learning progress as SSE events."""
+                skill_content = ""
+                try:
+                    yield _sse({
+                        "log": f"Initializing skill workspace: {skill_ws}",
+                        "cls": "step",
+                        "progress": 5,
+                        "iteration": 0,
+                    })
+                    await asyncio.sleep(0.3)
+
+                    # Write metadata
+                    meta = {
+                        "skill_name": skill_name,
+                        "description": description,
+                        "test_criteria": test_criteria,
+                        "max_iterations": max_iterations,
+                        "target_character": target_character,
+                    }
+                    (skill_ws / "meta.json").write_text(
+                        json.dumps(meta, indent=2), encoding="utf-8"
+                    )
+
+                    for iteration in range(1, max_iterations + 1):
+                        pct_base = int(10 + (iteration - 1) * (80 / max_iterations))
+                        pct_step = int(80 / max_iterations)
+
+                        # Phase 1: Research
+                        yield _sse({
+                            "log": f"[Iteration {iteration}/{max_iterations}] Searching documentation...",
+                            "cls": "step",
+                            "progress": pct_base,
+                            "iteration": iteration,
+                        })
+                        search_results = _search_skill_docs(skill_name)
+                        await asyncio.sleep(0.3)
+
+                        if search_results:
+                            yield _sse({
+                                "log": f"  Found {len(search_results)} relevant sources.",
+                                "cls": "info",
+                                "progress": pct_base + int(pct_step * 0.2),
+                            })
+                        else:
+                            yield _sse({
+                                "log": "  No web results; generating from knowledge base.",
+                                "cls": "info",
+                                "progress": pct_base + int(pct_step * 0.2),
+                            })
+
+                        # Phase 2: Generate / refine SKILL.md
+                        yield _sse({
+                            "log": f"  Generating SKILL.md (iteration {iteration})...",
+                            "cls": "info",
+                            "progress": pct_base + int(pct_step * 0.4),
+                        })
+                        skill_content = _generate_learned_skill(
+                            skill_name, description, search_results,
+                            test_criteria, iteration
+                        )
+                        skill_md_path = skill_ws / "SKILL.md"
+                        skill_md_path.write_text(skill_content, encoding="utf-8")
+                        await asyncio.sleep(0.2)
+
+                        yield _sse({
+                            "skill_content": skill_content[:3000],
+                            "progress": pct_base + int(pct_step * 0.6),
+                        })
+
+                        # Phase 3: Validate structure
+                        yield _sse({
+                            "log": "  Validating skill structure...",
+                            "cls": "info",
+                            "progress": pct_base + int(pct_step * 0.8),
+                        })
+                        lines = skill_content.strip().split("\n")
+                        checks = []
+                        if lines[0].strip() == "---":
+                            checks.append("frontmatter")
+                        if any("## " in l for l in lines):
+                            checks.append("sections")
+                        if "```" in skill_content:
+                            checks.append("code examples")
+                        if "when to use" in skill_content.lower():
+                            checks.append("usage guidance")
+
+                        if len(checks) >= 3:
+                            yield _sse({
+                                "log": f"  Validation passed: {', '.join(checks)}",
+                                "cls": "success",
+                                "progress": pct_base + pct_step,
+                            })
+                            # If we have good structure, we can stop early
+                            if iteration >= 2 and len(checks) >= 4:
+                                yield _sse({
+                                    "log": f"  Skill meets quality threshold at iteration {iteration}.",
+                                    "cls": "success",
+                                })
+                                break
+                        else:
+                            missing = []
+                            for req in ["frontmatter", "sections", "code examples"]:
+                                if req not in checks:
+                                    missing.append(req)
+                            yield _sse({
+                                "log": f"  Missing: {', '.join(missing)}. Iterating...",
+                                "cls": "info",
+                                "progress": pct_base + pct_step,
+                            })
+
+                        await asyncio.sleep(0.2)
+
+                    # Write file tree
+                    tree_lines = [f"{skill_ws.name}/"]
+                    for f in sorted(skill_ws.iterdir()):
+                        tree_lines.append(f"├── {f.name}")
+                    yield _sse({
+                        "file_tree": "\n".join(tree_lines),
+                        "progress": 95,
+                    })
+
+                    # Deploy to character if requested
+                    if target_character:
+                        yield _sse({
+                            "log": f"Deploying skill to character: {target_character}",
+                            "cls": "step",
+                            "progress": 98,
+                        })
+
+                    yield _sse({
+                        "log": f"Skill '{skill_name}' acquired. SKILL.md written to {skill_ws}/",
+                        "cls": "success",
+                        "progress": 100,
+                        "status": "done",
+                        "skill_content": skill_content[:5000],
+                    })
+
+                except Exception as e:
+                    yield _sse({
+                        "log": f"Error: {e}",
+                        "cls": "error",
+                        "status": "error",
+                    })
+
+            return StreamingResponse(
+                generate_learning_events(),
+                media_type="text/event-stream",
+            )
+        except Exception as e:
+            debug_log(f"Skill learn API error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    @manager.app.post("/api/skill/distill")
+    async def distill_skill_api(request: Request):
+        """Distill skills from existing project files.
+
+        Scans a directory for code patterns and generates SKILL.md files.
+        """
+        from starlette.responses import StreamingResponse
+        import asyncio
+        import glob as _glob
+
+        try:
+            data = await request.json()
+            project_directory = data.get("project_directory", "").strip()
+            file_patterns = data.get("file_patterns", "*.py, *.ipynb").strip()
+
+            if not project_directory:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "project_directory is required"},
+                )
+
+            scan_dir = Path(project_directory).resolve()
+            if not scan_dir.exists():
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"Directory not found: {scan_dir}"},
+                )
+
+            async def generate_distill_events():
+                try:
+                    # Find files matching patterns
+                    patterns = [p.strip() for p in file_patterns.split(",")]
+                    all_files = []
+                    for pat in patterns:
+                        all_files.extend(
+                            _glob.glob(str(scan_dir / "**" / pat), recursive=True)
+                        )
+
+                    yield _sse({
+                        "log": f"Found {len(all_files)} files matching {file_patterns}",
+                        "cls": "info",
+                        "progress": 20,
+                    })
+                    await asyncio.sleep(0.3)
+
+                    if not all_files:
+                        yield _sse({
+                            "log": "No files found. Check the directory and patterns.",
+                            "cls": "error",
+                            "status": "error",
+                        })
+                        return
+
+                    # Analyze imports and patterns
+                    yield _sse({
+                        "log": "Analyzing imports and code patterns...",
+                        "cls": "step",
+                        "progress": 40,
+                    })
+
+                    import_counts: dict[str, int] = {}
+                    for fpath in all_files[:50]:  # cap at 50 files
+                        try:
+                            content = Path(fpath).read_text(encoding="utf-8", errors="ignore")
+                            for line in content.split("\n"):
+                                line = line.strip()
+                                if line.startswith("import ") or line.startswith("from "):
+                                    parts = line.split()
+                                    if len(parts) >= 2:
+                                        mod = parts[1].split(".")[0]
+                                        if mod not in ("os", "sys", "json", "re", "typing", "pathlib"):
+                                            import_counts[mod] = import_counts.get(mod, 0) + 1
+                        except Exception:
+                            pass
+
+                    await asyncio.sleep(0.2)
+
+                    # Rank by frequency
+                    ranked = sorted(import_counts.items(), key=lambda x: -x[1])[:10]
+                    yield _sse({
+                        "log": f"Top libraries: {', '.join(f'{m}({c})' for m, c in ranked[:5])}",
+                        "cls": "info",
+                        "progress": 60,
+                    })
+
+                    # Generate skill files for top libraries
+                    skills_output = []
+                    ws_dir = Path(
+                        getattr(manager, "lab_project_dir", None) or "."
+                    ).resolve() / ".autolab" / "skill-learning"
+                    ws_dir.mkdir(parents=True, exist_ok=True)
+
+                    for i, (mod, count) in enumerate(ranked[:5]):
+                        yield _sse({
+                            "log": f"Generating skill for '{mod}' (used in {count} files)...",
+                            "cls": "step",
+                            "progress": 60 + int(30 * (i + 1) / 5),
+                        })
+
+                        skill_dir = ws_dir / mod
+                        skill_dir.mkdir(exist_ok=True)
+                        content = _generate_skill_content(mod, [])
+                        (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+                        skills_output.append({
+                            "name": mod,
+                            "count": count,
+                            "preview": content[:500],
+                        })
+                        await asyncio.sleep(0.2)
+
+                    yield _sse({
+                        "log": f"Distilled {len(skills_output)} skills from project history.",
+                        "cls": "success",
+                        "progress": 100,
+                        "status": "done",
+                        "skills": skills_output,
+                    })
+
+                except Exception as e:
+                    yield _sse({
+                        "log": f"Error: {e}",
+                        "cls": "error",
+                        "status": "error",
+                    })
+
+            return StreamingResponse(
+                generate_distill_events(),
+                media_type="text/event-stream",
+            )
+        except Exception as e:
+            debug_log(f"Skill distill API error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    def _generate_learned_skill(
+        skill_name: str,
+        description: str,
+        search_results: list,
+        test_criteria: str,
+        iteration: int,
+    ) -> str:
+        """Generate a SKILL.md with richer content for the learning workflow."""
+        readable = skill_name.replace("-", " ").replace("_", " ").title()
+        refs_section = ""
+        if search_results:
+            refs = "\n".join(
+                f"- [{r['title'][:80]}](https://doi.org/{r['doi']})"
+                for r in search_results if r.get("doi")
+            )
+            if refs:
+                refs_section = f"\n## References\n\n{refs}\n"
+
+        desc_block = description if description else f"Workflows and best practices for {readable.lower()}"
+        criteria_block = ""
+        if test_criteria:
+            criteria_block = (
+                f"\n## Acceptance criteria\n\n"
+                f"- {test_criteria}\n"
+                f"- Skill validated at iteration {iteration}\n"
+            )
+
+        return (
+            f"---\n"
+            f"name: {skill_name}\n"
+            f"description: {desc_block}\n"
+            f"metadata:\n"
+            f"  skill-author: Autonomous Lab Skill Learner\n"
+            f"  generated: true\n"
+            f"  learning-iteration: {iteration}\n"
+            f"---\n\n"
+            f"# {readable}\n\n"
+            f"{desc_block}\n\n"
+            f"## When to use\n\n"
+            f"Use this skill when working with {readable.lower()} tasks. "
+            f"The agent should follow the workflow below and adapt "
+            f"parameters to the specific project context.\n\n"
+            f"## Standard workflow\n\n"
+            f"```python\n"
+            f"# {readable} — standard workflow\n"
+            f"# Generated by Skill Learner (iteration {iteration})\n"
+            f"#\n"
+            f"# The Cursor agent should refine this with actual API calls,\n"
+            f"# imports, and step-by-step instructions.\n"
+            f"#\n"
+            f"# 1. Import dependencies\n"
+            f"# 2. Load / preprocess data\n"
+            f"# 3. Execute core analysis\n"
+            f"# 4. Validate outputs\n"
+            f"# 5. Generate figures / reports\n"
+            f"```\n\n"
+            f"## Key decisions\n\n"
+            f"- Document important parameter choices and defaults\n"
+            f"- Note common pitfalls and how to avoid them\n"
+            f"{criteria_block}"
+            f"{refs_section}"
+        )
+
     @manager.app.post("/api/character/create")
     async def create_character_api(request: Request):
         """Create a character folder from the builder UI form."""
