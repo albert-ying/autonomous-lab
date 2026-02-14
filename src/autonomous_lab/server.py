@@ -2405,13 +2405,24 @@ async def autolab_create_character(
     how the AI behaves during research sessions. Characters can be:
     - Deployed locally as a PI or Trainee profile
     - Published to GitHub for the marketplace
+    - Used as consultants or reviewers during editorial review
+
+    Each character is a **self-contained folder** with this structure:
+
+        autolab-char-<name>/
+        ├── character.yaml          # Profile (name, role, skills, personality)
+        ├── README.md               # Description for marketplace
+        └── skills/                 # Skill definitions (SKILL.md files)
+            ├── <skill-name>/
+            │   └── SKILL.md        # Detailed instructions for this skill
+            └── ...
 
     Use list_skills=True or list_avatars=True to discover options first.
 
     Workflow:
     1. Call with list_skills=True to see available skills by domain.
-    2. Call with all fields filled to generate + optionally deploy the character.
-    3. Push to GitHub and submit to the marketplace.
+    2. Call with all fields filled to generate the character folder.
+    3. Optionally set github_repo to initialize a GitHub repo and push.
 
     Args:
         project_directory: Project directory path
@@ -2439,7 +2450,8 @@ async def autolab_create_character(
     if list_skills:
         lines = ["# Built-in Cursor Skills (Reference Catalog)\n"]
         lines.append(
-            f"Total: {len(_KNOWN_SKILLS)} built-in skills across {len(_SKILL_CATALOG)} domains\n"
+            f"Total: {len(_KNOWN_SKILLS)} built-in skills across "
+            f"{len(_SKILL_CATALOG)} domains\n"
         )
         for domain, skill_list in _SKILL_CATALOG.items():
             lines.append(f"\n## {domain}")
@@ -2452,10 +2464,11 @@ async def autolab_create_character(
             "Custom skills just need a SKILL.md file in ~/.cursor/skills/<name>/SKILL.md.\n"
             "Example: skills='scanpy,my-protein-docking-tool,lab-specific-pipeline'\n"
             "\n## Tips\n"
-            "- Choose 4-8 skills for focus\n"
-            "- PI characters should include 'scientific-writing'\n"
-            "- Trainee characters should include hands-on tools\n"
-            "- Collaborators should focus on their specialty\n"
+            "- Choose 3-6 skills per character for focus\n"
+            "- Group related tools into a single skill (e.g., 'ngs-pipeline' "
+            "covering pysam + deeptools + samtools)\n"
+            "- PI characters should include a writing skill\n"
+            "- Trainee characters should include hands-on analysis tools\n"
         )
         return "\n".join(lines)
 
@@ -2483,14 +2496,15 @@ async def autolab_create_character(
     if not goal:
         errors.append("'goal' is required")
     if not skills:
-        errors.append("'skills' is required (comma-separated Cursor skill names)")
+        errors.append("'skills' is required (comma-separated skill names)")
     if not personality:
         errors.append(
             "'personality' is required (pipe-separated 'Trait: description' entries)"
         )
     if avatar not in _AVATAR_KEYS:
         errors.append(
-            f"'avatar' must be one of: {', '.join(_AVATAR_KEYS[:5])}... (use list_avatars=True)"
+            f"'avatar' must be one of: {', '.join(_AVATAR_KEYS[:5])}... "
+            "(use list_avatars=True)"
         )
     if deploy_as and deploy_as not in ("pi", "trainee"):
         errors.append("'deploy_as' must be 'pi' or 'trainee' (or empty)")
@@ -2507,17 +2521,19 @@ async def autolab_create_character(
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
     personality_list = [p.strip() for p in personality.split("|") if p.strip()]
 
-    # Note which skills are custom (not in the built-in catalog)
-    custom = [s for s in skill_list if s not in _KNOWN_SKILLS]
+    # ── Build character folder ──
 
-    # ── Build YAML content ──
+    project_dir = Path(os.path.abspath(project_directory))
+    char_slug = name.lower().replace(" ", "-").replace(".", "").replace("'", "")
+    folder_name = f"autolab-char-{char_slug}"
+    char_dir = project_dir / folder_name
+    char_dir.mkdir(parents=True, exist_ok=True)
 
-    source_line = ""
-    if github_repo:
-        clean_repo = github_repo.strip().strip("/")
-        source_line = f"# Source: https://github.com/{clean_repo}\n"
-
+    # -- character.yaml --
     character_data = {
+        "name": name,
+        "role": role,
+        "avatar": avatar,
         "title": title,
         "expertise": expertise,
         "goal": goal,
@@ -2525,85 +2541,140 @@ async def autolab_create_character(
         "personality": personality_list,
     }
 
-    yaml_header = (
-        f"# {name} — {title}\n"
-        f"# Role: {role}\n"
-        f"# Avatar: {avatar}\n"
-        f"{source_line}"
-    )
     yaml_body = _yaml.dump(
         character_data,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=False,
     )
-    full_yaml = yaml_header + "\n" + yaml_body
+    char_yaml_path = char_dir / "character.yaml"
+    char_yaml_path.write_text(yaml_body, encoding="utf-8")
 
-    # ── Save character.yaml ──
+    # -- skills/ directory with SKILL.md skeletons --
+    skills_dir = char_dir / "skills"
+    skills_dir.mkdir(exist_ok=True)
 
-    project_dir = os.path.abspath(project_directory)
-    char_filename = name.lower().replace(" ", "-").replace(".", "").replace("'", "")
-    char_path = Path(project_dir) / f"{char_filename}.yaml"
-    char_path.write_text(full_yaml, encoding="utf-8")
+    for skill_name in skill_list:
+        skill_folder = skills_dir / skill_name
+        skill_folder.mkdir(exist_ok=True)
+        skill_md_path = skill_folder / "SKILL.md"
+        if not skill_md_path.exists():
+            skill_md_path.write_text(
+                f"---\n"
+                f"name: {skill_name}\n"
+                f"description: TODO — describe what this skill does\n"
+                f"metadata:\n"
+                f"  skill-author: {name}\n"
+                f"---\n\n"
+                f"# {skill_name.replace('-', ' ').title()}\n\n"
+                f"## When to use\n\n"
+                f"- TODO: describe when the AI should apply this skill\n\n"
+                f"## Standard workflow\n\n"
+                f"```python\n"
+                f"# TODO: add code examples and instructions\n"
+                f"```\n\n"
+                f"## Key decisions\n\n"
+                f"- TODO: document important choices and defaults\n",
+                encoding="utf-8",
+            )
+
+    # -- README.md --
+    skills_tree = "\n".join(
+        f"    ├── {s}/\n    │   └── SKILL.md" for s in skill_list[:-1]
+    )
+    if skill_list:
+        skills_tree += f"\n    └── {skill_list[-1]}/\n        └── SKILL.md"
+
+    readme_content = (
+        f"# {name} — {title}\n\n"
+        f"Character for [Autonomous Lab](https://autolab.kejunying.com). "
+        f"{expertise.rstrip('.')}.\n\n"
+        f"## Structure\n\n"
+        f"```\n"
+        f"{folder_name}/\n"
+        f"├── character.yaml\n"
+        f"├── README.md\n"
+        f"└── skills/\n"
+        f"{skills_tree}\n"
+        f"```\n\n"
+        f"## Install\n\n"
+        f"```shell\n"
+        f"git clone https://github.com/USERNAME/{folder_name} "
+        f".autolab/characters/{char_slug}\n"
+        f"```\n\n"
+        f"## License\n\n"
+        f"Apache 2.0\n"
+    )
+    readme_path = char_dir / "README.md"
+    readme_path.write_text(readme_content, encoding="utf-8")
+
+    # ── Output summary ──
 
     output_lines = [
-        f"Character created: {char_path}\n",
-        "--- Generated YAML ---",
-        full_yaml,
-        "--- End YAML ---\n",
+        f"Character folder created: {char_dir}/\n",
+        f"  {folder_name}/",
+        f"  ├── character.yaml",
+        f"  ├── README.md",
+        f"  └── skills/",
     ]
+    for s in skill_list:
+        output_lines.append(f"      └── {s}/SKILL.md")
+
+    output_lines.append(f"\n--- character.yaml ---\n{yaml_body}--- End YAML ---\n")
+
+    # ── IMPORTANT: remind to fill in SKILL.md files ──
+    output_lines.append(
+        "NEXT STEP: Fill in each skills/<name>/SKILL.md with detailed instructions.\n"
+        "Each SKILL.md should contain:\n"
+        "  - When to use the skill\n"
+        "  - Standard workflow with code examples\n"
+        "  - Key decisions and defaults\n"
+        "The AI reads these instructions when acting as this character.\n"
+    )
 
     # ── Deploy locally ──
 
     if deploy_as:
-        autolab_dir = Path(project_dir) / ".autolab" / "profiles"
+        autolab_dir = project_dir / ".autolab" / "profiles"
         autolab_dir.mkdir(parents=True, exist_ok=True)
-        target = autolab_dir / (f"{deploy_as}.yaml")
-        target.write_text(full_yaml, encoding="utf-8")
+        target = autolab_dir / f"{deploy_as}.yaml"
+        target.write_text(yaml_body, encoding="utf-8")
         output_lines.append(
             f"Deployed as {deploy_as} profile: {target}\n"
             f"This character is now active. Run autolab_next to use it."
         )
 
-    # ── Skill notes ──
-
-    if custom:
-        output_lines.append(
-            f"\nCustom skills (not in built-in catalog): {', '.join(custom)}\n"
-            f"Make sure each has a SKILL.md at ~/.cursor/skills/<name>/SKILL.md"
-        )
-
     if len(skill_list) > 8:
         output_lines.append(
             "\nWARNING: More than 8 skills can dilute focus. "
-            "Consider keeping 4-8 skills for best results."
+            "Consider grouping related tools into fewer composite skills."
         )
 
-    # ── GitHub publishing instructions ──
+    # ── GitHub publishing ──
 
     if github_repo:
         clean_repo = github_repo.strip().strip("/")
         output_lines.append(
-            f"\n--- Publishing to Marketplace ---\n"
-            f"1. Create the repo: https://github.com/new\n"
-            f"   Or fork: https://github.com/MarcusOfficial/autolab-character-template/fork\n"
-            f"2. Copy {char_path.name} into the repo as character.yaml\n"
-            f"3. Add a README.md describing the character\n"
-            f"4. Push to GitHub:\n"
-            f"   git add . && git commit -m 'Character: {name}' && git push\n"
-            f"5. Submit to marketplace:\n"
-            f"   Open an issue at https://github.com/MarcusOfficial/autonomous-lab/issues/new\n"
-            f"   Title: New Character: {name}\n"
-            f"   Body: Repo URL: https://github.com/{clean_repo}\n"
-            f"\nOnce indexed, the character appears at https://MarcusOfficial.github.io/autonomous-lab/"
+            f"\n--- GitHub Publishing ---\n"
+            f"To publish this character to the marketplace, run these commands "
+            f"inside the character folder ({char_dir}):\n\n"
+            f"  cd {char_dir}\n"
+            f"  git init\n"
+            f"  git add .\n"
+            f"  git commit -m 'Character: {name}'\n"
+            f"  gh repo create {clean_repo} --public --source=. --push\n\n"
+            f"Then submit to the marketplace:\n"
+            f"  Open an issue at https://github.com/albert-ying/autonomous-lab/issues/new\n"
+            f"  Title: New Character: {name}\n"
+            f"  Body: https://github.com/{clean_repo}\n"
         )
     else:
         output_lines.append(
             "\nTo publish to the marketplace, call again with "
-            "github_repo='username/autolab-char-name' or manually:\n"
-            "1. Create a GitHub repo from https://github.com/MarcusOfficial/autolab-character-template/fork\n"
-            "2. Copy the YAML as character.yaml\n"
-            "3. Open an issue at https://github.com/MarcusOfficial/autonomous-lab/issues/new"
+            "github_repo='username/autolab-char-name', or run:\n"
+            f"  cd {char_dir} && git init && git add . && "
+            f"git commit -m 'Character: {name}'\n"
+            f"  gh repo create username/{folder_name} --public --source=. --push"
         )
 
     return "\n".join(output_lines)

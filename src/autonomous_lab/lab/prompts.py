@@ -435,6 +435,15 @@ def build_pi_prompt(
 
     # Format profile
     personality = "\n".join(f"- {p}" for p in profile.get("personality", []))
+    skill_names = profile.get("skills", [])
+    skills_section = ""
+    if skill_names:
+        skills_str = ", ".join(skill_names)
+        skills_section = (
+            f"- Skills: {skills_str}\n"
+            "  (Read and follow the SKILL.md for each skill listed above. "
+            "These define your specific technical capabilities and workflows.)\n"
+        )
 
     prompt = f"""You are now acting as the **{senior_label} ({senior_short})** in an Autonomous Lab session.
 
@@ -446,7 +455,7 @@ You are a world-class {senior_label}. You identify the 2-3 priorities that drive
 - Title: {profile.get('title', senior_label)}
 - Expertise: {profile.get('expertise', 'leading a high-performing team')}
 - Goal: {profile.get('goal', 'maximize impact and produce excellent ' + artifact.lower() + 's')}
-- Personality traits:
+{skills_section}- Personality traits:
 {personality}
 
 {PI_RESOURCES}
@@ -589,6 +598,15 @@ def build_trainee_prompt(
     personality = "\n".join(f"- {p}" for p in profile.get("personality", []))
     coding_rules = "\n".join(CODING_RULES)
     paper_rules = "\n".join(PAPER_WRITING_RULES)
+    skill_names = profile.get("skills", [])
+    skills_section = ""
+    if skill_names:
+        skills_str = ", ".join(skill_names)
+        skills_section = (
+            f"- Skills: {skills_str}\n"
+            "  (Read and follow the SKILL.md for each skill listed above. "
+            "These define your specific technical capabilities and workflows.)\n"
+        )
 
     prompt = f"""You are now acting as the **{junior_label}** in an Autonomous Lab session.
 
@@ -600,7 +618,7 @@ You are a dedicated, technically excellent {junior_label.lower()}. You implement
 - Title: {profile.get('title', junior_label)}
 - Expertise: {profile.get('expertise', 'technical implementation and execution')}
 - Goal: {profile.get('goal', 'execute the ' + senior_short + "'s vision with technical excellence")}
-- Personality traits:
+{skills_section}- Personality traits:
 {personality}
 
 {TRAINEE_RESOURCES}
