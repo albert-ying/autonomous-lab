@@ -299,6 +299,13 @@
     const dot = document.getElementById("status-dot");
     dot.className = "status-dot";
     if (state.status === "active") dot.classList.add("working");
+
+    // Project name in tab title and header
+    if (state.project_name) {
+      document.title = state.project_name + " — Autonomous Lab";
+      const h = document.getElementById("project-name-header");
+      if (h) h.textContent = state.project_name.toUpperCase();
+    }
   }
 
   function updateCharacterStatus(state) {

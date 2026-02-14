@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editorial Center — Autonomous Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+    <style>
+    :root {
+        --bg-dark: #1a1428; --bg-panel: #241e35; --bg-panel-light: #2d2545;
+        --bg-input: #1e1830; --border: #6b5e8a; --border-light: #8a7eb0;
+        --border-glow: #a594d4; --gold: #f5c542; --accent: #bd93f9;
+        --text: #e8e0f0; --text-dim: #9a8fb5; --text-muted: #6b6080;
+        --pi-color: #6bb5ff; --trainee-color: #6bffb0;
+        --red: #ff6b6b; --green: #6bff6b; --orange: #ffb86b;
+        --bar-bg: #332b4a; --bar-fill: #7c6bff; --shadow: rgba(0,0,0,0.4);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        min-height: 100vh;
+        font-family: 'Inter', -apple-system, sans-serif;
+        background: var(--bg-dark); color: var(--text);
+        font-size: 14px; line-height: 1.5;
+    }
+    h1, h2, .pixel { font-family: 'Press Start 2P', monospace; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    #top-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 48px; padding: 0 20px;
+        background: var(--bg-panel); border-bottom: 2px solid var(--border);
+        box-shadow: 0 2px 8px var(--shadow);
+    }
+    .top-left { display: flex; align-items: center; gap: 10px; }
+    .top-left .icon { font-size: 20px; }
+    #top-bar h1 { font-size: 10px; color: var(--gold); letter-spacing: 2px; }
+    .top-right { display: flex; align-items: center; gap: 12px; }
+    .top-right a {
+        color: var(--accent); text-decoration: none; font-size: 12px;
+        padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .top-right a:hover { border-color: var(--accent); background: var(--bg-panel-light); }
+    .version { font-size: 10px; color: var(--text-muted); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Section headers */
+    .sec-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .sec-title { font-size: 10px; color: var(--gold); letter-spacing: 1.5px; }
+    .sec-count {
+        font-size: 11px; color: var(--text-muted);
+        background: var(--bg-panel-light); padding: 2px 10px;
+        border-radius: 10px; border: 1px solid var(--border);
+    }
+
+    /* Stats row */
+    .stats-row {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+        margin-bottom: 24px;
+    }
+    .stat-card {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 8px; padding: 14px 16px; text-align: center;
+    }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--accent); }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Project cards */
+    .project-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 12px; margin-bottom: 32px;
+    }
+    .project-card {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 8px; padding: 16px; cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .project-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 0 12px rgba(189, 147, 249, 0.15);
+    }
+    .project-card-top {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        margin-bottom: 8px;
+    }
+    .project-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .project-status {
+        font-size: 10px; padding: 2px 8px; border-radius: 3px;
+        font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .st-active { background: rgba(107, 255, 107, 0.15); color: var(--green); }
+    .st-review { background: rgba(245, 197, 66, 0.2); color: var(--gold); }
+    .st-done { background: rgba(189, 147, 249, 0.2); color: var(--accent); }
+    .st-error { background: rgba(255, 107, 107, 0.15); color: var(--red); }
+
+    .project-meta {
+        font-size: 12px; color: var(--text-dim); margin-bottom: 10px;
+    }
+    .project-meta span { margin-right: 12px; }
+
+    .project-progress-bar {
+        height: 4px; background: var(--bar-bg); border-radius: 2px;
+        overflow: hidden; margin-bottom: 6px;
+    }
+    .project-progress-fill {
+        height: 100%; border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+    .project-progress-label {
+        font-size: 11px; color: var(--text-muted);
+        display: flex; justify-content: space-between;
+    }
+
+    .project-editorial {
+        font-size: 11px; color: var(--orange); margin-top: 8px;
+        padding: 4px 8px; background: rgba(255, 184, 107, 0.1);
+        border-radius: 3px; border: 1px solid rgba(255, 184, 107, 0.2);
+    }
+
+    /* Empty state */
+    .empty {
+        text-align: center; padding: 60px 20px; color: var(--text-muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-title { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; }
+    .empty-desc { font-size: 13px; max-width: 400px; margin: 0 auto; }
+
+    @media (max-width: 600px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+        .project-grid { grid-template-columns: 1fr; }
+    }
+    </style>
+</head>
+<body>
+    <header id="top-bar">
+        <div class="top-left">
+            <span class="icon">&#x1F4EC;</span>
+            <h1>EDITORIAL CENTER</h1>
+        </div>
+        <div class="top-right">
+            <a href="/character-builder">&#x1F9EA; Character Builder</a>
+            <span class="version">v{{ version }}</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total">-</div>
+                <div class="stat-label">Total Projects</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-active" style="color:var(--green)">-</div>
+                <div class="stat-label">Running</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-review" style="color:var(--gold)">-</div>
+                <div class="stat-label">Awaiting Review</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-done" style="color:var(--accent)">-</div>
+                <div class="stat-label">Completed</div>
+            </div>
+        </div>
+
+        <!-- Manuscripts Awaiting Review -->
+        <div class="sec-header">
+            <span class="sec-title pixel">INCOMING MANUSCRIPTS</span>
+            <span class="sec-count" id="review-count">0</span>
+        </div>
+        <div class="project-grid" id="review-grid"></div>
+
+        <!-- Ongoing Research -->
+        <div class="sec-header">
+            <span class="sec-title pixel">ONGOING RESEARCH</span>
+            <span class="sec-count" id="active-count">0</span>
+        </div>
+        <div class="project-grid" id="active-grid"></div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="empty" style="display:none;">
+            <div class="empty-icon">&#x1F52C;</div>
+            <div class="empty-title pixel">NO PROJECTS YET</div>
+            <div class="empty-desc">
+                Initialize a project with <code>autolab_init</code> in your AI agent.
+                Projects will appear here as they run.
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let refreshInterval;
+
+    async function loadProjects() {
+        try {
+            const resp = await fetch("/api/projects");
+            const data = await resp.json();
+            const projects = data.projects || [];
+
+            // Stats
+            const total = projects.length;
+            const active = projects.filter(p => p.status === "active").length;
+            const review = projects.filter(p =>
+                p.editorial_phase === "reviewing" || p.editorial_phase === "reviews_complete" || p.status === "ready_for_review"
+            ).length;
+            const done = projects.filter(p =>
+                p.editorial_phase === "accepted" || p.editorial_decision === "accept"
+            ).length;
+
+            document.getElementById("stat-total").textContent = total;
+            document.getElementById("stat-active").textContent = active;
+            document.getElementById("stat-review").textContent = review;
+            document.getElementById("stat-done").textContent = done;
+
+            // Split into review vs active
+            const reviewProjects = projects.filter(p =>
+                p.editorial_phase === "reviewing" ||
+                p.editorial_phase === "reviews_complete" ||
+                p.status === "ready_for_review"
+            );
+            const activeProjects = projects.filter(p =>
+                p.status === "active" || p.status === "continue" ||
+                p.status === "revision_requested"
+            );
+
+            renderGrid("review-grid", reviewProjects);
+            renderGrid("active-grid", activeProjects);
+            document.getElementById("review-count").textContent = reviewProjects.length;
+            document.getElementById("active-count").textContent = activeProjects.length;
+
+            document.getElementById("empty-state").style.display = total === 0 ? "block" : "none";
+        } catch (e) {
+            console.error("Failed to load projects:", e);
+        }
+    }
+
+    function renderGrid(gridId, projects) {
+        const grid = document.getElementById(gridId);
+        if (projects.length === 0) {
+            grid.innerHTML = '<div style="color:var(--text-muted); font-size:12px; padding:12px;">None at the moment.</div>';
+            return;
+        }
+        grid.innerHTML = projects.map(p => {
+            const statusClass =
+                p.status === "active" ? "st-active" :
+                p.status === "ready_for_review" ? "st-review" :
+                p.editorial_decision === "accept" ? "st-done" :
+                p.status === "error" ? "st-error" : "st-active";
+            const statusLabel =
+                p.status === "active" ? "Running" :
+                p.status === "ready_for_review" ? "Review" :
+                p.status === "revision_requested" ? "Revision" :
+                p.editorial_decision === "accept" ? "Accepted" : p.status;
+            const progressColor =
+                p.progress > 70 ? "var(--green)" :
+                p.progress > 30 ? "var(--accent)" : "var(--bar-fill)";
+            const editorialNote = (p.editorial_phase && p.editorial_phase !== "none")
+                ? `<div class="project-editorial">&#x1F4DD; Editorial: ${p.editorial_phase.replace(/_/g, " ")}${p.editorial_decision ? " — " + p.editorial_decision.replace(/_/g, " ") : ""}</div>`
+                : "";
+            const encoded = encodeURIComponent(p.project_dir);
+            return `
+                <div class="project-card" onclick="window.open('/lab?project=${encoded}', '_blank')">
+                    <div class="project-card-top">
+                        <div class="project-name">${escHtml(p.name || "Untitled")}</div>
+                        <span class="project-status ${statusClass}">${statusLabel}</span>
+                    </div>
+                    <div class="project-meta">
+                        <span>Iter ${p.iteration || 0}</span>
+                        <span>Next: ${(p.next_role || "pi").toUpperCase()}</span>
+                        <span>${p.domain || "research"}</span>
+                    </div>
+                    <div class="project-progress-bar">
+                        <div class="project-progress-fill" style="width:${p.progress || 0}%; background:${progressColor}"></div>
+                    </div>
+                    <div class="project-progress-label">
+                        <span>Progress</span>
+                        <span>${p.progress || 0}%</span>
+                    </div>
+                    ${editorialNote}
+                </div>`;
+        }).join("");
+    }
+
+    function escHtml(s) {
+        const d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // Initial load + auto-refresh every 10s
+    loadProjects();
+    refreshInterval = setInterval(loadProjects, 10000);
+    </script>
+</body>
+</html>

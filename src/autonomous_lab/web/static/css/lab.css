@@ -70,6 +70,11 @@ h1, h2, .badge-value, .char-name, .panel-icon {
 }
 
 .top-left { display: flex; align-items: center; gap: 10px; }
+.home-link {
+    font-size: 18px; text-decoration: none; opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.home-link:hover { opacity: 1; }
 .lab-icon { font-size: 20px; }
 #top-bar h1 { font-size: 11px; color: var(--gold); letter-spacing: 2px; }
 

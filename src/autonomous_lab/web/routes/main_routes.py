@@ -75,6 +75,28 @@ def _guess_language(suffix: str) -> str:
     }.get(suffix, "text")
 
 
+def _track_project(
+    manager: "WebUIManager",
+    project_dir: str,
+    project_name: str,
+    state: dict,
+    config: dict,
+) -> None:
+    """Register a project in the manager's known-projects set."""
+    if not hasattr(manager, "_known_projects"):
+        manager._known_projects = {}  # type: ignore[attr-defined]
+    manager._known_projects[project_dir] = {
+        "name": project_name,
+        "iteration": state.get("iteration", 0),
+        "next_role": state.get("next_role", "pi"),
+        "status": state.get("status", "active"),
+        "progress": state.get("progress", 0),
+        "domain": config.get("domain", "research"),
+        "created_at": state.get("created_at", ""),
+        "editorial_phase": state.get("editorial", {}).get("phase", "none"),
+    }
+
+
 def setup_routes(manager: "WebUIManager"):
     """設置路由"""
 
@@ -293,6 +315,63 @@ def setup_routes(manager: "WebUIManager"):
                 "version": __version__,
             },
         )
+
+    @manager.app.get("/editorial-center", response_class=HTMLResponse)
+    async def editorial_center_page(request: Request):
+        """Serve the Editorial Center — central dashboard for all projects"""
+        return manager.templates.TemplateResponse(
+            request,
+            "editorial_center.html",
+            {
+                "title": "Editorial Center — Autonomous Lab",
+                "version": __version__,
+            },
+        )
+
+    @manager.app.get("/api/projects")
+    async def list_projects(request: Request):
+        """List all known lab projects for the Editorial Center."""
+        projects = getattr(manager, "_known_projects", {})
+        # Also scan for any .autolab dirs we haven't seen yet from _lab_browser_opened
+        from ...server import _lab_browser_opened
+        from ...lab.state import load_config, load_state
+
+        for pdir in list(_lab_browser_opened):
+            if pdir not in projects:
+                try:
+                    state = load_state(pdir)
+                    config = load_config(pdir)
+                    name = config.get("title") or state.get("title") or Path(pdir).name
+                    _track_project(manager, pdir, name, state, config)
+                except Exception:
+                    pass
+
+        # Refresh states for known projects
+        result = []
+        for pdir, info in getattr(manager, "_known_projects", {}).items():
+            try:
+                state = load_state(pdir)
+                config = load_config(pdir)
+                editorial = state.get("editorial", {})
+                result.append({
+                    "project_dir": pdir,
+                    "name": config.get("title") or state.get("title") or Path(pdir).name,
+                    "iteration": state.get("iteration", 0),
+                    "next_role": state.get("next_role", "pi"),
+                    "status": state.get("status", "active"),
+                    "progress": state.get("progress", 0),
+                    "domain": config.get("domain", "research"),
+                    "created_at": state.get("created_at", ""),
+                    "editorial_phase": editorial.get("phase", "none"),
+                    "editorial_decision": editorial.get("decision", ""),
+                })
+            except Exception:
+                result.append({
+                    "project_dir": pdir,
+                    "name": info.get("name", Path(pdir).name),
+                    "status": "error",
+                })
+        return JSONResponse(content={"projects": result})
 
     @manager.app.get("/character-builder", response_class=HTMLResponse)
     async def character_builder_page(request: Request):
@@ -1028,10 +1107,21 @@ def setup_routes(manager: "WebUIManager"):
 
             editorial = state.get("editorial", {"phase": "none"})
 
+            # Derive project name from config title, state, or folder name
+            project_name = (
+                config.get("title")
+                or state.get("title")
+                or Path(project_dir).name
+            )
+
+            # Track this project for the Editorial Center
+            _track_project(manager, str(project_dir), project_name, state, config)
+
             return JSONResponse(
                 content={
                     "active": True,
                     "project_dir": str(project_dir),
+                    "project_name": project_name,
                     "iteration": state.get("iteration", 0),
                     "next_role": state.get("next_role", "pi"),
                     "status": state.get("status", "active"),
