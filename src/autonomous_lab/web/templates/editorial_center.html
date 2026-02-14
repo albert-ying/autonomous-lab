@@ -267,11 +267,12 @@
             const editorialNote = (p.editorial_phase && p.editorial_phase !== "none")
                 ? `<div class="project-editorial">&#x1F4DD; Editorial: ${p.editorial_phase.replace(/_/g, " ")}${p.editorial_decision ? " — " + p.editorial_decision.replace(/_/g, " ") : ""}</div>`
                 : "";
-            const encoded = encodeURIComponent(p.project_dir);
+            const labUrl = p.lab_url || ('/lab?project=' + encodeURIComponent(p.project_dir));
+            const portLabel = p.port ? ` <span style="font-size:10px;color:var(--text-muted);font-weight:400">:${p.port}</span>` : '';
             return `
-                <div class="project-card" onclick="window.open('/lab?project=${encoded}', '_blank')">
+                <div class="project-card" onclick="window.open('${labUrl}', '_blank')">
                     <div class="project-card-top">
-                        <div class="project-name">${escHtml(p.name || "Untitled")}</div>
+                        <div class="project-name">${escHtml(p.name || "Untitled")}${portLabel}</div>
                         <span class="project-status ${statusClass}">${statusLabel}</span>
                     </div>
                     <div class="project-meta">

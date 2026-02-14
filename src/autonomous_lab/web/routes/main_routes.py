@@ -330,25 +330,44 @@ def setup_routes(manager: "WebUIManager"):
 
     @manager.app.get("/api/projects")
     async def list_projects(request: Request):
-        """List all known lab projects for the Editorial Center."""
-        projects = getattr(manager, "_known_projects", {})
-        # Also scan for any .autolab dirs we haven't seen yet from _lab_browser_opened
-        from ...server import _lab_browser_opened
-        from ...lab.state import load_config, load_state
+        """List all known lab projects across ALL running instances.
 
-        for pdir in list(_lab_browser_opened):
-            if pdir not in projects:
+        Reads from the shared ~/.autolab/registry.json so every
+        Editorial Center shows every project regardless of which port
+        it's running on.
+        """
+        from ..utils.project_registry import get_all_projects
+
+        # Also make sure this instance's local projects are registered
+        try:
+            from ...server import _lab_browser_opened
+            from ...lab.state import load_config, load_state
+            from ..utils.project_registry import register_project
+
+            for pdir in list(_lab_browser_opened):
                 try:
                     state = load_state(pdir)
                     config = load_config(pdir)
-                    name = config.get("title") or state.get("title") or Path(pdir).name
-                    _track_project(manager, pdir, name, state, config)
+                    name = (
+                        config.get("title") or state.get("title")
+                        or Path(pdir).name
+                    )
+                    register_project(
+                        manager.host, manager.port, pdir, name, state, config
+                    )
                 except Exception:
                     pass
+        except Exception:
+            pass
 
-        # Refresh states for known projects
+        # Get ALL projects across all instances
+        all_projects = get_all_projects()
+
+        # Refresh each project's live state from disk
         result = []
-        for pdir, info in getattr(manager, "_known_projects", {}).items():
+        from ...lab.state import load_config, load_state
+        for p in all_projects:
+            pdir = p.get("project_dir", "")
             try:
                 state = load_state(pdir)
                 config = load_config(pdir)
@@ -364,12 +383,17 @@ def setup_routes(manager: "WebUIManager"):
                     "created_at": state.get("created_at", ""),
                     "editorial_phase": editorial.get("phase", "none"),
                     "editorial_decision": editorial.get("decision", ""),
+                    # Cross-instance fields
+                    "host": p.get("host", "127.0.0.1"),
+                    "port": p.get("port", 8765),
+                    "base_url": p.get("base_url", ""),
+                    "lab_url": p.get("lab_url", ""),
                 })
             except Exception:
+                # Can't read state (different machine, missing files)
                 result.append({
-                    "project_dir": pdir,
-                    "name": info.get("name", Path(pdir).name),
-                    "status": "error",
+                    **p,
+                    "status": p.get("status", "unknown"),
                 })
         return JSONResponse(content={"projects": result})
 
@@ -1114,8 +1138,16 @@ def setup_routes(manager: "WebUIManager"):
                 or Path(project_dir).name
             )
 
-            # Track this project for the Editorial Center
+            # Track this project for the Editorial Center (local + shared registry)
             _track_project(manager, str(project_dir), project_name, state, config)
+            try:
+                from ..utils.project_registry import register_project
+                register_project(
+                    manager.host, manager.port,
+                    str(project_dir), project_name, state, config,
+                )
+            except Exception:
+                pass
 
             return JSONResponse(
                 content={

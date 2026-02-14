@@ -187,6 +187,13 @@ class WebUIManager:
         # 同步初始化基本組件
         self._init_basic_components()
 
+        # Register in the cross-instance shared registry
+        try:
+            from .utils.project_registry import register_instance
+            register_instance(self.host, self.port)
+        except Exception as e:
+            debug_log(f"Failed to register in shared registry: {e}")
+
         debug_log(f"WebUIManager 基本初始化完成，將在 {self.host}:{self.port} 啟動")
         if self.host in ("0.0.0.0", "::"):
             debug_log(
