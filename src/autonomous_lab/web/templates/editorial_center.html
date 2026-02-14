@@ -279,6 +279,7 @@
                         <span>Iter ${p.iteration || 0}</span>
                         <span>Next: ${(p.next_role || "pi").toUpperCase()}</span>
                         <span>${p.domain || "research"}</span>
+                        <span style="color:var(--text-muted)">&#x23F1; ${formatRuntime(p.created_at)}</span>
                     </div>
                     <div class="project-progress-bar">
                         <div class="project-progress-fill" style="width:${p.progress || 0}%; background:${progressColor}"></div>
@@ -296,6 +297,21 @@
         const d = document.createElement("div");
         d.textContent = s;
         return d.innerHTML;
+    }
+
+    function formatRuntime(createdAt) {
+        if (!createdAt) return "--";
+        try {
+            const start = new Date(createdAt);
+            const now = new Date();
+            const diffMs = now - start;
+            const mins = Math.floor(diffMs / 60000);
+            const hours = Math.floor(mins / 60);
+            const days = Math.floor(hours / 24);
+            if (days > 0) return `${days}d ${hours % 24}h`;
+            if (hours > 0) return `${hours}h ${mins % 60}m`;
+            return `${mins}m`;
+        } catch { return "--"; }
     }
 
     // Initial load + auto-refresh every 10s

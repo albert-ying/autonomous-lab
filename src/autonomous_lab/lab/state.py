@@ -106,9 +106,21 @@ def init_project(
     with open(autolab / CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.dump(default_cfg, f, default_flow_style=False)
 
+    # Store title in config for Editorial Center display
+    title_str = default_cfg.get("title", "")
+    if not title_str or title_str == "TITLE":
+        # Derive title from first line of idea (up to 80 chars)
+        first_line = idea.strip().split("\n")[0][:80].strip()
+        title_str = first_line if first_line else Path(project_dir).name
+        default_cfg["title"] = title_str
+        # Rewrite config with derived title
+        with open(autolab / CONFIG_FILE, "w", encoding="utf-8") as f:
+            yaml.dump(default_cfg, f, default_flow_style=False)
+
     # Initialize state
     now = datetime.now(timezone.utc).isoformat()
     state = {
+        "title": title_str,
         "iteration": 0,
         "next_role": "pi",
         "status": "active",
@@ -194,12 +206,39 @@ def get_recent_meetings(project_dir: str, n: int = 3) -> str:
     return "\n---\n".join(recent)
 
 
-def get_meeting_summaries(project_dir: str) -> str:
-    """Return compressed meeting summaries"""
+def get_meeting_summaries(project_dir: str, max_chars: int = 8000) -> str:
+    """Return compressed meeting summaries, capping at max_chars.
+
+    For very long sessions (50+ iterations), even the summaries file
+    can grow large. When it exceeds max_chars, only the most recent
+    entries are returned with a note about how many were truncated.
+    """
     path = _autolab_path(project_dir) / MEETING_SUMMARIES
     if not path.exists():
         return ""
-    return path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8")
+    if len(text) <= max_chars:
+        return text
+
+    # Keep the header + most recent summaries within budget
+    lines = text.strip().split("\n")
+    header = lines[0] if lines else ""
+    entries = lines[1:]
+    kept = []
+    total_len = len(header) + 100  # buffer for truncation note
+    for line in reversed(entries):
+        if total_len + len(line) + 1 > max_chars:
+            break
+        kept.insert(0, line)
+        total_len += len(line) + 1
+
+    truncated = len(entries) - len(kept)
+    note = (
+        f"\n*(Oldest {truncated} summary entries omitted for context budget)*\n\n"
+        if truncated > 0
+        else "\n"
+    )
+    return header + note + "\n".join(kept)
 
 
 def compress_old_meetings(project_dir: str, keep_recent: int = 3) -> None:
@@ -555,6 +594,33 @@ def store_user_feedback(project_dir: str, feedback: str, target: str = "") -> No
     queue.append(entry)
     state["feedback_queue"] = queue
     # Also keep legacy field updated (last message) for compat
+    state["user_feedback"] = entry
+    save_state(project_dir, state)
+
+
+def store_direction_change(project_dir: str, new_direction: str) -> None:
+    """Store an editorial direction change with high priority.
+
+    This is different from regular feedback: direction changes are
+    prefixed with [EDITORIAL REDIRECT] and placed at the FRONT of the
+    queue so the PI sees them first and treats them as mandatory.
+    """
+    state = load_state(project_dir)
+    queue = state.get("feedback_queue", [])
+    if not isinstance(queue, list):
+        queue = [queue] if queue else []
+
+    entry = (
+        f"[EDITORIAL REDIRECT — MANDATORY]\n"
+        f"The Editor has changed the direction of this project.\n"
+        f"You MUST pivot to address this new direction:\n\n"
+        f"{new_direction}\n\n"
+        f"Acknowledge this redirect in your next response and adjust "
+        f"your research plan accordingly."
+    )
+    # Insert at front so it's seen first
+    queue.insert(0, entry)
+    state["feedback_queue"] = queue
     state["user_feedback"] = entry
     save_state(project_dir, state)
 

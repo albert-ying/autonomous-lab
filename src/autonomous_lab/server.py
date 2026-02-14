@@ -707,7 +707,10 @@ async def autolab_init(
         return f"ERROR: Invalid domain '{domain}'. Must be one of: {', '.join(valid_domains)}"
 
     try:
-        state = init_project(project_directory, idea, domain=domain)
+        state = init_project(
+            project_directory, idea, domain=domain,
+            config={"title": title},
+        )
         create_paper_structure(project_directory, title)
 
         # Start the monitoring web UI (non-blocking)
@@ -1329,6 +1332,15 @@ async def autolab_consult(
     question: Annotated[
         str, Field(description="The specific question or topic to consult about")
     ] = "",
+    character_repo: Annotated[
+        str,
+        Field(
+            description="Optional GitHub repo of a marketplace character to use as the expert "
+            "(e.g., 'albert-ying/autolab-char-biostatistician'). The character's skills "
+            "and personality will define the expert's domain knowledge. "
+            "If not provided, uses built-in domain knowledge."
+        ),
+    ] = "",
 ) -> str:
     """Invite a domain expert for a one-time consultation during a PI turn.
 
@@ -1391,20 +1403,85 @@ async def autolab_consult(
     # Look up domain-specific resources
     from .lab.prompts import CONSULTANT_DOMAINS, CONSULTANT_GENERIC
 
-    avatar_key = expert_avatar.lower().replace(" ", "_")
-    role_key = expert_role.lower().replace(" ", "_")
-    domain_knowledge = (
-        CONSULTANT_DOMAINS.get(avatar_key)
-        or CONSULTANT_DOMAINS.get(role_key)
-        or CONSULTANT_GENERIC
-    )
+    # Load domain knowledge: marketplace character > built-in domains > generic
+    domain_knowledge = ""
+    character_skills_content = ""
+
+    if character_repo:
+        # Try to fetch character.yaml + skills from marketplace repo
+        import urllib.request
+        import json as _json
+
+        clean_repo = character_repo.strip().strip("/")
+        for branch in ("master", "main"):
+            try:
+                char_url = (
+                    f"https://raw.githubusercontent.com/{clean_repo}"
+                    f"/{branch}/character.yaml"
+                )
+                req = urllib.request.Request(char_url, headers={
+                    "User-Agent": "AutonomousLab/0.5",
+                })
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    import yaml as _yaml
+                    char_data = _yaml.safe_load(resp.read().decode("utf-8"))
+
+                # Use character's expertise and personality as domain knowledge
+                char_expertise = char_data.get("expertise", "")
+                char_personality = char_data.get("personality", [])
+                char_skills = char_data.get("skills", [])
+
+                # Override expert name/role from character if not provided
+                if not expert_name or expert_name == "":
+                    expert_name = char_data.get("name", expert_name)
+                if not expert_role or expert_role == "":
+                    expert_role = char_data.get("title", expert_role)
+
+                domain_knowledge = (
+                    f"Expertise: {char_expertise}\n"
+                    f"Skills: {', '.join(char_skills)}\n"
+                    f"Personality: {'; '.join(char_personality)}\n"
+                )
+
+                # Try to fetch SKILL.md files for richer context
+                for skill_name in char_skills[:3]:  # Cap at 3 to limit context
+                    try:
+                        skill_url = (
+                            f"https://raw.githubusercontent.com/{clean_repo}"
+                            f"/{branch}/skills/{skill_name}/SKILL.md"
+                        )
+                        req2 = urllib.request.Request(skill_url, headers={
+                            "User-Agent": "AutonomousLab/0.5",
+                        })
+                        with urllib.request.urlopen(req2, timeout=5) as resp2:
+                            skill_content = resp2.read().decode("utf-8")
+                            character_skills_content += (
+                                f"\n### Skill: {skill_name}\n{skill_content[:2000]}\n"
+                            )
+                    except Exception:
+                        pass
+                break
+            except Exception:
+                continue
+
+    if not domain_knowledge:
+        # Fall back to built-in domain lookup
+        avatar_key = expert_avatar.lower().replace(" ", "_")
+        role_key = expert_role.lower().replace(" ", "_")
+        domain_knowledge = (
+            CONSULTANT_DOMAINS.get(avatar_key)
+            or CONSULTANT_DOMAINS.get(role_key)
+            or CONSULTANT_GENERIC
+        )
 
     return (
         f"[{consultant.upper()}] Expert: {expert_name} ({expert_role})\n"
         f"{'=' * 50}\n\n"
         f"You are now briefly acting as **{expert_name}**, a specialist in **{expert_role}**.\n\n"
         f"**Your domain knowledge and standards:**\n{domain_knowledge}\n\n"
-        f"The {senior} has asked you the following question:\n\n"
+        + (f"**Your specialized skills:**\n{character_skills_content}\n\n"
+           if character_skills_content else "")
+        + f"The {senior} has asked you the following question:\n\n"
         f"> {question}\n\n"
         f"Project context (brief):\n{idea[:500]}{'...' if len(idea) > 500 else ''}\n\n"
         f"Provide a concise, expert response (2-4 paragraphs). Be direct and specific.\n"

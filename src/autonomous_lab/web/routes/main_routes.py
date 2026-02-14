@@ -1392,6 +1392,41 @@ def setup_routes(manager: "WebUIManager"):
             debug_log(f"Desk reject error: {e}")
             return JSONResponse(status_code=500, content={"error": str(e)})
 
+    @manager.app.post("/api/autolab/redirect")
+    async def redirect_research(request: Request):
+        """Editor changes the direction of the research mid-session.
+
+        This is a high-priority message that goes to the FRONT of the
+        feedback queue with [EDITORIAL REDIRECT] tagging.
+        """
+        try:
+            data = await request.json()
+            project_dir = _resolve_project_dir(data.get("project_dir"))
+            if not project_dir:
+                project_dir = request.query_params.get("project") or getattr(
+                    manager, "lab_project_dir", None
+                )
+            if not project_dir:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "No active project"},
+                )
+
+            new_direction = data.get("direction", "").strip()
+            if not new_direction:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "direction is required"},
+                )
+
+            from ...lab.state import store_direction_change
+            store_direction_change(project_dir, new_direction)
+            debug_log(f"Editorial redirect stored: {len(new_direction)} chars")
+            return JSONResponse(content={"status": "ok"})
+        except Exception as e:
+            debug_log(f"Redirect error: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
     @manager.app.post("/api/autolab/feedback")
     async def submit_lab_feedback(request: Request):
         """Store user feedback from the game UI (non-blocking, async)"""
