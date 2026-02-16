@@ -972,7 +972,8 @@ async def autolab_next(
         return f"ERROR: {e}"
 
     # --- Multi-agent orchestration (opt-in) ---
-    # If orchestration: multi is set, delegate to a dedicated agent subprocess.
+    # If orchestration: multi is set, delegate to dedicated agent subprocesses.
+    # Auto-detects Claude Code native agent teams for richer collaboration.
     # On any failure, falls through to the single-agent path below.
     from .lab.state import load_config as _load_config
 
@@ -984,28 +985,60 @@ async def autolab_next(
                 from .lab.orchestrator import Orchestrator
 
                 _orch = Orchestrator(project_directory)
-                if _orch.is_available(_ma_role):
-                    _summary = await _orch.run_turn(_ma_role)
-                    _dcfg = get_domain_config(project_directory)
-                    _label = (
-                        _dcfg["senior_label"]
-                        if _ma_role == "pi"
-                        else _dcfg["junior_label"]
-                    )
-                    return (
-                        f"[AUTOLAB MULTI-AGENT] {_label} turn completed.\n\n"
-                        f"**Summary:** {_summary}"
-                        + _LOOP_INSTRUCTION
-                    )
-                else:
-                    from .lab.event_log import log_event as _log_ev
 
-                    _log_ev(
-                        project_directory,
-                        "orchestrator_fallback",
-                        role=_ma_role,
-                        reason="agent_not_available",
-                    )
+                if _ma_role == "pi":
+                    # PI turn: always run via CLI subprocess
+                    if _orch.is_available("pi"):
+                        _summary = await _orch.run_pi_turn()
+                        _dcfg = get_domain_config(project_directory)
+                        return (
+                            f"[AUTOLAB MULTI-AGENT] {_dcfg['senior_label']} turn completed.\n\n"
+                            f"**Summary:** {_summary}"
+                            + _LOOP_INSTRUCTION
+                        )
+
+                elif _ma_role == "trainee":
+                    # Trainee turn: try agent-team mode first, fall back to CLI
+                    from .lab.team_builder import TeamBuilder, is_agent_team_available
+
+                    if is_agent_team_available():
+                        # Claude Code native teams: return team-building prompt
+                        _tb = TeamBuilder(project_directory)
+                        # Get the last PI meeting entry as the agenda
+                        _meetings = get_recent_meetings(project_directory, n=1)
+                        _team_prompt = _tb.build_team_prompt(
+                            pi_agenda=_meetings,
+                            idea=load_idea(project_directory),
+                            file_listings=scan_project_files(project_directory),
+                            iteration=state["iteration"],
+                        )
+                        from .lab.event_log import log_event as _log_ev
+                        _log_ev(
+                            project_directory,
+                            "agent_team_mode",
+                            iteration=state["iteration"],
+                        )
+                        return _team_prompt
+
+                    elif _orch.is_available("trainee"):
+                        # CLI subprocess: run trainee(s), possibly in parallel
+                        _summary = await _orch.run_trainee_turn()
+                        _dcfg = get_domain_config(project_directory)
+                        return (
+                            f"[AUTOLAB MULTI-AGENT] {_dcfg['junior_label']} turn completed.\n\n"
+                            f"**Summary:** {_summary}"
+                            + _LOOP_INSTRUCTION
+                        )
+
+                # If we reach here, agent not available — log and fall through
+                from .lab.event_log import log_event as _log_ev
+                _log_ev(
+                    project_directory,
+                    "orchestrator_fallback",
+                    role=_ma_role,
+                    reason="agent_not_available",
+                )
+
             except Exception as _ma_err:
                 from .lab.event_log import log_event as _log_ev
 
