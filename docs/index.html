@@ -126,6 +126,21 @@
             </div>
 
             <div class="gs-card">
+                <div class="gs-card-num">&#x1F465;</div>
+                <h3>Parallel Trainees</h3>
+                <p>A PI can have multiple trainees working simultaneously. A Data Analyst, a Writer, and a Code Developer &mdash; each with their own focus area and context, running in parallel. If one fails, the others continue.</p>
+                <pre class="gs-code"><code><span class="yaml-key">agents:</span>
+  <span class="yaml-key">pi:</span>
+    <span class="yaml-key">provider:</span> <span class="yaml-val">claude-cli</span>
+    <span class="yaml-key">model:</span> <span class="yaml-val">opus</span>
+  <span class="yaml-key">trainees:</span>
+    - <span class="yaml-key">name:</span> <span class="yaml-val">"Data Analyst"</span>
+      <span class="yaml-key">focus:</span> <span class="yaml-val">"statistics, figures"</span>
+    - <span class="yaml-key">name:</span> <span class="yaml-val">"Writer"</span>
+      <span class="yaml-key">focus:</span> <span class="yaml-val">"paper, LaTeX"</span></code></pre>
+            </div>
+
+            <div class="gs-card">
                 <div class="gs-card-num">&#x2699;</div>
                 <h3>One Line to Enable</h3>
                 <p>Add <code>orchestration: multi</code> to <code>.autolab/config.yaml</code>. That&rsquo;s it. If the CLI isn&rsquo;t installed, it falls back to single-agent automatically. You can also mix providers &mdash; e.g. Claude as PI, Codex as Trainee.</p>
@@ -137,6 +152,12 @@
   <span class="yaml-key">trainee:</span>
     <span class="yaml-key">provider:</span> <span class="yaml-val">codex-cli</span>
     <span class="yaml-key">model:</span> <span class="yaml-val">o3</span></code></pre>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">&#x1F91D;</div>
+                <h3>Agent Teams</h3>
+                <p>In Claude Code with agent teams enabled, multi-agent mode auto-upgrades to native teams. Trainees become teammates that self-coordinate, message each other, and share a task list. Same config, richer collaboration.</p>
             </div>
 
             <div class="gs-card">

@@ -149,7 +149,47 @@ agents:
     model: sonnet
 ```
 
-Supported providers:
+### Multiple trainees
+
+A PI can have multiple trainees working on different tasks in parallel. Each trainee gets its own context window and focus area:
+
+```yaml
+orchestration: multi
+
+agents:
+  pi:
+    provider: claude-cli
+    model: opus
+  trainees:                              # plural key
+    - name: "Data Analyst"
+      provider: claude-cli
+      model: sonnet
+      focus: "data analysis, statistics, figure generation"
+    - name: "Writer"
+      provider: codex-cli
+      model: o3
+      focus: "paper writing, LaTeX, literature review"
+    - name: "Code Developer"
+      provider: cursor-cli
+      model: sonnet-4
+      focus: "script development, testing, reproducibility"
+```
+
+All trainees run in parallel via `asyncio.gather`. Each sees a scoped prompt with their focus area and coordination notes about what the other trainees are handling. If one fails, the others continue.
+
+### Agent teams (Claude Code)
+
+When running inside Claude Code with agent teams enabled (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), multi-agent mode automatically upgrades to native agent teams. The PI becomes the team lead in delegate mode, trainees become teammates with their own context windows, and they coordinate via shared task lists and direct messaging. No extra config needed -- the same `orchestration: multi` config works for both modes.
+
+Optional team-specific settings:
+
+```yaml
+team:
+  delegate_mode: true          # PI only coordinates, doesn't implement
+  require_plan_approval: false  # Require PI approval before trainees act
+```
+
+### Supported providers
 
 | Provider | Cost | Requires |
 |----------|------|----------|
