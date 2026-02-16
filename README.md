@@ -90,6 +90,7 @@ When work is ready, you review it. Accept, request revisions, or reject. The loo
 ## Key capabilities
 
 - **Zero additional cost**: runs on your existing coding agent subscription. No separate API keys, no usage-based billing, no new accounts.
+- **Multi-agent orchestration**: opt-in mode where each role (PI, Trainee, Reviewer) runs as a separate agent with its own context window. Uses your existing CLI subscriptions (Claude Code, Codex CLI, Cursor) -- no API keys needed. Falls back to single-agent on any failure.
 - **Skill containers**: configure characters with any combination of SKILL.md files you already have. A PI with `scanpy + scientific-writing + statistical-analysis` skills behaves differently from a Tech Lead with `react + typescript + code-review` skills.
 - **24-hour sessions**: the loop runs indefinitely. No timeout, no context loss. Sessions persist across disconnects with `autolab_resume`.
 - **Fully configurable**: YAML character profiles control personality, expertise, goals, and available tools. Swap them in seconds.
@@ -130,6 +131,40 @@ skills:
 personality:
   - "Visionary: spots novel research directions"
   - "Rigorous: demands statistical reproducibility"
+```
+
+## Multi-agent mode
+
+By default, a single AI agent plays all roles in sequence. Multi-agent mode spawns a dedicated agent for each role, giving each a fresh context window. Enable it in `.autolab/config.yaml`:
+
+```yaml
+orchestration: multi
+
+agents:
+  pi:
+    provider: claude-cli   # Uses your Claude Code subscription
+    model: opus
+  trainee:
+    provider: claude-cli
+    model: sonnet
+```
+
+Supported providers:
+
+| Provider | Cost | Requires |
+|----------|------|----------|
+| `claude-cli` | Free (Pro/Max sub) | Claude Code CLI installed |
+| `codex-cli` | Free (Plus/Pro sub) | Codex CLI installed |
+| `cursor-cli` | Free (Pro/Biz sub) | Cursor Agent CLI installed |
+| `anthropic` | Pay-per-token | `ANTHROPIC_API_KEY` env var |
+| `openai` | Pay-per-token | `OPENAI_API_KEY` env var |
+
+CLI providers are the primary path -- they need zero API key configuration. If the CLI binary is not found or multi-agent fails for any reason, it falls back to single-agent mode automatically.
+
+For API providers, install the optional dependencies:
+
+```bash
+pip install 'autonomous-lab[multi-agent]'
 ```
 
 ## Remote / SSH environments

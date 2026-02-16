@@ -20,6 +20,7 @@
         </div>
         <div class="nav-links">
             <a href="#hero" class="nav-link active">Home</a>
+            <a href="#multi-agent" class="nav-link">Multi-Agent</a>
             <a href="#tutorial" class="nav-link">Tutorial</a>
             <a href="#characters" class="nav-link">Characters</a>
             <a href="#marketplace" class="nav-link">Marketplace</a>
@@ -99,6 +100,49 @@
                 <span class="badge">&#x1F9EC; Skill Containers</span>
                 <span class="badge">&#x23F1;&#xFE0F; 24-Hour Sessions</span>
                 <span class="badge">&#x2699;&#xFE0F; Fully Configurable</span>
+                <span class="badge">&#x1F916; Multi-Agent</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== MULTI-AGENT SECTION ========== -->
+    <section id="multi-agent" class="section">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F916; Multi-Agent Orchestration</h2>
+            <p class="section-subtitle">Each role gets its own context window &mdash; using the CLIs you already have</p>
+        </div>
+
+        <div class="gs-grid">
+            <div class="gs-card">
+                <div class="gs-card-num">&#x1F50C;</div>
+                <h3>Zero Extra Cost</h3>
+                <p>Multi-agent mode spawns separate CLI agents (<code>claude</code>, <code>codex</code>, <code>cursor-agent</code>) for each role. It uses the subscriptions you already pay for &mdash; Claude Pro, ChatGPT Plus, Cursor Pro. No API keys needed.</p>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">&#x1F9E0;</div>
+                <h3>Fresh Context Per Role</h3>
+                <p>In single-agent mode, one context window fills with mixed PI and Trainee concerns. Multi-agent gives each role a dedicated context, so the PI thinks like a PI and the Trainee codes like a Trainee.</p>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">&#x2699;</div>
+                <h3>One Line to Enable</h3>
+                <p>Add <code>orchestration: multi</code> to <code>.autolab/config.yaml</code>. That&rsquo;s it. If the CLI isn&rsquo;t installed, it falls back to single-agent automatically. You can also mix providers &mdash; e.g. Claude as PI, Codex as Trainee.</p>
+                <pre class="gs-code"><code><span class="yaml-key">orchestration:</span> <span class="yaml-val">multi</span>
+<span class="yaml-key">agents:</span>
+  <span class="yaml-key">pi:</span>
+    <span class="yaml-key">provider:</span> <span class="yaml-val">claude-cli</span>
+    <span class="yaml-key">model:</span> <span class="yaml-val">opus</span>
+  <span class="yaml-key">trainee:</span>
+    <span class="yaml-key">provider:</span> <span class="yaml-val">codex-cli</span>
+    <span class="yaml-key">model:</span> <span class="yaml-val">o3</span></code></pre>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-num">&#x1F6E1;</div>
+                <h3>Graceful Fallback</h3>
+                <p>If a CLI binary is missing, an API key isn&rsquo;t set, or anything goes wrong &mdash; the system automatically falls back to single-agent mode for that turn. No configuration changes, no broken sessions. It just works.</p>
             </div>
         </div>
     </section>

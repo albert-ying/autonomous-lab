@@ -971,6 +971,52 @@ async def autolab_next(
     except FileNotFoundError as e:
         return f"ERROR: {e}"
 
+    # --- Multi-agent orchestration (opt-in) ---
+    # If orchestration: multi is set, delegate to a dedicated agent subprocess.
+    # On any failure, falls through to the single-agent path below.
+    from .lab.state import load_config as _load_config
+
+    _config = _load_config(project_directory)
+    if _config.get("orchestration") == "multi":
+        _ma_role = state["next_role"]
+        if _ma_role in ("pi", "trainee"):
+            try:
+                from .lab.orchestrator import Orchestrator
+
+                _orch = Orchestrator(project_directory)
+                if _orch.is_available(_ma_role):
+                    _summary = await _orch.run_turn(_ma_role)
+                    _dcfg = get_domain_config(project_directory)
+                    _label = (
+                        _dcfg["senior_label"]
+                        if _ma_role == "pi"
+                        else _dcfg["junior_label"]
+                    )
+                    return (
+                        f"[AUTOLAB MULTI-AGENT] {_label} turn completed.\n\n"
+                        f"**Summary:** {_summary}"
+                        + _LOOP_INSTRUCTION
+                    )
+                else:
+                    from .lab.event_log import log_event as _log_ev
+
+                    _log_ev(
+                        project_directory,
+                        "orchestrator_fallback",
+                        role=_ma_role,
+                        reason="agent_not_available",
+                    )
+            except Exception as _ma_err:
+                from .lab.event_log import log_event as _log_ev
+
+                _log_ev(
+                    project_directory,
+                    "orchestrator_error",
+                    role=_ma_role,
+                    error=str(_ma_err),
+                )
+                # Fall through to single-agent
+
     idea = load_idea(project_directory)
     role = state["next_role"]
     iteration = state["iteration"]

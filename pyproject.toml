@@ -1,6 +1,6 @@
 [project]
 name = "autonomous-lab"
-version = "0.6.0"
+version = "0.7.0"
 description = "MCP server that turns any Senior-Junior workflow into an autonomous loop with a human decision maker. Seamless integration with Cursor, Claude Code, Codex, and any MCP client."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,6 +39,8 @@ Issues = "https://github.com/albert-ying/autonomous-lab/issues"
 
 [project.optional-dependencies]
 biotools = ["biomni"]
+multi-agent = ["anthropic>=0.40.0", "openai>=1.50.0"]
+all = ["biomni", "anthropic>=0.40.0", "openai>=1.50.0"]
 
 [project.scripts]
 autonomous-lab = "autonomous_lab.__main__:main"
