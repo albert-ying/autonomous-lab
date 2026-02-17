@@ -18,6 +18,7 @@ API providers (anthropic, openai) are the fallback for per-token billing.
 import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 
 from .event_log import log_event
@@ -90,7 +91,7 @@ class Orchestrator:
         self.tool_timeout = orch_cfg.get("tool_timeout", 120)
 
         # PI config
-        pi_cfg = agents_cfg.get("pi", {"provider": "claude-cli", "model": "sonnet"})
+        pi_cfg = agents_cfg.get("pi", {"provider": "claude-cli", "model": "opus"})
         self.pi_config = self._make_agent_config("pi", pi_cfg, api_keys_env)
 
         # Trainee config — supports both singular and plural
@@ -100,7 +101,7 @@ class Orchestrator:
                 self.trainees.append(TraineeConfig(
                     name=t.get("name", "Trainee"),
                     provider_name=t.get("provider", "claude-cli"),
-                    model=t.get("model", "sonnet"),
+                    model=t.get("model", "opus"),
                     focus=t.get("focus", ""),
                     api_key=self._resolve_api_key(
                         t.get("provider", "claude-cli"), api_keys_env
@@ -109,12 +110,12 @@ class Orchestrator:
         else:
             # Single trainee (backward compatible)
             t_cfg = agents_cfg.get(
-                "trainee", {"provider": "claude-cli", "model": "sonnet"}
+                "trainee", {"provider": "claude-cli", "model": "opus"}
             )
             self.trainees.append(TraineeConfig(
                 name="Trainee",
                 provider_name=t_cfg.get("provider", "claude-cli"),
-                model=t_cfg.get("model", "sonnet"),
+                model=t_cfg.get("model", "opus"),
                 focus="",
                 api_key=self._resolve_api_key(
                     t_cfg.get("provider", "claude-cli"), api_keys_env
@@ -129,7 +130,7 @@ class Orchestrator:
         return AgentConfig(
             role=role,
             provider_name=provider_name,
-            model=cfg.get("model", "sonnet"),
+            model=cfg.get("model", "opus"),
             api_key=self._resolve_api_key(provider_name, api_keys_env),
         )
 
@@ -145,10 +146,10 @@ class Orchestrator:
 
     @staticmethod
     def _default_agents() -> dict:
-        """Default: both roles use claude-cli with sonnet."""
+        """Default: both roles use claude-cli with opus."""
         return {
-            "pi": {"provider": "claude-cli", "model": "sonnet"},
-            "trainee": {"provider": "claude-cli", "model": "sonnet"},
+            "pi": {"provider": "claude-cli", "model": "opus"},
+            "trainee": {"provider": "claude-cli", "model": "opus"},
         }
 
     # ------------------------------------------------------------------
@@ -211,6 +212,7 @@ class Orchestrator:
             output = await provider.run_agent(prompt)
             summary = self._extract_summary(output, "pi")
             self._record_turn("pi", summary, output)
+            self._apply_dynamic_trainees(output)
             log_event(
                 self.project_dir, "multi_agent_turn",
                 role="pi", provider=agent.provider_name,
@@ -218,7 +220,13 @@ class Orchestrator:
             )
             return summary
         else:
-            return await self._run_api_turn("pi", provider, prompt)
+            result = await self._run_api_turn("pi", provider, prompt)
+            # For API turns, _run_api_turn already records; parse for dynamic trainees
+            # Re-read the last meeting log to get the full output
+            state = load_state(self.project_dir)
+            meetings = get_recent_meetings(self.project_dir, n=1)
+            self._apply_dynamic_trainees(meetings)
+            return result
 
     async def run_trainee_turn(self) -> str:
         """Run trainee turn(s). Multiple trainees run in PARALLEL."""
@@ -258,6 +266,8 @@ class Orchestrator:
         self, trainee: TraineeConfig
     ) -> tuple[str, str]:
         """Run one trainee, return (summary, full_content)."""
+        self._update_trainee_status(trainee.name, "working")
+
         provider = create_provider(
             trainee.provider_name, trainee.model,
             self.project_dir, trainee.api_key,
@@ -266,21 +276,26 @@ class Orchestrator:
 
         prompt = self._build_trainee_prompt(trainee)
 
-        if isinstance(provider, CLIProvider):
-            output = await provider.run_agent(prompt)
-        else:
-            output = await self._run_api_turn_raw(
-                "trainee", provider, prompt
-            )
+        try:
+            if isinstance(provider, CLIProvider):
+                output = await provider.run_agent(prompt)
+            else:
+                output = await self._run_api_turn_raw(
+                    "trainee", provider, prompt
+                )
 
-        summary = self._extract_summary(output, "trainee")
-        log_event(
-            self.project_dir, "multi_agent_turn",
-            role="trainee", trainee_name=trainee.name,
-            provider=trainee.provider_name, model=trainee.model,
-            output_length=len(output),
-        )
-        return summary, output
+            summary = self._extract_summary(output, "trainee")
+            log_event(
+                self.project_dir, "multi_agent_turn",
+                role="trainee", trainee_name=trainee.name,
+                provider=trainee.provider_name, model=trainee.model,
+                output_length=len(output),
+            )
+            self._update_trainee_status(trainee.name, "done")
+            return summary, output
+        except Exception:
+            self._update_trainee_status(trainee.name, "failed")
+            raise
 
     # ------------------------------------------------------------------
     # API provider agentic loop
@@ -432,6 +447,13 @@ class Orchestrator:
         profile = load_profile(self.project_dir, role)
 
         if role == "pi":
+            config = load_config(self.project_dir)
+            orch_mode = config.get("orchestration", "single")
+            current_trainees_info = [
+                {"name": t.name, "focus": t.focus}
+                for t in self.trainees
+            ] if orch_mode == "multi" else None
+
             prompt = build_pi_prompt(
                 idea=idea,
                 profile=profile,
@@ -441,6 +463,8 @@ class Orchestrator:
                 user_feedback=user_feedback,
                 iteration=iteration,
                 domain_config=dcfg,
+                orchestration_mode=orch_mode,
+                current_trainees=current_trainees_info,
             )
         else:
             prompt = build_trainee_prompt(
@@ -552,6 +576,97 @@ class Orchestrator:
         )
 
         return header + base_prompt + footer
+
+    # ------------------------------------------------------------------
+    # Dynamic trainee allocation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_trainee_assignments(pi_output: str) -> list[dict] | None:
+        """Parse 'TRAINEES:\\n- name: X | focus: Y' blocks from PI output.
+
+        Returns a list of {"name": str, "focus": str} dicts, or None if
+        no TRAINEES block is found.
+        """
+        # Match a TRAINEES: block followed by lines starting with "- name:"
+        block_match = re.search(
+            r"TRAINEES:\s*\n((?:\s*-\s*name:.+\n?)+)",
+            pi_output,
+            re.IGNORECASE,
+        )
+        if not block_match:
+            return None
+
+        entries = []
+        for line in block_match.group(1).strip().split("\n"):
+            line = line.strip().lstrip("-").strip()
+            # Parse "name: X | focus: Y"
+            m = re.match(
+                r"name:\s*(.+?)\s*\|\s*focus:\s*(.+)",
+                line,
+                re.IGNORECASE,
+            )
+            if m:
+                entries.append({
+                    "name": m.group(1).strip(),
+                    "focus": m.group(2).strip(),
+                })
+        return entries if entries else None
+
+    def _apply_dynamic_trainees(self, pi_output: str) -> None:
+        """Parse PI output for trainee assignments and override self.trainees.
+
+        Also stores dynamic_trainees in state.json for the monitoring UI.
+        """
+        assignments = self._parse_trainee_assignments(pi_output)
+        if not assignments:
+            return
+
+        # Override self.trainees with dynamic assignments, inheriting
+        # provider/model from the first configured trainee as defaults
+        default = self.trainees[0] if self.trainees else None
+        new_trainees = []
+        dynamic_state = []
+        for a in assignments:
+            new_trainees.append(TraineeConfig(
+                name=a["name"],
+                provider_name=default.provider_name if default else "claude-cli",
+                model=default.model if default else "opus",
+                focus=a["focus"],
+                api_key=default.api_key if default else "",
+            ))
+            dynamic_state.append({
+                "name": a["name"],
+                "focus": a["focus"],
+                "status": "pending",
+            })
+
+        self.trainees = new_trainees
+
+        # Persist to state.json for the monitoring UI
+        state = load_state(self.project_dir)
+        state["dynamic_trainees"] = dynamic_state
+        save_state(self.project_dir, state)
+        logger.info(
+            "Dynamic trainees applied: %s",
+            [t["name"] for t in dynamic_state],
+        )
+
+    def _update_trainee_status(
+        self, trainee_name: str, status: str
+    ) -> None:
+        """Update a single trainee's status in state['dynamic_trainees'].
+
+        status: 'pending', 'working', 'done', or 'failed'.
+        """
+        state = load_state(self.project_dir)
+        dynamic = state.get("dynamic_trainees", [])
+        for entry in dynamic:
+            if entry["name"] == trainee_name:
+                entry["status"] = status
+                break
+        state["dynamic_trainees"] = dynamic
+        save_state(self.project_dir, state)
 
     # ------------------------------------------------------------------
     # Summary extraction

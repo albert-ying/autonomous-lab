@@ -1149,6 +1149,22 @@ def setup_routes(manager: "WebUIManager"):
             except Exception:
                 pass
 
+            # Build trainees list for UI
+            orch_mode = config.get("orchestration", "single")
+            dynamic_trainees = state.get("dynamic_trainees", [])
+            if not dynamic_trainees and orch_mode == "multi":
+                # Fallback to config.yaml trainees
+                agents_cfg = config.get("agents", {})
+                if "trainees" in agents_cfg:
+                    dynamic_trainees = [
+                        {
+                            "name": t.get("name", "Trainee"),
+                            "focus": t.get("focus", ""),
+                            "status": "pending",
+                        }
+                        for t in agents_cfg["trainees"]
+                    ]
+
             return JSONResponse(
                 content={
                     "active": True,
@@ -1174,6 +1190,8 @@ def setup_routes(manager: "WebUIManager"):
                     "files": file_listings,
                     "biotools": biotools_info,
                     "domain_config": domain_config,
+                    "orchestration": orch_mode,
+                    "trainees": dynamic_trainees,
                 }
             )
         except Exception as e:

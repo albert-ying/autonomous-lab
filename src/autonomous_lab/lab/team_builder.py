@@ -14,7 +14,7 @@ Falls back to CLI subprocess spawning when not available.
 import logging
 import os
 
-from .state import load_config, load_idea, scan_project_files
+from .state import load_config, load_idea, load_state, scan_project_files
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class TeamBuilder:
         self.project_dir = project_dir
         self.delegate_mode: bool = True
         self.require_plan_approval: bool = False
-        self.teammate_model: str = "sonnet"
+        self.teammate_model: str = "opus"
         self.trainees: list[dict] = []
         self._load_config()
 
@@ -56,7 +56,24 @@ class TeamBuilder:
         self.require_plan_approval = team_cfg.get(
             "require_plan_approval", False
         )
-        self.teammate_model = team_cfg.get("teammate_model", "sonnet")
+        self.teammate_model = team_cfg.get("teammate_model", "opus")
+
+        # Check state.json for dynamic trainees (PI-assigned) first
+        try:
+            state = load_state(self.project_dir)
+            dynamic = state.get("dynamic_trainees", [])
+            if dynamic:
+                self.trainees = [
+                    {
+                        "name": t.get("name", "Trainee"),
+                        "focus": t.get("focus", "general tasks"),
+                        "model": self.teammate_model,
+                    }
+                    for t in dynamic
+                ]
+                return
+        except (FileNotFoundError, Exception):
+            pass  # No state yet — fall through to config.yaml
 
         # Trainee definitions — shared with Orchestrator
         agents_cfg = config.get("agents", {})

@@ -1642,6 +1642,71 @@ code {
 }
 
 /* ============================================================
+   MULTI-AGENT (condensed, inside Get Started)
+   ============================================================ */
+.gs-multi-agent {
+    margin-top: 40px;
+    padding: 24px;
+    background: var(--bg-panel);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+}
+.gs-multi-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+}
+.gs-multi-desc {
+    font-size: 14px;
+    color: var(--text-dim);
+    max-width: 720px;
+    margin: 0 auto 20px;
+    line-height: 1.6;
+}
+.gs-multi-desc code {
+    background: var(--bg-dark);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--text);
+}
+.gs-multi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    text-align: left;
+}
+.gs-multi-card {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+}
+.gs-multi-icon {
+    font-size: 18px;
+    margin-right: 6px;
+}
+.gs-multi-card strong {
+    font-size: 13px;
+    color: var(--text);
+    letter-spacing: 0.5px;
+}
+.gs-multi-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    line-height: 1.5;
+}
+.gs-multi-code {
+    margin-top: 10px;
+    font-size: 11px;
+    padding: 10px;
+}
+
+/* ============================================================
    FOOTER
    ============================================================ */
 #site-footer {
@@ -1687,6 +1752,7 @@ code {
     .hero-sprites { flex-wrap: wrap; }
     .nav-links { display: none; }
     .gs-grid { grid-template-columns: 1fr; }
+    .gs-multi-grid { grid-template-columns: 1fr; }
     .mp-controls { flex-direction: column; align-items: stretch; }
 }
 

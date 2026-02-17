@@ -20,7 +20,6 @@
         </div>
         <div class="nav-links">
             <a href="#hero" class="nav-link active">Home</a>
-            <a href="#multi-agent" class="nav-link">Multi-Agent</a>
             <a href="#tutorial" class="nav-link">Tutorial</a>
             <a href="#characters" class="nav-link">Characters</a>
             <a href="#marketplace" class="nav-link">Marketplace</a>
@@ -101,69 +100,6 @@
                 <span class="badge">&#x23F1;&#xFE0F; 24-Hour Sessions</span>
                 <span class="badge">&#x2699;&#xFE0F; Fully Configurable</span>
                 <span class="badge">&#x1F916; Multi-Agent</span>
-            </div>
-        </div>
-    </section>
-
-    <!-- ========== MULTI-AGENT SECTION ========== -->
-    <section id="multi-agent" class="section">
-        <div class="section-header">
-            <h2 class="section-title">&#x1F916; Multi-Agent Orchestration</h2>
-            <p class="section-subtitle">Each role gets its own context window &mdash; using the CLIs you already have</p>
-        </div>
-
-        <div class="gs-grid">
-            <div class="gs-card">
-                <div class="gs-card-num">&#x1F50C;</div>
-                <h3>Zero Extra Cost</h3>
-                <p>Multi-agent mode spawns separate CLI agents (<code>claude</code>, <code>codex</code>, <code>cursor-agent</code>) for each role. It uses the subscriptions you already pay for &mdash; Claude Pro, ChatGPT Plus, Cursor Pro. No API keys needed.</p>
-            </div>
-
-            <div class="gs-card">
-                <div class="gs-card-num">&#x1F9E0;</div>
-                <h3>Fresh Context Per Role</h3>
-                <p>In single-agent mode, one context window fills with mixed PI and Trainee concerns. Multi-agent gives each role a dedicated context, so the PI thinks like a PI and the Trainee codes like a Trainee.</p>
-            </div>
-
-            <div class="gs-card">
-                <div class="gs-card-num">&#x1F465;</div>
-                <h3>Parallel Trainees</h3>
-                <p>A PI can have multiple trainees working simultaneously. A Data Analyst, a Writer, and a Code Developer &mdash; each with their own focus area and context, running in parallel. If one fails, the others continue.</p>
-                <pre class="gs-code"><code><span class="yaml-key">agents:</span>
-  <span class="yaml-key">pi:</span>
-    <span class="yaml-key">provider:</span> <span class="yaml-val">claude-cli</span>
-    <span class="yaml-key">model:</span> <span class="yaml-val">opus</span>
-  <span class="yaml-key">trainees:</span>
-    - <span class="yaml-key">name:</span> <span class="yaml-val">"Data Analyst"</span>
-      <span class="yaml-key">focus:</span> <span class="yaml-val">"statistics, figures"</span>
-    - <span class="yaml-key">name:</span> <span class="yaml-val">"Writer"</span>
-      <span class="yaml-key">focus:</span> <span class="yaml-val">"paper, LaTeX"</span></code></pre>
-            </div>
-
-            <div class="gs-card">
-                <div class="gs-card-num">&#x2699;</div>
-                <h3>One Line to Enable</h3>
-                <p>Add <code>orchestration: multi</code> to <code>.autolab/config.yaml</code>. That&rsquo;s it. If the CLI isn&rsquo;t installed, it falls back to single-agent automatically. You can also mix providers &mdash; e.g. Claude as PI, Codex as Trainee.</p>
-                <pre class="gs-code"><code><span class="yaml-key">orchestration:</span> <span class="yaml-val">multi</span>
-<span class="yaml-key">agents:</span>
-  <span class="yaml-key">pi:</span>
-    <span class="yaml-key">provider:</span> <span class="yaml-val">claude-cli</span>
-    <span class="yaml-key">model:</span> <span class="yaml-val">opus</span>
-  <span class="yaml-key">trainee:</span>
-    <span class="yaml-key">provider:</span> <span class="yaml-val">codex-cli</span>
-    <span class="yaml-key">model:</span> <span class="yaml-val">o3</span></code></pre>
-            </div>
-
-            <div class="gs-card">
-                <div class="gs-card-num">&#x1F91D;</div>
-                <h3>Agent Teams</h3>
-                <p>In Claude Code with agent teams enabled, multi-agent mode auto-upgrades to native teams. Trainees become teammates that self-coordinate, message each other, and share a task list. Same config, richer collaboration.</p>
-            </div>
-
-            <div class="gs-card">
-                <div class="gs-card-num">&#x1F6E1;</div>
-                <h3>Graceful Fallback</h3>
-                <p>If a CLI binary is missing, an API key isn&rsquo;t set, or anything goes wrong &mdash; the system automatically falls back to single-agent mode for that turn. No configuration changes, no broken sessions. It just works.</p>
             </div>
         </div>
     </section>
@@ -704,6 +640,40 @@ autolab_next  <span class="code-comment"># PI reviews</span>
 autolab_editorial <span class="code-comment"># You decide!</span>
 <span class="code-comment"># Invite reviewers, then:</span>
 <span class="code-comment"># Accept / Minor / Major / Reject</span></code></pre>
+            </div>
+        </div>
+
+        <!-- Multi-Agent Mode (condensed) -->
+        <div id="multi-agent" class="gs-multi-agent">
+            <h3 class="gs-multi-title">&#x1F916; Multi-Agent Mode</h3>
+            <p class="gs-multi-desc">
+                Give each role its own context window. Add <code>orchestration: multi</code> to
+                <code>config.yaml</code> and each role spawns a separate CLI agent
+                (<code>claude</code>, <code>codex</code>, <code>cursor-agent</code>).
+                Uses the subscriptions you already pay for &mdash; no extra API keys needed.
+                Falls back to single-agent automatically if a CLI isn&rsquo;t installed.
+            </p>
+            <div class="gs-multi-grid">
+                <div class="gs-multi-card">
+                    <span class="gs-multi-icon">&#x1F465;</span>
+                    <strong>Parallel Trainees</strong>
+                    <p>Run multiple trainees at once &mdash; a Data Analyst, a Writer, and a Developer, each with their own focus and context.</p>
+                </div>
+                <div class="gs-multi-card">
+                    <span class="gs-multi-icon">&#x1F91D;</span>
+                    <strong>Agent Teams</strong>
+                    <p>In Claude Code, multi-agent auto-upgrades to native teams &mdash; trainees self-coordinate, message each other, and share a task list.</p>
+                </div>
+                <div class="gs-multi-card">
+                    <span class="gs-multi-icon">&#x2699;</span>
+                    <strong>One Line Config</strong>
+                    <pre class="gs-code gs-multi-code"><code><span class="yaml-key">orchestration:</span> <span class="yaml-val">multi</span>
+<span class="yaml-key">agents:</span>
+  <span class="yaml-key">pi:</span> { <span class="yaml-key">provider:</span> <span class="yaml-val">claude-cli</span> }
+  <span class="yaml-key">trainees:</span>
+    - <span class="yaml-key">name:</span> <span class="yaml-val">"Analyst"</span>
+    - <span class="yaml-key">name:</span> <span class="yaml-val">"Writer"</span></code></pre>
+                </div>
             </div>
         </div>
     </section>

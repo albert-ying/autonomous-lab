@@ -413,6 +413,8 @@ def build_pi_prompt(
     user_feedback: str,
     iteration: int,
     domain_config: dict | None = None,
+    orchestration_mode: str = "single",
+    current_trainees: list[dict] | None = None,
 ) -> str:
     """
     Build the PI/Senior role prompt.
@@ -554,7 +556,41 @@ This tool:
 
 Use this BEFORE spending a full turn struggling with an unfamiliar tool. The marketplace has hundreds of community-contributed skills. Only create from scratch when nothing exists.
 
-### 9. PROGRESS
+"""
+
+    if orchestration_mode == "multi":
+        # Build trainee defaults list
+        trainee_lines = ""
+        if current_trainees:
+            for t in current_trainees:
+                name = t.get("name", "Trainee")
+                focus = t.get("focus", "general tasks")
+                trainee_lines += f"  - {name}: {focus}\n"
+        else:
+            trainee_lines = "  - Trainee: general tasks\n"
+
+        prompt += f"""### 8b. TRAINEE ASSIGNMENTS (Multi-Agent Mode)
+
+You are running in **multi-agent mode**. You may dynamically allocate trainees.
+
+Current default trainees:
+{trainee_lines}
+To override, output a TRAINEES block:
+```
+TRAINEES:
+- name: Data Analyst | focus: run the sensitivity analysis, generate Figure 4
+- name: Writer | focus: draft the discussion section
+```
+
+Guidelines:
+- Each trainee gets their own context window and runs in parallel
+- Assign clear, non-overlapping focus areas
+- Use 1-4 trainees depending on parallelizable work
+- If the defaults are fine, skip this section entirely
+
+"""
+
+    prompt += f"""### 9. PROGRESS
 Assess overall project progress from 0-100. This drives the progress bar in the monitoring UI. Consider:
 - 0-10: Project planning / initial research
 - 10-30: Core work running, preliminary results

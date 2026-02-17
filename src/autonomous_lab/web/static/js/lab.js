@@ -308,23 +308,145 @@
     }
   }
 
+  // Palette variants for dynamic trainees (cycling through distinct colors)
+  const TRAINEE_PALETTE_VARIANTS = [
+    // Original trainee blue
+    {0:null,1:"#f4c7a3",2:"#7a5c3a",3:"#333",4:"#4a78bc",5:"#4a78bc",6:"#4a5a8a",7:"#e0d8c8",8:"#d46b6b",9:"#4a78bc"},
+    // Teal
+    {0:null,1:"#f4c7a3",2:"#3a5a5a",3:"#333",4:"#2a8a7a",5:"#50b0a0",6:"#2a5a5a",7:"#e0d8c8",8:"#d46b6b",9:"#2a8a7a"},
+    // Purple
+    {0:null,1:"#e8b888",2:"#4a2a5a",3:"#333",4:"#6a4a8a",5:"#8a6ab0",6:"#4a3a6a",7:"#e0d8c8",8:"#d46b6b",9:"#6a4a8a"},
+    // Orange
+    {0:null,1:"#f4c7a3",2:"#6a3a1a",3:"#333",4:"#aa6a2a",5:"#cc8a3a",6:"#6a4a2a",7:"#e0d8c8",8:"#d46b6b",9:"#aa6a2a"},
+  ];
+
+  let _lastTraineeKey = "";  // fingerprint to avoid re-rendering unchanged trainee cards
+  let _dynamicSpriteIntervals = [];  // track intervals for cleanup
+
   function updateCharacterStatus(state) {
     const piCard = document.getElementById("pi-card");
     const traineeCard = document.getElementById("trainee-card");
     const piStatus = document.getElementById("pi-status");
     const traineeStatus = document.getElementById("trainee-status");
+    const traineesContainer = document.getElementById("trainees-container");
 
     piCard.className = "char-card";
-    traineeCard.className = "char-card";
 
-    if (state.next_role === "pi") {
-      piCard.classList.add("active", "active-pi");
-      piStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Thinking...</span>';
-      traineeStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Waiting</span>';
+    // ── Multi-agent mode with trainees list ──
+    const isMulti = state.orchestration === "multi" && state.trainees && state.trainees.length > 0;
+
+    if (isMulti) {
+      // Hide default trainee card, show dynamic trainees container
+      traineeCard.style.display = "none";
+      traineesContainer.style.display = "block";
+
+      // PI status
+      if (state.next_role === "pi") {
+        piCard.classList.add("active", "active-pi");
+        piStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Thinking...</span>';
+      } else {
+        piStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Reviewing</span>';
+      }
+
+      // Build a key from trainee names + statuses to detect changes
+      const traineeKey = state.trainees.map(t => `${t.name}:${t.status||"pending"}`).join("|");
+      if (traineeKey === _lastTraineeKey) return;
+      _lastTraineeKey = traineeKey;
+
+      // Clear old sprite intervals
+      _dynamicSpriteIntervals.forEach(id => clearInterval(id));
+      _dynamicSpriteIntervals = [];
+
+      // Rebuild trainee cards
+      traineesContainer.innerHTML = "";
+
+      // Divider header
+      const divider = document.createElement("div");
+      divider.className = "trainees-divider";
+      divider.innerHTML = `<span>${domainLabels.junior_label}s (${state.trainees.length})</span>`;
+      traineesContainer.appendChild(divider);
+
+      state.trainees.forEach((t, idx) => {
+        const card = document.createElement("div");
+        const st = t.status || "pending";
+        card.className = `trainee-dynamic-card ${st}`;
+        card.dataset.name = t.name;
+
+        // Canvas for sprite
+        const canvas = document.createElement("canvas");
+        canvas.width = 40;
+        canvas.height = 64;
+        canvas.className = "trainee-dynamic-sprite";
+        canvas.style.imageRendering = "pixelated";
+        const palette = TRAINEE_PALETTE_VARIANTS[idx % TRAINEE_PALETTE_VARIANTS.length];
+        const frame = FRAME_NO_GLASSES;
+        renderSprite(canvas, frame, palette);
+
+        // Animate blink with staggered timing
+        const blinkInterval = setInterval(() => {
+          const blinkFrame = frame.map((r,y) => y === 3 ? [0,0,1,1,1,1,1,1,0,0] : r);
+          renderSprite(canvas, blinkFrame, palette);
+          setTimeout(() => renderSprite(canvas, frame, palette), 200);
+        }, 3500 + idx * 700);
+        _dynamicSpriteIntervals.push(blinkInterval);
+
+        // Info section
+        const info = document.createElement("div");
+        info.className = "trainee-dynamic-info";
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "trainee-dynamic-name";
+        nameEl.textContent = t.name;
+        info.appendChild(nameEl);
+
+        if (t.focus) {
+          const focusEl = document.createElement("div");
+          focusEl.className = "trainee-focus";
+          focusEl.textContent = t.focus;
+          focusEl.title = t.focus;
+          info.appendChild(focusEl);
+        }
+
+        // Status indicator
+        const statusEl = document.createElement("div");
+        statusEl.className = "trainee-dynamic-status";
+        const statusMap = {
+          pending: { cls: "idle", text: "Pending" },
+          working: { cls: "working", text: "Working..." },
+          done: { cls: "done", text: "Done" },
+          failed: { cls: "failed", text: "Failed" },
+        };
+        const sm = statusMap[st] || statusMap.pending;
+        statusEl.innerHTML = `<span class="status-indicator ${sm.cls}"></span><span class="status-label">${sm.text}</span>`;
+        info.appendChild(statusEl);
+
+        card.appendChild(canvas);
+        card.appendChild(info);
+
+        // Click to show thought bubble
+        card.addEventListener("click", () => {
+          showFixedBubble(card, t.focus || `${t.name} is ${sm.text.toLowerCase()}...`);
+        });
+
+        traineesContainer.appendChild(card);
+      });
+
     } else {
-      traineeCard.classList.add("active", "active-trainee");
-      traineeStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Working...</span>';
-      piStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Reviewing</span>';
+      // ── Single-agent mode (original behavior) ──
+      traineeCard.style.display = "";
+      traineesContainer.style.display = "none";
+      traineeCard.className = "char-card";
+      _lastTraineeKey = "";
+
+      if (state.next_role === "pi") {
+        piCard.classList.add("active", "active-pi");
+        piStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Thinking...</span>';
+        traineeStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Waiting</span>';
+      } else {
+        traineeCard.classList.add("active", "active-trainee");
+        traineeStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Working...</span>';
+        piStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Reviewing</span>';
+      }
     }
   }
 
@@ -675,7 +797,11 @@
       bubble.className = `turn-bubble ${turn.role}`;
 
       const roleIcon = turn.role === "pi" ? "\uD83D\uDD2C" : "\uD83E\uDDEA";
-      const roleName = turn.role === "pi" ? domainLabels.senior_label : domainLabels.junior_label;
+      // Multi-trainee turns have summaries with " | " separators
+      const isMultiTrainee = turn.role === "trainee" && turn.summary && turn.summary.includes(" | ");
+      const roleName = turn.role === "pi"
+        ? domainLabels.senior_label
+        : (isMultiTrainee ? domainLabels.junior_label + "s (team)" : domainLabels.junior_label);
       const summaryText = turn.summary || "(no summary)";
       const hasDetails = turn.content && turn.content.length > 0;
       const detailId = `detail-${idx}`;

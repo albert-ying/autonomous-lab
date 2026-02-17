@@ -1170,6 +1170,19 @@ async def autolab_next(
     role_label = dcfg["senior_label"] if role == "pi" else dcfg["junior_label"]
 
     if role == "pi":
+        from .lab.state import load_config as _load_cfg_sa
+        _sa_config = _load_cfg_sa(project_directory)
+        _sa_orch_mode = _sa_config.get("orchestration", "single")
+        # Build trainee info for multi-agent mode prompt section
+        _sa_trainees = None
+        if _sa_orch_mode == "multi":
+            _sa_agents = _sa_config.get("agents", {})
+            if "trainees" in _sa_agents:
+                _sa_trainees = [
+                    {"name": t.get("name", "Trainee"), "focus": t.get("focus", "")}
+                    for t in _sa_agents["trainees"]
+                ]
+
         prompt = build_pi_prompt(
             idea=idea,
             profile=profile,
@@ -1179,6 +1192,8 @@ async def autolab_next(
             user_feedback=user_feedback,
             iteration=iteration,
             domain_config=dcfg,
+            orchestration_mode=_sa_orch_mode,
+            current_trainees=_sa_trainees,
         )
     else:
         prompt = build_trainee_prompt(

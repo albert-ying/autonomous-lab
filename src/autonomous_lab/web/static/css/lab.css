@@ -215,6 +215,113 @@ h1, h2, .badge-value, .char-name, .panel-icon {
 .status-label { font-size: 11px; color: var(--text-dim); }
 
 /* ============================================================
+   DYNAMIC TRAINEE CARDS (multi-agent mode)
+   ============================================================ */
+#trainees-container { margin-top: 4px; }
+
+.trainees-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    margin-bottom: 4px;
+}
+.trainees-divider span {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: var(--trainee-color);
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+.trainees-divider::before,
+.trainees-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.trainee-dynamic-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px;
+    background: var(--bg-panel-light);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
+}
+.trainee-dynamic-card:hover {
+    border-color: var(--trainee-color);
+}
+.trainee-dynamic-card.working {
+    border-color: var(--trainee-color);
+    box-shadow: 0 0 12px rgba(107, 255, 176, 0.2);
+}
+.trainee-dynamic-card.done {
+    border-color: var(--green);
+    opacity: 0.7;
+}
+.trainee-dynamic-card.failed {
+    border-color: var(--red);
+    opacity: 0.7;
+}
+
+.trainee-dynamic-card canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 36px;
+    height: 58px;
+    flex-shrink: 0;
+}
+
+.trainee-dynamic-info {
+    flex: 1;
+    min-width: 0;
+}
+.trainee-dynamic-name {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: var(--trainee-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+.trainee-focus {
+    font-size: 9px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-bottom: 3px;
+}
+.trainee-dynamic-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.trainee-dynamic-status .status-indicator.done {
+    background: var(--green);
+    animation: none;
+}
+.trainee-dynamic-status .status-indicator.failed {
+    background: var(--red);
+    animation: none;
+}
+
+/* Bobbing animation for dynamic trainee sprites */
+.trainee-dynamic-card canvas {
+    animation: char-bob 3s ease-in-out infinite;
+}
+.trainee-dynamic-card.working canvas {
+    animation: char-bob-fast 1.5s ease-in-out infinite;
+}
+
+/* ============================================================
    EXPERT CHARACTER CARDS (compact)
    ============================================================ */
 .experts-section { margin-top: 4px; }
