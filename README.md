@@ -7,11 +7,9 @@
 MCP server that turns any senior-junior workflow into an autonomous loop. AI handles the execution. You make the decisions.
 
 <p align="center">
-  <video src="https://github.com/albert-ying/autonomous-lab/raw/main/docs/intro.mp4" width="700" autoplay loop muted playsinline>
-    <a href="https://autolab.kejunying.com">
-      <img src="docs/screenshot.png" alt="Autonomous Lab" width="700">
-    </a>
-  </video>
+  <a href="https://autolab.kejunying.com">
+    <img src="docs/intro.gif" alt="Autonomous Lab" width="700">
+  </a>
 </p>
 
 ## Vision
