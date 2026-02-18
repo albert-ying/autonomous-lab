@@ -159,11 +159,26 @@ code {
     align-items: center;
     justify-content: center;
     text-align: center;
-    min-height: 100vh;
-    padding-top: 56px;
+    min-height: auto;
+    padding-top: 80px;
+    padding-bottom: 40px;
 }
 
 .hero-content { max-width: 880px; }
+
+/* Concept Visual — sprites + domain switcher block */
+.hero-concept {
+    margin-top: 48px;
+    padding-top: 48px;
+    border-top: 1px solid rgba(107, 94, 138, 0.3);
+}
+
+/* Features Strip — MCP banner + badges */
+.hero-features {
+    margin-top: 40px;
+    padding-top: 40px;
+    border-top: 1px solid rgba(107, 94, 138, 0.3);
+}
 
 .hero-sprites {
     display: flex;
@@ -405,6 +420,28 @@ code {
     padding: 8px 14px;
     border-radius: 3px;
     letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   VIDEO SHOWCASE
+   ============================================================ */
+.video-showcase {
+    padding: 60px 48px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.video-container {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.video-container video {
+    width: 100%;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(107, 94, 138, 0.1);
 }
 
 /* ============================================================
@@ -1742,6 +1779,7 @@ code {
 @media (max-width: 900px) {
     .section { padding: 80px 20px 40px; }
     .hero-title { font-size: 20px; }
+    .video-showcase { padding: 40px 20px 60px; }
     .lab-frame-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: auto; }
     .lf-characters { flex-direction: row; border-right: none; border-bottom: 2px solid var(--border); overflow-x: auto; }
     .lf-conversation { min-height: 360px; }

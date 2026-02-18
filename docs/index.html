@@ -36,6 +36,7 @@
     <!-- ========== HERO SECTION ========== -->
     <section id="hero" class="section hero-section">
         <div class="hero-content">
+            <!-- Block 1: The Hook (above the fold) -->
             <h1 class="hero-title">Autonomous Lab</h1>
             <p class="hero-subtitle">You did the research. Now you judge it.</p>
             <p class="hero-description">
@@ -44,68 +45,84 @@
                 You become the <strong class="dyn-overseer">Editor</strong>: the sole decision maker who
                 curates, judges, and steers the science.
             </p>
-            <div class="hero-video" style="margin: 32px auto; text-align: center;">
-                <video width="800" autoplay loop muted playsinline style="border-radius: 8px; border: 2px solid #6b5e8a; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 90%;">
-                    <source src="intro.mp4" type="video/mp4">
-                </video>
-            </div>
             <div class="hero-cta">
                 <a href="#tutorial" class="btn-primary">See How It Works</a>
                 <a href="#marketplace" class="btn-secondary">Browse Characters</a>
             </div>
-            <!-- Domain Switcher — Tag-machine selector -->
-            <div class="domain-switcher">
-                <button class="domain-pill active" data-domain="research">&#x1F52C; Research</button>
-                <button class="domain-pill" data-domain="software">&#x1F4BB; Software</button>
-                <button class="domain-pill" data-domain="consulting">&#x1F4BC; Consulting</button>
-                <button class="domain-pill" data-domain="legal">&#x2696;&#xFE0F; Legal</button>
-                <button class="domain-pill" data-domain="medical">&#x1FA7A; Medical</button>
-                <button class="domain-pill" data-domain="creative">&#x1F3A8; Creative</button>
-            </div>
-            <div class="hero-sprites">
-                <div class="hero-char">
-                    <canvas id="hero-pi-sprite" width="40" height="64"></canvas>
-                    <div class="hero-char-label pi-label">Professor</div>
+
+            <!-- Block 2: Concept Visual (sprites + domain switcher) -->
+            <div class="hero-concept">
+                <div class="hero-sprites">
+                    <div class="hero-char">
+                        <canvas id="hero-pi-sprite" width="40" height="64"></canvas>
+                        <div class="hero-char-label pi-label">Professor</div>
+                    </div>
+                    <div class="hero-arrow">
+                        <div class="arrow-line"></div>
+                        <div class="arrow-label">collaborate</div>
+                        <div class="arrow-line"></div>
+                    </div>
+                    <div class="hero-char">
+                        <canvas id="hero-trainee-sprite" width="40" height="64"></canvas>
+                        <div class="hero-char-label trainee-label">Trainee</div>
+                    </div>
+                    <div class="hero-arrow">
+                        <div class="arrow-line"></div>
+                        <div class="arrow-label">submit</div>
+                        <div class="arrow-line"></div>
+                    </div>
+                    <div class="hero-char hero-you">
+                        <div class="hero-you-icon">&#x1F9D1;&#x200D;&#x1F52C;</div>
+                        <div class="hero-char-label editor-label">You (Editor)</div>
+                    </div>
                 </div>
-                <div class="hero-arrow">
-                    <div class="arrow-line"></div>
-                    <div class="arrow-label">collaborate</div>
-                    <div class="arrow-line"></div>
-                </div>
-                <div class="hero-char">
-                    <canvas id="hero-trainee-sprite" width="40" height="64"></canvas>
-                    <div class="hero-char-label trainee-label">Trainee</div>
-                </div>
-                <div class="hero-arrow">
-                    <div class="arrow-line"></div>
-                    <div class="arrow-label">submit</div>
-                    <div class="arrow-line"></div>
-                </div>
-                <div class="hero-char hero-you">
-                    <div class="hero-you-icon">&#x1F9D1;&#x200D;&#x1F52C;</div>
-                    <div class="hero-char-label editor-label">You (Editor)</div>
-                </div>
-            </div>
-            <p class="hero-kicker">Senior. Junior. You. The work unit, reimagined.</p>
-            <div class="hero-mcp-banner">
-                <span class="mcp-label">&#x1F50C; MCP Server</span>
-                <span class="mcp-desc">Integrates seamlessly into your existing AI agent workflow.
-                    Reuse your skills. Configure characters. Run 24-hour sessions.</span>
-                <div class="mcp-tools">
-                    <span class="mcp-tool">Cursor</span>
-                    <span class="mcp-tool">Claude Code</span>
-                    <span class="mcp-tool">Codex CLI</span>
-                    <span class="mcp-tool">Windsurf</span>
-                    <span class="mcp-tool">Any MCP Client</span>
+                <p class="hero-kicker">Senior. Junior. You. The work unit, reimagined.</p>
+                <!-- Domain Switcher — Tag-machine selector -->
+                <div class="domain-switcher">
+                    <button class="domain-pill active" data-domain="research">&#x1F52C; Research</button>
+                    <button class="domain-pill" data-domain="software">&#x1F4BB; Software</button>
+                    <button class="domain-pill" data-domain="consulting">&#x1F4BC; Consulting</button>
+                    <button class="domain-pill" data-domain="legal">&#x2696;&#xFE0F; Legal</button>
+                    <button class="domain-pill" data-domain="medical">&#x1FA7A; Medical</button>
+                    <button class="domain-pill" data-domain="creative">&#x1F3A8; Creative</button>
                 </div>
             </div>
-            <div class="hero-badges">
-                <span class="badge">&#x1F4DD; LaTeX Papers</span>
-                <span class="badge">&#x1F9EC; Skill Containers</span>
-                <span class="badge">&#x23F1;&#xFE0F; 24-Hour Sessions</span>
-                <span class="badge">&#x2699;&#xFE0F; Fully Configurable</span>
-                <span class="badge">&#x1F916; Multi-Agent</span>
+
+            <!-- Block 3: Features Strip -->
+            <div class="hero-features">
+                <div class="hero-mcp-banner">
+                    <span class="mcp-label">&#x1F50C; MCP Server</span>
+                    <span class="mcp-desc">Integrates seamlessly into your existing AI agent workflow.
+                        Reuse your skills. Configure characters. Run 24-hour sessions.</span>
+                    <div class="mcp-tools">
+                        <span class="mcp-tool">Cursor</span>
+                        <span class="mcp-tool">Claude Code</span>
+                        <span class="mcp-tool">Codex CLI</span>
+                        <span class="mcp-tool">Windsurf</span>
+                        <span class="mcp-tool">Any MCP Client</span>
+                    </div>
+                </div>
+                <div class="hero-badges">
+                    <span class="badge">&#x1F4DD; LaTeX Papers</span>
+                    <span class="badge">&#x1F9EC; Skill Containers</span>
+                    <span class="badge">&#x23F1;&#xFE0F; 24-Hour Sessions</span>
+                    <span class="badge">&#x2699;&#xFE0F; Fully Configurable</span>
+                    <span class="badge">&#x1F916; Multi-Agent</span>
+                </div>
             </div>
+        </div>
+    </section>
+
+    <!-- ========== VIDEO SHOWCASE ========== -->
+    <section id="video-showcase" class="video-showcase">
+        <div class="section-header">
+            <h2 class="section-title">&#x1F3AC; See It In Action</h2>
+            <p class="section-subtitle">A 50-second walkthrough of a full research session</p>
+        </div>
+        <div class="video-container">
+            <video autoplay loop muted playsinline>
+                <source src="intro.mp4" type="video/mp4">
+            </video>
         </div>
     </section>
 
