@@ -2448,6 +2448,7 @@ _SKILL_CATALOG = {
         "scientific-writing",
         "literature-review",
         "peer-review",
+        "scientific-analysis-review",
         "scientific-brainstorming",
         "hypothesis-generation",
         "venue-templates",

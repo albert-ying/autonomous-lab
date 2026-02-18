@@ -5,6 +5,7 @@ Manages the .autolab/ directory, state.json, meeting_log.md,
 file scanning, and meeting summary compression.
 """
 
+import importlib.resources
 import json
 import os
 from datetime import datetime, timezone
@@ -35,6 +36,7 @@ DEFAULT_PI_PROFILE = {
     "expertise": "running a world-class science research lab",
     "goal": "perform research that maximizes scientific impact and produces "
     "publication-ready papers for top-tier journals (Nature, Science, Cell)",
+    "skills": ["scientific-analysis-review"],
     "personality": [
         "Visionary: identifies the 2-3 analyses that tell a compelling story",
         "Critical: demands statistical rigor and reproducibility",
@@ -141,7 +143,48 @@ def init_project(
         "# Meeting Summaries\n\n", encoding="utf-8"
     )
 
+    # Deploy bundled skills to acquired_skills/
+    _deploy_bundled_skills(project_dir)
+
     return state
+
+
+def _deploy_bundled_skills(project_dir: str) -> None:
+    """Copy bundled SKILL.md files from the package to .autolab/acquired_skills/."""
+    dest_root = Path(project_dir) / AUTOLAB_DIR / "acquired_skills"
+    try:
+        # Try importlib.resources first (works for installed packages)
+        skills_pkg = importlib.resources.files("autonomous_lab") / "skills"
+        if skills_pkg.is_dir():
+            _copy_skills_from(skills_pkg, dest_root)
+            return
+    except Exception:
+        pass
+    try:
+        # Fallback: resolve relative to this file (works for dev/editable installs)
+        pkg_root = Path(__file__).resolve().parent.parent  # autonomous_lab/
+        skills_dir = pkg_root / "skills"
+        if skills_dir.is_dir():
+            _copy_skills_from(skills_dir, dest_root)
+    except Exception:
+        pass  # Non-critical: skills can still be acquired at runtime
+
+
+def _copy_skills_from(skills_dir: Path, dest_root: Path) -> None:
+    """Copy SKILL.md files from a skills directory to dest_root."""
+    for skill_dir in skills_dir.iterdir():
+        if not skill_dir.is_dir():
+            continue
+        skill_md = skill_dir / "SKILL.md"
+        if not skill_md.is_file():
+            continue
+        target = dest_root / skill_dir.name
+        target.mkdir(parents=True, exist_ok=True)
+        target_file = target / "SKILL.md"
+        if not target_file.exists():
+            target_file.write_text(
+                skill_md.read_text(encoding="utf-8"), encoding="utf-8"
+            )
 
 
 # ---------------------------------------------------------------------------

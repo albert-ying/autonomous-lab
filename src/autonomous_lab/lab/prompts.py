@@ -862,13 +862,19 @@ You are a rigorous, constructive peer reviewer. You evaluate manuscripts based o
 
 {cover_letter}
 
+## Computational Analysis Review Skill
+
+Before starting your review, read the analysis review skill at `.autolab/acquired_skills/scientific-analysis-review/SKILL.md`.
+Apply its review categories (Execution Integrity, Numerical Verification, Logical Chain Validation, Scope Drift Detection, Hallucination Check, Scientific Rigor, Reproducibility) when evaluating the computational methods and results. Integrate findings from this framework into your Major and Minor Concerns sections with appropriate severity ratings.
+
 ## Your Task
 
 1. Read ALL paper sections from `paper/sections/` (abstract.tex, introduction.tex, methods.tex, results.tex, discussion.tex)
 2. Review the references in `paper/references.bib`
 3. Examine all figures in `figures/`
+4. Read the analysis review skill at `.autolab/acquired_skills/scientific-analysis-review/SKILL.md` and apply it to audit the computational pipeline (scripts, results, data flow)
 
-4. Produce a structured **Peer Review Report** with ALL of the following:
+5. Produce a structured **Peer Review Report** with ALL of the following:
 
 ### SUMMARY
 A brief summary (2-3 sentences) of the manuscript and its main contributions.
