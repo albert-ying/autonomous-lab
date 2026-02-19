@@ -147,11 +147,7 @@
     if (!dcfg) return;
     Object.assign(domainLabels, dcfg);
 
-    // Character card names
-    const piName = document.querySelector("#pi-card .char-name");
-    if (piName) piName.textContent = domainLabels.senior_label;
-    const trainName = document.querySelector("#trainee-card .char-name");
-    if (trainName) trainName.textContent = domainLabels.junior_label;
+    // Character card names (dynamic roster handles its own labels via renderTeamRoster)
 
     // Meeting log panel header
     const convHeader = document.querySelector("#conversation-panel .panel-header h2");
@@ -199,22 +195,37 @@
 
   // ============================================================
   // SPRITE ANIMATION LOOP
+  // Sprites are now created dynamically by renderTeamRoster().
+  // The animation loop looks up canvases by ID each tick so it
+  // works even after the DOM is rebuilt by the roster renderer.
   // ============================================================
   function animateSprites() {
-    const piC = document.getElementById("pi-sprite");
-    const trC = document.getElementById("trainee-sprite");
-
     setInterval(() => {
-      renderSprite(piC, PI_FRAME_2, PI_PALETTE);
-      setTimeout(() => renderSprite(piC, PI_FRAME_1, PI_PALETTE), 200);
+      const piC = document.getElementById("pi-sprite");
+      if (piC) {
+        renderSprite(piC, PI_FRAME_2, PI_PALETTE);
+        setTimeout(() => {
+          const piC2 = document.getElementById("pi-sprite");
+          if (piC2) renderSprite(piC2, PI_FRAME_1, PI_PALETTE);
+        }, 200);
+      }
     }, 3000);
     setInterval(() => {
-      renderSprite(trC, TRAINEE_FRAME_2, TRAINEE_PALETTE);
-      setTimeout(() => renderSprite(trC, TRAINEE_FRAME_1, TRAINEE_PALETTE), 200);
+      const trC = document.getElementById("trainee-sprite");
+      if (trC) {
+        renderSprite(trC, TRAINEE_FRAME_2, TRAINEE_PALETTE);
+        setTimeout(() => {
+          const trC2 = document.getElementById("trainee-sprite");
+          if (trC2) renderSprite(trC2, TRAINEE_FRAME_1, TRAINEE_PALETTE);
+        }, 200);
+      }
     }, 4200);
 
-    renderSprite(piC, PI_FRAME_1, PI_PALETTE);
-    renderSprite(trC, TRAINEE_FRAME_1, TRAINEE_PALETTE);
+    // Initial render (canvases may not exist yet; renderTeamRoster handles initial draw)
+    const piC = document.getElementById("pi-sprite");
+    if (piC) renderSprite(piC, PI_FRAME_1, PI_PALETTE);
+    const trC = document.getElementById("trainee-sprite");
+    if (trC) renderSprite(trC, TRAINEE_FRAME_1, TRAINEE_PALETTE);
   }
 
   // ============================================================
@@ -235,12 +246,14 @@
           updateLabTimer();
         }
         updateStatusBar(data);
+        renderTeamRoster(data);
         updateCharacterStatus(data);
         updateInventory(data);
         updatePaperProgress(data);
         updateProgressBar(data);
         updateExperts(data);
         updateEditorDesk(data);
+        renderRecruitingDashboard(data);
       }
     } catch (e) { console.warn("State fetch error:", e); }
   }
@@ -324,29 +337,16 @@
   let _dynamicSpriteIntervals = [];  // track intervals for cleanup
 
   function updateCharacterStatus(state) {
-    const piCard = document.getElementById("pi-card");
-    const traineeCard = document.getElementById("trainee-card");
-    const piStatus = document.getElementById("pi-status");
-    const traineeStatus = document.getElementById("trainee-status");
+    // Character status is now primarily handled by renderTeamRoster().
+    // This function retains multi-agent (orchestration=multi) trainee support
+    // via the #trainees-container for backward compatibility.
     const traineesContainer = document.getElementById("trainees-container");
-
-    piCard.className = "char-card";
 
     // ── Multi-agent mode with trainees list ──
     const isMulti = state.orchestration === "multi" && state.trainees && state.trainees.length > 0;
 
-    if (isMulti) {
-      // Hide default trainee card, show dynamic trainees container
-      traineeCard.style.display = "none";
+    if (isMulti && traineesContainer) {
       traineesContainer.style.display = "block";
-
-      // PI status
-      if (state.next_role === "pi") {
-        piCard.classList.add("active", "active-pi");
-        piStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Thinking...</span>';
-      } else {
-        piStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Reviewing</span>';
-      }
 
       // Build a key from trainee names + statuses to detect changes
       const traineeKey = state.trainees.map(t => `${t.name}:${t.status||"pending"}`).join("|");
@@ -431,23 +431,167 @@
         traineesContainer.appendChild(card);
       });
 
-    } else {
-      // ── Single-agent mode (original behavior) ──
-      traineeCard.style.display = "";
+    } else if (traineesContainer) {
       traineesContainer.style.display = "none";
-      traineeCard.className = "char-card";
       _lastTraineeKey = "";
-
-      if (state.next_role === "pi") {
-        piCard.classList.add("active", "active-pi");
-        piStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Thinking...</span>';
-        traineeStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Waiting</span>';
-      } else {
-        traineeCard.classList.add("active", "active-trainee");
-        traineeStatus.innerHTML = '<span class="status-indicator working"></span><span class="status-label">Working...</span>';
-        piStatus.innerHTML = '<span class="status-indicator idle"></span><span class="status-label">Reviewing</span>';
-      }
     }
+  }
+
+  // ============================================================
+  // DYNAMIC TEAM ROSTER — renders PI + recruited characters
+  // ============================================================
+  let _lastRosterKey = "";  // fingerprint to avoid unnecessary re-renders
+
+  function renderTeamRoster(state) {
+    const roster = document.getElementById("team-roster");
+    if (!roster) return;
+
+    const recruitment = state.recruitment || { characters: [] };
+    const characters = recruitment.characters || [];
+    const nextRole = state.next_role || "";
+
+    // Build a fingerprint to avoid re-rendering unchanged roster
+    const rosterKey = JSON.stringify({
+      nr: nextRole,
+      chars: characters.map(c => `${c.slug}:${c.ready}:${JSON.stringify(c.skills||{})}`),
+      dl: domainLabels.senior_short,
+    });
+    if (rosterKey === _lastRosterKey) return;
+    _lastRosterKey = rosterKey;
+
+    // Always show PI card
+    let html = `
+        <div class="char-card ${nextRole === 'pi' ? 'active active-pi' : ''}" data-role="pi">
+            <div class="char-header">
+                <span class="char-role-icon">&#x1F52C;</span>
+                <span class="char-name">${escapeHtmlSafe(domainLabels.senior_label || 'PI')}</span>
+            </div>
+            <div class="char-sprite-wrap">
+                <canvas id="pi-sprite" width="40" height="64"></canvas>
+            </div>
+            <div class="char-status">
+                <span class="status-indicator ${nextRole === 'pi' ? 'working' : 'idle'}"></span>
+                <span class="status-label">${nextRole === 'pi' ? 'Thinking...' : 'Idle'}</span>
+            </div>
+        </div>
+    `;
+
+    // Render each recruited character
+    for (const char of characters) {
+      const isActive = nextRole === char.slug;
+      const skills = char.skills || {};
+      const badgesHtml = Object.entries(skills).map(([name, info]) => {
+        const status = (typeof info === "object" ? info.status : info) || "unknown";
+        const icons = {certified: "\u2713", testing: "\u27F3", learning: "\u25CC", failed: "\u2717", queued: "\u00B7"};
+        return `<span class="skill-badge ${escapeHtmlSafe(status)}"><span class="skill-icon">${icons[status] || '?'}</span>${escapeHtmlSafe(name)}</span>`;
+      }).join("");
+
+      html += `
+          <div class="char-card ${isActive ? 'active active-trainee' : ''}" data-role="${escapeHtmlSafe(char.slug || 'trainee')}">
+              <div class="char-header">
+                  <span class="char-role-icon">&#x1F9EA;</span>
+                  <span class="char-name">${escapeHtmlSafe(char.name || char.slug || 'Trainee')}</span>
+              </div>
+              <div class="char-sprite-wrap">
+                  <canvas class="trainee-sprite" data-avatar="${escapeHtmlSafe(char.avatar || 'generic')}" width="40" height="64"></canvas>
+              </div>
+              <div class="char-status">
+                  <span class="status-indicator ${isActive ? 'working' : 'idle'}"></span>
+                  <span class="status-label">${isActive ? 'Working...' : (char.ready ? 'Ready' : 'Training')}</span>
+              </div>
+              ${badgesHtml ? '<div class="skill-badges">' + badgesHtml + '</div>' : ''}
+          </div>
+      `;
+    }
+
+    // If no characters recruited yet, show default trainee card
+    if (characters.length === 0) {
+      html += `
+          <div class="char-card ${nextRole === 'trainee' ? 'active active-trainee' : ''}" data-role="trainee">
+              <div class="char-header">
+                  <span class="char-role-icon">&#x1F9EA;</span>
+                  <span class="char-name">${escapeHtmlSafe(domainLabels.junior_label || 'Trainee')}</span>
+              </div>
+              <div class="char-sprite-wrap">
+                  <canvas id="trainee-sprite" width="40" height="64"></canvas>
+              </div>
+              <div class="char-status">
+                  <span class="status-indicator ${nextRole === 'trainee' ? 'working' : 'idle'}"></span>
+                  <span class="status-label">${nextRole === 'trainee' ? 'Working...' : 'Idle'}</span>
+              </div>
+          </div>
+      `;
+    }
+
+    roster.innerHTML = html;
+
+    // Render sprites on the newly created canvases
+    const piCanvas = document.getElementById("pi-sprite");
+    if (piCanvas) renderSprite(piCanvas, PI_FRAME_1, PI_PALETTE);
+
+    const defaultTrainee = document.getElementById("trainee-sprite");
+    if (defaultTrainee) renderSprite(defaultTrainee, TRAINEE_FRAME_1, TRAINEE_PALETTE);
+
+    // Render expert-type sprites for recruited characters
+    roster.querySelectorAll("canvas.trainee-sprite").forEach((canvas) => {
+      const avatarType = canvas.dataset.avatar || "generic";
+      const def = EXPERT_DEFS[avatarType];
+      if (def) {
+        const frame = def.glasses ? FRAME_GLASSES : FRAME_NO_GLASSES;
+        renderSprite(canvas, frame, def.palette);
+      } else {
+        renderSprite(canvas, TRAINEE_FRAME_1, TRAINEE_PALETTE);
+      }
+    });
+
+    // Attach click handlers for thought bubbles on all cards
+    roster.querySelectorAll(".char-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const role = card.dataset.role || "trainee";
+        showThought(role);
+      });
+    });
+  }
+
+  // ============================================================
+  // RECRUITING DASHBOARD — shown in center column during recruiting phase
+  // ============================================================
+  function renderRecruitingDashboard(state) {
+    const panel = document.getElementById("conversation-content");
+    if (!panel) return;
+    if (state.phase !== "recruiting") return;
+
+    const recruitment = state.recruitment || {};
+    const characters = recruitment.characters || [];
+    if (characters.length === 0) return;
+
+    let html = '<div class="recruiting-dashboard">';
+    html += '<div class="recruiting-title">&#x1F4CB; RECRUITING PHASE</div>';
+    html += '<p style="color:var(--text-dim);margin-bottom:16px;">The ' + escapeHtmlSafe(domainLabels.senior_label) + ' is assembling a research team...</p>';
+
+    for (const char of characters) {
+      html += '<div class="recruiting-card">';
+      html += '<div class="recruiting-card-header">';
+      html += '<span class="recruiting-card-name">' + escapeHtmlSafe(char.name || char.slug || "Character") + '</span>';
+      html += '<span class="recruiting-card-source">' + escapeHtmlSafe(char.source || "fresh") + '</span>';
+      html += '</div>';
+
+      for (const [skillName, info] of Object.entries(char.skills || {})) {
+        const status = (typeof info === "object" ? info.status : info) || "queued";
+        const widths = {certified: "100%", testing: "70%", learning: "40%", queued: "10%", failed: "100%"};
+        const colors = {certified: "green", failed: "red", testing: "gold", learning: "gold", queued: "gold"};
+        html += '<div class="skill-progress-row">';
+        html += '<span class="skill-progress-name">' + escapeHtmlSafe(skillName) + '</span>';
+        html += '<div class="skill-progress-bar"><div class="skill-progress-fill ' + escapeHtmlSafe(status) + '" style="width:' + (widths[status] || "10%") + '"></div></div>';
+        html += '<span class="skill-progress-status" style="color:var(--' + (colors[status] || "gold") + ')">' + escapeHtmlSafe(status) + '</span>';
+        html += '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    html += '</div>';
+    panel.innerHTML = html;
   }
 
   // ============================================================
@@ -731,17 +875,16 @@
   }
 
   function showThought(role) {
-    const card = document.getElementById(`${role}-card`);
+    // Dynamic roster: find card by data-role attribute
+    const card = document.querySelector(`.char-card[data-role="${role}"]`);
     if (!card) return;
     const text = getLastThought(role);
     showFixedBubble(card, text);
   }
 
   function setupThoughtBubbles() {
-    ["pi","trainee"].forEach((role) => {
-      const card = document.getElementById(`${role}-card`);
-      if (card) card.addEventListener("click", () => showThought(role));
-    });
+    // Click handlers are attached by renderTeamRoster() since cards are dynamic.
+    // Schedule random thought bubbles.
     function scheduleRandom() {
       const delay = 12000 + Math.random() * 13000;
       setTimeout(() => {

@@ -1282,3 +1282,134 @@ h1, h2, .badge-value, .char-name, .panel-icon {
     }
     #inventory-panel { border-top: 2px solid var(--border); }
 }
+
+/* ============================================================
+   SKILL BADGES
+   ============================================================ */
+.skill-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 6px;
+    justify-content: center;
+    max-width: 160px;
+}
+
+.skill-badge {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 2px 5px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--bg-dark);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.skill-badge.certified { border-color: var(--green); color: var(--green); }
+.skill-badge.testing { border-color: var(--gold); color: var(--gold); }
+.skill-badge.testing .skill-icon { animation: spin 1s linear infinite; }
+.skill-badge.learning { border-color: var(--text-muted); color: var(--text-muted); }
+.skill-badge.learning .skill-icon { animation: pulse-dot 2s ease-in-out infinite; }
+.skill-badge.failed { border-color: var(--red); color: var(--red); }
+.skill-badge.queued { border-color: var(--text-muted); color: var(--text-muted); opacity: 0.5; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ============================================================
+   RECRUITING PHASE — CENTER COLUMN
+   ============================================================ */
+.recruiting-dashboard {
+    padding: 20px;
+}
+
+.recruiting-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    color: var(--gold);
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+}
+
+.recruiting-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.recruiting-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.recruiting-card-name {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--text);
+}
+
+.recruiting-card-source {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: auto;
+}
+
+.skill-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.skill-progress-name {
+    font-size: 11px;
+    color: var(--text);
+    min-width: 100px;
+}
+
+.skill-progress-bar {
+    flex: 1;
+    height: 12px;
+    background: var(--bar-bg);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.skill-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+
+.skill-progress-fill.certified { background: var(--green); width: 100%; }
+.skill-progress-fill.testing { background: var(--gold); width: 70%; }
+.skill-progress-fill.learning { background: var(--text-dim); width: 40%; }
+.skill-progress-fill.queued { background: var(--text-muted); width: 10%; }
+.skill-progress-fill.failed { background: var(--red); width: 100%; }
+
+.skill-progress-status {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    min-width: 50px;
+    text-align: right;
+}
+
+.team-assembled-banner {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    text-align: center;
+    padding: 20px;
+    animation: fadeIn 0.5s ease-in;
+    border: 2px solid var(--gold);
+    border-radius: 6px;
+    margin: 12px;
+}

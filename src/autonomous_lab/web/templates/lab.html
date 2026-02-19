@@ -39,33 +39,8 @@
     <main id="main-grid">
         <!-- Left Column: Characters -->
         <aside id="characters-panel">
-            <div class="char-card" id="pi-card" data-role="pi">
-                <div class="char-header">
-                    <span class="char-role-icon">&#x1F52C;</span>
-                    <span class="char-name">Professor</span>
-                </div>
-                <div class="char-sprite-wrap">
-                    <canvas id="pi-sprite" width="40" height="64"></canvas>
-                    <div class="thought-bubble" id="pi-thought"></div>
-                </div>
-                <div class="char-status" id="pi-status">
-                    <span class="status-indicator idle"></span>
-                    <span class="status-label">Idle</span>
-                </div>
-            </div>
-            <div class="char-card" id="trainee-card" data-role="trainee">
-                <div class="char-header">
-                    <span class="char-role-icon">&#x1F9EA;</span>
-                    <span class="char-name">Trainee</span>
-                </div>
-                <div class="char-sprite-wrap">
-                    <canvas id="trainee-sprite" width="40" height="64"></canvas>
-                    <div class="thought-bubble" id="trainee-thought"></div>
-                </div>
-                <div class="char-status" id="trainee-status">
-                    <span class="status-indicator idle"></span>
-                    <span class="status-label">Idle</span>
-                </div>
+            <div id="team-roster">
+                <!-- Dynamically populated by JS from state.recruitment.characters -->
             </div>
             <!-- Dynamic trainees (multi-agent mode, populated by JS) -->
             <div id="trainees-container" style="display:none;"></div>
