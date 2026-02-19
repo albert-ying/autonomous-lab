@@ -1165,6 +1165,11 @@ def setup_routes(manager: "WebUIManager"):
                         for t in agents_cfg["trainees"]
                     ]
 
+            # Recruitment data
+            recruitment = state.get("recruitment", {"characters": [], "started_at": None, "ready_at": None})
+            phase = state.get("phase", "active")
+            ready_characters = [c["slug"] for c in recruitment.get("characters", []) if c.get("ready")]
+
             return JSONResponse(
                 content={
                     "active": True,
@@ -1192,6 +1197,9 @@ def setup_routes(manager: "WebUIManager"):
                     "domain_config": domain_config,
                     "orchestration": orch_mode,
                     "trainees": dynamic_trainees,
+                    "phase": phase,
+                    "recruitment": recruitment,
+                    "characters": ready_characters,
                 }
             )
         except Exception as e:
@@ -1289,6 +1297,39 @@ def setup_routes(manager: "WebUIManager"):
                 media_type=mime_type or "application/octet-stream",
                 filename=resolved.name,
             )
+
+    @manager.app.get("/api/autolab/skill-content")
+    async def get_skill_content(request: Request):
+        """Return SKILL.md content for a character's skill."""
+        project_dir = request.query_params.get("project") or getattr(
+            manager, "lab_project_dir", None
+        )
+        if not project_dir:
+            current_session = manager.get_current_session()
+            if current_session:
+                project_dir = current_session.project_directory
+        if not project_dir:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "No active project"},
+            )
+
+        slug = request.query_params.get("slug", "")
+        skill = request.query_params.get("skill", "")
+
+        if not slug or not skill:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "slug and skill params required"},
+            )
+
+        skill_path = Path(project_dir) / ".autolab" / "characters" / slug / "skills" / skill / "SKILL.md"
+        if skill_path.exists():
+            return JSONResponse(content={"content": skill_path.read_text(encoding="utf-8")})
+        return JSONResponse(
+            status_code=404,
+            content={"content": "", "error": "Skill not found"},
+        )
 
     # ---- Editorial workflow API ----
 
