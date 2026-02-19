@@ -149,6 +149,7 @@ code {
     color: var(--text-dim);
     max-width: 650px;
     margin: 0 auto;
+    min-height: 1.4em;          /* Fixed min-height — prevent jump during rotation */
 }
 
 /* ============================================================
@@ -193,10 +194,10 @@ code {
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    min-width: 130px;           /* Prevent horizontal shift during domain rotation */
+    width: 160px;               /* Fixed width — prevent shift during domain rotation */
 }
 .hero-char.hero-you {
-    min-width: 200px;           /* Wider — accommodates "You (Creative Director)" etc. */
+    width: 220px;               /* Fixed wider — accommodates "You (Creative Director)" etc. */
 }
 .hero-char canvas {
     image-rendering: pixelated;
@@ -211,6 +212,8 @@ code {
     font-size: 10px;
     letter-spacing: 1px;
     white-space: nowrap;        /* Prevent wrapping during rotation */
+    min-height: 1.2em;          /* Fixed height for label */
+    text-align: center;
 }
 .pi-label { color: var(--pi-color); }
 .trainee-label { color: var(--trainee-color); }
@@ -260,7 +263,7 @@ code {
     color: var(--accent);
     margin-bottom: 22px;
     font-style: italic;
-    min-height: 1.4em;          /* Prevent vertical jump during rotation */
+    height: 1.4em;              /* Fixed height — prevent jump during rotation */
 }
 .hero-description {
     font-size: 17px;
@@ -268,7 +271,7 @@ code {
     line-height: 1.8;
     max-width: 700px;
     margin: 0 auto 32px;
-    min-height: 5.4em;          /* Prevent vertical jump during rotation */
+    height: 5.4em;              /* Fixed height — prevent jump during rotation */
 }
 .hero-description strong { color: var(--text); }
 
@@ -411,6 +414,8 @@ code {
     gap: 10px;
     justify-content: center;
     flex-wrap: wrap;
+    min-height: 76px;           /* Fixed height — prevent jump during rotation */
+    align-content: center;
 }
 .badge {
     font-size: 10px;
@@ -420,6 +425,8 @@ code {
     padding: 8px 14px;
     border-radius: 3px;
     letter-spacing: 0.5px;
+    min-width: 160px;           /* Fixed width — prevent reflow during rotation */
+    text-align: center;
 }
 
 /* ============================================================
@@ -1147,6 +1154,7 @@ code {
     border-radius: 8px;
     overflow: hidden;
     min-width: 260px;
+    min-height: 230px;          /* Fixed min-height — prevent jump during rotation */
 }
 .yaml-header {
     display: flex;
@@ -1210,6 +1218,7 @@ code {
     font-size: 15px;
     color: var(--text-dim);
     line-height: 1.7;
+    min-height: 3.4em;          /* Fixed min-height — prevent jump during rotation */
 }
 
 /* ============================================================
@@ -1232,6 +1241,8 @@ code {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 80px;            /* Fixed min-width — prevent reflow during rotation */
+    text-align: center;
 }
 .mp-filter:hover { color: var(--text); border-color: var(--border-light); }
 .mp-filter.active { color: var(--gold); border-color: var(--gold); background: rgba(245, 197, 66, 0.08); }
@@ -1587,6 +1598,7 @@ code {
     border-radius: 8px;
     padding: 20px;
     position: relative;
+    min-height: 320px;          /* Fixed min-height — prevent jump during rotation */
 }
 .gs-card-num {
     font-family: 'Press Start 2P', monospace;
