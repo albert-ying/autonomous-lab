@@ -401,7 +401,7 @@
     <section id="characters" class="section">
         <div class="section-header">
             <h2 class="section-title">&#x1F9EC; Characters as Skill Containers</h2>
-            <p class="section-subtitle">Each character is a persona backed by a curated set of scientific skills</p>
+            <p class="section-subtitle">Each character is a persona that auto-learns, validates, and certifies its skills</p>
         </div>
 
         <div class="char-explainer">
@@ -461,15 +461,15 @@
                     <div class="explainer-step">
                         <span class="step-num">2</span>
                         <div>
-                            <strong>Attach Cursor Skills</strong>
-                            <p>Each skill name maps to a <code>SKILL.md</code> file&mdash;the same agent skills used by Cursor and Claude. The AI reads these instructions when acting as this character. Skills include <em>scanpy</em>, <em>scientific-writing</em>, <em>pytorch-lightning</em>, <em>statistical-analysis</em>, and 200+ more.</p>
+                            <strong>Skills (Auto-Learned &amp; Validated)</strong>
+                            <p>Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification status. Skills are auto-learned during the PI-Trainee loop and validated via <code>validation.py</code>. Certified skills show a <span style="color:var(--green);">&#x2705;</span> badge. Includes <em>scanpy</em>, <em>scientific-writing</em>, <em>pytorch-lightning</em>, and 200+ more.</p>
                         </div>
                     </div>
                     <div class="explainer-step">
                         <span class="step-num">3</span>
                         <div>
-                            <strong>Deploy to Your Lab</strong>
-                            <p>Drop the YAML file into your project's <code>.autolab/profiles/</code> folder. The character is now part of your research team, with all attached skills active.</p>
+                            <strong>Deploy or Recruit</strong>
+                            <p>Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to automatically assemble a team from the marketplace based on your project needs. Recruited characters come with all certified skills active.</p>
                         </div>
                     </div>
                 </div>
@@ -537,23 +537,29 @@
                             <span class="link-repo-num">2</span>
                             <div>
                                 <strong>Add character YAML + skill folders</strong>
-                                <p>Each character is a self-contained skill bundle. The <code>skills/</code> folder contains Cursor-compatible SKILL.md files.</p>
+                                <p>Each character is a self-contained skill bundle. Skills include a <code>SKILL.md</code> and <code>meta.yaml</code> for certification tracking.</p>
                                 <pre class="gs-code link-repo-yaml"><code><span class="code-comment">your-character/</span>
 <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> <span class="yaml-key">character.yaml</span>
 <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-key">skills/</span>
     <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> <span class="yaml-val">my-analysis/</span>
-    <span class="code-comment">&#x2502;</span>   <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> SKILL.md
+    <span class="code-comment">&#x2502;</span>   <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> SKILL.md
+    <span class="code-comment">&#x2502;</span>   <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">meta.yaml</span>
     <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">my-writing/</span>
         <span class="code-comment">&#x251C;&#x2500;&#x2500;</span> SKILL.md
-        <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">scripts/</span>  <span class="code-comment"># optional</span></code></pre>
+        <span class="code-comment">&#x2514;&#x2500;&#x2500;</span> <span class="yaml-val">meta.yaml</span></code></pre>
                             </div>
                         </div>
 
                         <div class="link-repo-step">
                             <span class="link-repo-num">3</span>
                             <div>
-                                <strong>Submit your repo URL</strong>
-                                <p>Open an issue on our main repo with your GitHub repo link. We'll index it automatically.</p>
+                                <strong>Add GitHub topics for auto-discovery</strong>
+                                <p>Tag your repo with <code>autolab-character</code> and <code>autolab-skill-{name}</code> topics. Repos with proper topics are automatically found by <code>autolab_recruit</code> for team assembly.</p>
+                                <pre class="gs-code link-repo-yaml"><code><span class="code-comment"># After pushing to GitHub:</span>
+gh repo edit --add-topic autolab-character
+gh repo edit --add-topic autolab-skill-my-analysis
+gh repo edit --add-topic autolab-skill-my-writing</code></pre>
+                                <p style="margin-top:8px;">Then submit your repo URL below. We'll index it automatically.</p>
                                 <a href="https://github.com/albert-ying/autonomous-lab/issues/new?title=New+Character:+[Your+Character+Name]&body=Repo+URL:+https://github.com/YOUR_USERNAME/YOUR_REPO%0A%0ADescription:+Brief+description+of+your+character" target="_blank" rel="noopener" class="btn-github btn-sm">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                                     Submit Your Repo
@@ -616,36 +622,36 @@
 
             <div class="gs-card">
                 <div class="gs-card-num">2</div>
-                <h3>Add Character Skills</h3>
-                <p>Install skills in <code>~/.cursor/skills/</code>. Each skill is a <code>SKILL.md</code> that the AI reads when a character uses it:</p>
-                <pre class="gs-code"><code><span class="code-comment"># Skills directory structure:</span>
-~/.cursor/skills/
-  scientific-skills/
-    scanpy/SKILL.md
-    scvi-tools/SKILL.md
-    pytorch-lightning/SKILL.md
-    scientific-writing/SKILL.md
-    statistical-analysis/SKILL.md
-    ...
-
-<span class="code-comment"># 200+ skills available</span>
-<span class="code-comment"># Characters reference these</span>
-<span class="code-comment"># by name in their YAML</span></code></pre>
+                <h3>Skills Come Bundled</h3>
+                <p>Skills are bundled inside characters. Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> for certification tracking:</p>
+                <pre class="gs-code"><code><span class="code-comment"># Character folder structure:</span>
+autolab-char-compbio-pi/
+  character.yaml
+  README.md
+  skills/
+    scanpy/
+      SKILL.md
+      <span class="yaml-val">meta.yaml</span>  <span class="code-comment"># certified</span>
+    scvi-tools/
+      SKILL.md
+      <span class="yaml-val">meta.yaml</span>  <span class="code-comment"># certified</span>
+    ...</code></pre>
             </div>
 
             <div class="gs-card">
                 <div class="gs-card-num">3</div>
-                <h3>Customize Your Team</h3>
-                <p>Download characters from the Marketplace or create your own in <code>.autolab/profiles/</code>:</p>
-                <pre class="gs-code"><code><span class="yaml-key">title:</span> <span class="yaml-val">Your Custom PI</span>
-<span class="yaml-key">expertise:</span> <span class="yaml-val">your domain</span>
-<span class="yaml-key">goal:</span> <span class="yaml-val">what to achieve</span>
-<span class="yaml-key">skills:</span>  <span class="code-comment"># Cursor skill names</span>
+                <h3>Recruit Your Team</h3>
+                <p>Use <code>autolab_recruit</code> to auto-assemble a team from the marketplace, or create your own in <code>.autolab/profiles/</code>:</p>
+                <pre class="gs-code"><code><span class="code-comment"># Auto-recruit based on project:</span>
+autolab_recruit
+  <span class="code-comment"># Finds characters by GitHub</span>
+  <span class="code-comment"># topics: autolab-skill-*</span>
+
+<span class="code-comment"># Or manually customize:</span>
+<span class="yaml-key">title:</span> <span class="yaml-val">Your Custom PI</span>
+<span class="yaml-key">skills:</span>
   <span class="yaml-val">- scanpy</span>
-  <span class="yaml-val">- scientific-writing</span>
-  <span class="yaml-val">- statistical-analysis</span>
-<span class="yaml-key">personality:</span>
-  <span class="yaml-val">- "Trait: description"</span></code></pre>
+  <span class="yaml-val">- scientific-writing</span></code></pre>
             </div>
 
             <div class="gs-card">

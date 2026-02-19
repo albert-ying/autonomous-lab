@@ -1355,6 +1355,17 @@ code {
     border: 1px solid var(--border);
     border-radius: 3px;
 }
+.mp-card-skill.skill-cert {
+    border-color: rgba(107, 255, 107, 0.3);
+    color: var(--green);
+}
+.mp-card-skill .cert-check {
+    font-size: 7px;
+    margin-left: 1px;
+}
+.skill-tag.skill-cert {
+    border-color: rgba(107, 255, 107, 0.3);
+}
 
 .mp-card-footer {
     display: flex;

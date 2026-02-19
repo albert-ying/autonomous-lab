@@ -514,6 +514,7 @@ gh repo create username/autolab-char-name --public --source=. --push</pre>
         skills.forEach(s => {
             html += `&nbsp;&nbsp;&nbsp;&nbsp;<span class="folder">${s}/</span><br>`;
             html += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file" id="tree-${s}">SKILL.md</span><br>`;
+            html += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file" id="tree-meta-${s}" style="color:var(--text-muted)">meta.yaml</span><br>`;
         });
         document.getElementById('folder-tree').innerHTML = html;
     }
@@ -555,10 +556,13 @@ gh repo create username/autolab-char-name --public --source=. --push</pre>
                 return;
             }
 
-            // Update git commands
+            // Update git commands with topic discovery
             const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[.']/g, '');
+            const topicCmds = ['gh repo edit --add-topic autolab-character']
+                .concat(skills.map(s => `gh repo edit --add-topic autolab-skill-${s}`))
+                .join('\n');
             document.getElementById('git-commands').textContent =
-                `cd ${data.folder_path}\ngit init && git add . && git commit -m "Character: ${name}"\ngh repo create YOUR_USERNAME/autolab-char-${slug} --public --source=. --push`;
+                `cd ${data.folder_path}\ngit init && git add . && git commit -m "Character: ${name}"\ngh repo create YOUR_USERNAME/autolab-char-${slug} --public --source=. --push\n\n# Add topics for auto-discovery by autolab_recruit:\n${topicCmds}`;
 
             if (!skipTraining) {
                 startTraining(data.folder_path, skills);
@@ -630,6 +634,14 @@ gh repo create username/autolab-char-name --public --source=. --push</pre>
                                 if (evt.progress) updateSkillProgress(skill, evt.progress);
                                 if (evt.log) appendLog(skill, evt.log);
                                 if (evt.status) updateSkillStatus(skill, evt.status, evt.label || '');
+                                if (evt.validation) {
+                                    const metaEl = document.getElementById('tree-meta-' + skill);
+                                    if (metaEl) {
+                                        metaEl.style.color = evt.validation === 'certified' ? 'var(--green)' : 'var(--red)';
+                                        metaEl.textContent = 'meta.yaml ' + (evt.validation === 'certified' ? '\u2705' : '\u274C');
+                                    }
+                                    appendLog(skill, '> Certification: ' + evt.validation);
+                                }
                             } catch {}
                         }
                     }

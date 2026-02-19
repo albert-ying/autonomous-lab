@@ -396,8 +396,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, expertise, and personality traits. These shape how the AI agent approaches problems and communicates." },
-          { title: "Attach Cursor Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills used by Cursor and Claude. Includes <em>scanpy</em>, <em>scientific-writing</em>, and 200+ more.' },
-          { title: "Deploy to Your Lab", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your research team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated during the loop. Includes <em>scanpy</em>, <em>scientific-writing</em>, and 200+ more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The research cycle:</span>\nautolab_next  <span class="code-comment"># PI sets agenda</span>\nautolab_next  <span class="code-comment"># Trainee executes</span>\nautolab_next  <span class="code-comment"># PI reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When paper is ready:</span>\nautolab_editorial <span class="code-comment"># You decide!</span>\n<span class="code-comment"># Accept / Minor / Major / Reject</span>'
       },
@@ -410,8 +410,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, expertise, and personality traits. These shape how the AI writes and reviews code." },
-          { title: "Attach Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills for <em>system-design</em>, <em>testing-strategy</em>, <em>ci-cd</em>, and more.' },
-          { title: "Deploy to Your Sprint", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your engineering team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated. Includes <em>system-design</em>, <em>testing-strategy</em>, and more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The sprint cycle:</span>\nautolab_next  <span class="code-comment"># Lead plans</span>\nautolab_next  <span class="code-comment"># Dev implements</span>\nautolab_next  <span class="code-comment"># Lead reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When PR is ready:</span>\nautolab_editorial <span class="code-comment"># You review!</span>\n<span class="code-comment"># Approve / Request Changes / Reject</span>'
       },
@@ -424,8 +424,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, expertise, and personality traits. These shape how the AI approaches client engagements." },
-          { title: "Attach Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills for <em>market-analysis</em>, <em>financial-modeling</em>, <em>presentation-design</em>, and more.' },
-          { title: "Deploy to Your Engagement", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your consulting team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated. Includes <em>market-analysis</em>, <em>financial-modeling</em>, and more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The engagement cycle:</span>\nautolab_next  <span class="code-comment"># Partner scopes</span>\nautolab_next  <span class="code-comment"># Associate analyzes</span>\nautolab_next  <span class="code-comment"># Partner reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When report is ready:</span>\nautolab_editorial <span class="code-comment"># You decide!</span>\n<span class="code-comment"># Approve / Revise / Rework / Reject</span>'
       },
@@ -438,8 +438,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, expertise, and personality traits. These shape how the AI approaches legal strategy and drafting." },
-          { title: "Attach Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills for <em>legal-research</em>, <em>brief-writing</em>, <em>case-analysis</em>, and more.' },
-          { title: "Deploy to Your Case", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your legal team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated. Includes <em>legal-research</em>, <em>brief-writing</em>, and more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The case cycle:</span>\nautolab_next  <span class="code-comment"># Partner strategizes</span>\nautolab_next  <span class="code-comment"># Associate researches</span>\nautolab_next  <span class="code-comment"># Partner reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When brief is ready:</span>\nautolab_editorial <span class="code-comment"># You review!</span>\n<span class="code-comment"># File / Minor Edits / Rewrite</span>'
       },
@@ -452,8 +452,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, specialty, and personality traits. These shape how the AI approaches clinical reasoning and documentation." },
-          { title: "Attach Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills for <em>clinical-reasoning</em>, <em>treatment-planning</em>, <em>risk-stratification</em>, and more.' },
-          { title: "Deploy to Your Rounds", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your clinical team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated. Includes <em>clinical-reasoning</em>, <em>treatment-planning</em>, and more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The rounds cycle:</span>\nautolab_next  <span class="code-comment"># Attending assesses</span>\nautolab_next  <span class="code-comment"># Resident executes</span>\nautolab_next  <span class="code-comment"># Attending reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When plan is ready:</span>\nautolab_editorial <span class="code-comment"># You decide!</span>\n<span class="code-comment"># Approve / Modify / Reassess</span>'
       },
@@ -466,8 +466,8 @@
         },
         characterSteps: [
           { title: "Define a Persona", desc: "Give your character a title, expertise, and personality traits. These shape how the AI approaches creative direction and design." },
-          { title: "Attach Skills", desc: 'Each skill maps to a <code>SKILL.md</code>&mdash;agent skills for <em>brand-strategy</em>, <em>visual-design</em>, <em>typography</em>, and more.' },
-          { title: "Deploy to Your Studio", desc: 'Drop the YAML into <code>.autolab/profiles/</code>. The character joins your creative team with all skills active.' }
+          { title: "Skills (Auto-Learned)", desc: 'Each skill has a <code>SKILL.md</code> + <code>meta.yaml</code> tracking certification. Skills are auto-learned and validated. Includes <em>brand-strategy</em>, <em>visual-design</em>, and more.' },
+          { title: "Deploy or Recruit", desc: 'Drop the YAML into <code>.autolab/profiles/</code>, or use <code>autolab_recruit</code> to auto-assemble a team from the marketplace.' }
         ],
         gsStep4Code: '<span class="code-comment"># The studio cycle:</span>\nautolab_next  <span class="code-comment"># AD directs</span>\nautolab_next  <span class="code-comment"># Designer creates</span>\nautolab_next  <span class="code-comment"># AD reviews</span>\n  ...          <span class="code-comment"># iterate</span>\n\n<span class="code-comment"># When campaign is ready:</span>\nautolab_editorial <span class="code-comment"># You review!</span>\n<span class="code-comment"># Approve / Polish / Rework / Scrap</span>'
       }
@@ -1079,7 +1079,11 @@
             </div>
           </div>
           <div class="mp-card-skills">
-            ${ch.skills.slice(0, 5).map(s => `<span class="mp-card-skill">${s}</span>`).join("")}
+            ${ch.skills.slice(0, 5).map(s => {
+              const name = typeof s === "string" ? s : s.name;
+              const cert = typeof s === "object" && s.certified;
+              return `<span class="mp-card-skill${cert ? " skill-cert" : ""}">${name}${cert ? ' <span class="cert-check">\u2705</span>' : ""}</span>`;
+            }).join("")}
             ${ch.skills.length > 5 ? `<span class="mp-card-skill">+${ch.skills.length - 5}</span>` : ""}
           </div>
           <div class="mp-card-footer">
@@ -1125,7 +1129,7 @@
           c.name.toLowerCase().includes(query) ||
           c.title.toLowerCase().includes(query) ||
           c.expertise.toLowerCase().includes(query) ||
-          c.skills.some(s => s.toLowerCase().includes(query))
+          c.skills.some(s => (typeof s === "string" ? s : s.name).toLowerCase().includes(query))
         );
       }
 
@@ -1175,8 +1179,9 @@
     };
 
     function skillClass(skill) {
+      const sName = typeof skill === "string" ? skill : skill.name;
       for (const [cat, skills] of Object.entries(skillCategories)) {
-        if (skills.includes(skill)) return "skill-" + cat;
+        if (skills.includes(sName)) return "skill-" + cat;
       }
       return "skill-infra";
     }
@@ -1198,10 +1203,14 @@
           <h3>&#x1F4CB; GOAL</h3>
           <p>${ch.goal}</p>
 
-          <h3>&#x1F9EC; SKILLS (Cursor Skills)</h3>
-          <p class="detail-skill-note">Each skill maps to a <code>SKILL.md</code> file that the AI agent reads when acting as this character.</p>
+          <h3>&#x1F9EC; SKILLS (Auto-Learned &amp; Validated)</h3>
+          <p class="detail-skill-note">Each skill maps to a <code>SKILL.md</code> + <code>meta.yaml</code>. Skills are auto-learned and validated during the PI-Trainee loop.</p>
           <div class="char-explainer-skills" style="justify-content:flex-start;gap:5px;">
-            ${ch.skills.map(s => `<span class="skill-tag ${skillClass(s)}">${s}</span>`).join("")}
+            ${ch.skills.map(s => {
+              const name = typeof s === "string" ? s : s.name;
+              const cert = typeof s === "object" && s.certified;
+              return `<span class="skill-tag ${skillClass(name)}${cert ? " skill-cert" : ""}">${name}${cert ? " \u2705" : ""}</span>`;
+            }).join("")}
           </div>
 
           <h3>&#x1F3AD; PERSONALITY</h3>
@@ -1249,7 +1258,7 @@
     yaml += `expertise: ${ch.expertise}\n`;
     yaml += `goal: ${ch.goal}\n`;
     yaml += `skills:\n`;
-    (ch.skills || []).forEach(s => { yaml += `  - ${s}\n`; });
+    (ch.skills || []).forEach(s => { yaml += `  - ${typeof s === "string" ? s : s.name}\n`; });
     yaml += `personality:\n`;
     (ch.personality || []).forEach(p => { yaml += `  - "${p}"\n`; });
     return yaml;

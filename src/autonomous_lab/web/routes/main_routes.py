@@ -863,7 +863,7 @@ def setup_routes(manager: "WebUIManager"):
             )
             (char_dir / "character.yaml").write_text(yaml_body, encoding="utf-8")
 
-            # skills/ directory with skeleton SKILL.md
+            # skills/ directory with skeleton SKILL.md + meta.yaml
             skills_dir = char_dir / "skills"
             skills_dir.mkdir(exist_ok=True)
             for skill_name in skill_list:
@@ -881,14 +881,22 @@ def setup_routes(manager: "WebUIManager"):
                         f"## Key decisions\n\n- TODO\n",
                         encoding="utf-8",
                     )
+                meta_path = skill_folder / "meta.yaml"
+                if not meta_path.exists():
+                    meta_path.write_text(
+                        "status: uncertified\n"
+                        "validation_type: content-only\n"
+                        "source: created\n",
+                        encoding="utf-8",
+                    )
 
             # README.md
             skills_tree = "\n".join(
-                f"    ├── {s}/\n    │   └── SKILL.md" for s in skill_list[:-1]
+                f"    ├── {s}/\n    │   ├── SKILL.md\n    │   └── meta.yaml" for s in skill_list[:-1]
             )
             if skill_list:
                 skills_tree += (
-                    f"\n    └── {skill_list[-1]}/\n        └── SKILL.md"
+                    f"\n    └── {skill_list[-1]}/\n        ├── SKILL.md\n        └── meta.yaml"
                 )
             readme = (
                 f"# {name} — {title}\n\n"
@@ -990,6 +998,18 @@ def setup_routes(manager: "WebUIManager"):
                         checks.append("sections")
                     if has_code:
                         checks.append("code examples")
+
+                    # Update meta.yaml to certified
+                    cert_status = "certified" if len(checks) >= 2 else "uncertified"
+                    meta_path = skill_md_path.parent / "meta.yaml"
+                    meta_path.write_text(
+                        f"status: {cert_status}\n"
+                        f"validation_type: content-only\n"
+                        f"source: trained\n",
+                        encoding="utf-8",
+                    )
+                    yield _sse({"validation": cert_status})
+
                     yield _sse({
                         "log": f"> Validation passed: {', '.join(checks)}",
                         "progress": 100,

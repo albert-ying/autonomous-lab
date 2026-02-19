@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "updated": "2026-02-14",
+  "version": 2,
+  "updated": "2026-02-19",
   "characters": [
     {
       "id": "maria-chen",
@@ -10,8 +10,16 @@
       "title": "Computational Biology PI",
       "expertise": "Single-cell genomics, machine learning, and multi-modal data integration",
       "goal": "Discover cell-type-specific gene regulatory programs using multi-modal single-cell data",
-      "skills": ["scanpy", "scvi-tools", "pytorch-lightning", "scientific-writing", "scientific-visualization", "statistical-analysis"],
+      "skills": [
+        {"name": "scanpy", "certified": true},
+        {"name": "scvi-tools", "certified": true},
+        {"name": "pytorch-lightning", "certified": true},
+        {"name": "scientific-writing", "certified": true},
+        {"name": "scientific-visualization", "certified": true},
+        {"name": "statistical-analysis", "certified": true}
+      ],
       "tags": ["biology", "genomics", "single-cell", "machine-learning", "scRNA-seq"],
+      "topics": ["autolab-character", "autolab-skill-scanpy", "autolab-skill-scvi-tools", "autolab-skill-pytorch-lightning"],
       "personality": [
         "Visionary: identifies novel biological questions from data patterns",
         "Rigorous: demands reproducible computational pipelines with version control",
@@ -29,8 +37,17 @@
       "title": "Bioinformatics Postdoc",
       "expertise": "NGS data analysis, pipeline development, and statistical genomics",
       "goal": "Build clean, reproducible analysis pipelines and generate publication-quality figures",
-      "skills": ["scanpy", "pydeseq2", "pysam", "matplotlib", "seaborn", "scikit-learn", "deeptools"],
+      "skills": [
+        {"name": "scanpy", "certified": true},
+        {"name": "pydeseq2", "certified": true},
+        {"name": "pysam", "certified": true},
+        {"name": "matplotlib", "certified": true},
+        {"name": "seaborn", "certified": true},
+        {"name": "scikit-learn", "certified": true},
+        {"name": "deeptools", "certified": true}
+      ],
       "tags": ["biology", "bioinformatics", "NGS", "RNA-seq", "pipelines"],
+      "topics": ["autolab-character", "autolab-skill-scanpy", "autolab-skill-pydeseq2"],
       "personality": [
         "Dedicated: completes tasks thoroughly with comprehensive documentation",
         "Technical: writes self-contained, reproducible code with proper testing",
@@ -48,8 +65,16 @@
       "title": "Medicinal Chemistry PI",
       "expertise": "Drug discovery, QSAR modeling, and lead optimization",
       "goal": "Identify and optimize novel small molecule inhibitors through computational screening",
-      "skills": ["rdkit", "datamol", "deepchem", "pytdc", "medchem", "pubchem-database"],
+      "skills": [
+        {"name": "rdkit", "certified": true},
+        {"name": "datamol", "certified": true},
+        {"name": "deepchem", "certified": true},
+        {"name": "pytdc", "certified": true},
+        {"name": "medchem", "certified": true},
+        {"name": "pubchem-database", "certified": true}
+      ],
       "tags": ["chemistry", "drug-discovery", "QSAR", "medicinal-chemistry"],
+      "topics": ["autolab-character", "autolab-skill-rdkit", "autolab-skill-deepchem"],
       "personality": [
         "Strategic: prioritizes compounds with drug-like properties early",
         "Data-driven: demands SAR analysis before advancing any lead series",
@@ -67,8 +92,16 @@
       "title": "ML Research Engineer",
       "expertise": "Deep learning, model training, and inference optimization",
       "goal": "Implement and benchmark state-of-the-art models with clean, efficient code",
-      "skills": ["pytorch-lightning", "transformers", "accelerate", "weights-and-biases", "vllm", "flash-attention"],
+      "skills": [
+        {"name": "pytorch-lightning", "certified": true},
+        {"name": "transformers", "certified": true},
+        {"name": "accelerate", "certified": true},
+        {"name": "weights-and-biases", "certified": true},
+        {"name": "vllm", "certified": true},
+        {"name": "flash-attention", "certified": true}
+      ],
       "tags": ["machine-learning", "deep-learning", "LLM", "inference", "GPU"],
+      "topics": ["autolab-character", "autolab-skill-pytorch-lightning", "autolab-skill-transformers"],
       "personality": [
         "Efficient: writes highly optimized code with proper GPU utilization",
         "Systematic: benchmarks every change with rigorous ablation studies",
@@ -86,8 +119,15 @@
       "title": "Clinical Epidemiologist",
       "expertise": "Clinical trial design, survival analysis, and real-world evidence",
       "goal": "Ensure robust clinical study designs and proper statistical interpretation",
-      "skills": ["scikit-survival", "statistical-analysis", "statsmodels", "clinical-reports", "clinicaltrials-database"],
+      "skills": [
+        {"name": "scikit-survival", "certified": true},
+        {"name": "statistical-analysis", "certified": true},
+        {"name": "statsmodels", "certified": true},
+        {"name": "clinical-reports", "certified": true},
+        {"name": "clinicaltrials-database", "certified": true}
+      ],
       "tags": ["clinical", "epidemiology", "survival-analysis", "trial-design"],
+      "topics": ["autolab-character", "autolab-skill-scikit-survival", "autolab-skill-statsmodels"],
       "personality": [
         "Methodical: insists on pre-registered analysis plans",
         "Critical: identifies confounders and biases in study designs",
@@ -105,8 +145,16 @@
       "title": "Biostatistician",
       "expertise": "Bayesian modeling, causal inference, and high-dimensional statistics",
       "goal": "Provide rigorous statistical frameworks and validate analytical approaches",
-      "skills": ["pymc", "statistical-analysis", "statsmodels", "scikit-learn", "shap", "scientific-visualization"],
+      "skills": [
+        {"name": "pymc", "certified": true},
+        {"name": "statistical-analysis", "certified": true},
+        {"name": "statsmodels", "certified": true},
+        {"name": "scikit-learn", "certified": true},
+        {"name": "shap", "certified": true},
+        {"name": "scientific-visualization", "certified": true}
+      ],
       "tags": ["statistics", "Bayesian", "causal-inference", "biostatistics"],
+      "topics": ["autolab-character", "autolab-skill-pymc", "autolab-skill-statsmodels"],
       "personality": [
         "Precise: never allows hand-waving about statistical assumptions",
         "Educational: explains complex methods in accessible terms",

@@ -2873,18 +2873,29 @@ async def autolab_create_character(
                 f"- TODO: document important choices and defaults\n",
                 encoding="utf-8",
             )
+        # Write meta.yaml for self-learning skill tracking
+        meta_path = skill_folder / "meta.yaml"
+        if not meta_path.exists():
+            meta_path.write_text(
+                "status: uncertified\n"
+                "validation_type: content-only\n"
+                "source: created\n",
+                encoding="utf-8",
+            )
 
     # -- README.md --
     skills_tree = "\n".join(
-        f"    ├── {s}/\n    │   └── SKILL.md" for s in skill_list[:-1]
+        f"    ├── {s}/\n    │   ├── SKILL.md\n    │   └── meta.yaml" for s in skill_list[:-1]
     )
     if skill_list:
-        skills_tree += f"\n    └── {skill_list[-1]}/\n        └── SKILL.md"
+        skills_tree += f"\n    └── {skill_list[-1]}/\n        ├── SKILL.md\n        └── meta.yaml"
 
     readme_content = (
         f"# {name} — {title}\n\n"
         f"Character for [Autonomous Lab](https://autolab.kejunying.com). "
         f"{expertise.rstrip('.')}.\n\n"
+        f"Skills are auto-learned and validated. Each skill has a `meta.yaml` "
+        f"tracking certification status.\n\n"
         f"## Structure\n\n"
         f"```\n"
         f"{folder_name}/\n"
@@ -2914,17 +2925,23 @@ async def autolab_create_character(
         f"  └── skills/",
     ]
     for s in skill_list:
-        output_lines.append(f"      └── {s}/SKILL.md")
+        output_lines.append(f"      └── {s}/")
+        output_lines.append(f"          ├── SKILL.md")
+        output_lines.append(f"          └── meta.yaml")
 
     output_lines.append(f"\n--- character.yaml ---\n{yaml_body}--- End YAML ---\n")
 
-    # ── IMPORTANT: remind to fill in SKILL.md files ──
+    # ── IMPORTANT: remind about self-learning skills ──
     output_lines.append(
-        "NEXT STEP: Fill in each skills/<name>/SKILL.md with detailed instructions.\n"
-        "Each SKILL.md should contain:\n"
-        "  - When to use the skill\n"
-        "  - Standard workflow with code examples\n"
-        "  - Key decisions and defaults\n"
+        "NEXT STEPS:\n"
+        "  1. Run `autolab_skill_status` to see certification status of each skill.\n"
+        "  2. Skills are auto-learned during the PI-Trainee loop. Each skill has a\n"
+        "     meta.yaml tracking validation status (uncertified → certified).\n"
+        "  3. To manually validate, run `validation.py` in the skill folder.\n"
+        "  4. Fill in each skills/<name>/SKILL.md with detailed instructions:\n"
+        "     - When to use the skill\n"
+        "     - Standard workflow with code examples\n"
+        "     - Key decisions and defaults\n"
         "The AI reads these instructions when acting as this character.\n"
     )
 
@@ -2948,6 +2965,11 @@ async def autolab_create_character(
 
     # ── GitHub publishing ──
 
+    # Build topic commands for discoverability
+    topic_cmds = "  gh repo edit --add-topic autolab-character\n"
+    for s in skill_list:
+        topic_cmds += f"  gh repo edit --add-topic autolab-skill-{s}\n"
+
     if github_repo:
         clean_repo = github_repo.strip().strip("/")
         output_lines.append(
@@ -2959,6 +2981,8 @@ async def autolab_create_character(
             f"  git add .\n"
             f"  git commit -m 'Character: {name}'\n"
             f"  gh repo create {clean_repo} --public --source=. --push\n\n"
+            f"Add GitHub topics for auto-discovery by autolab_recruit:\n"
+            f"{topic_cmds}\n"
             f"Then submit to the marketplace:\n"
             f"  Open an issue at https://github.com/albert-ying/autonomous-lab/issues/new\n"
             f"  Title: New Character: {name}\n"
@@ -2970,7 +2994,9 @@ async def autolab_create_character(
             "github_repo='username/autolab-char-name', or run:\n"
             f"  cd {char_dir} && git init && git add . && "
             f"git commit -m 'Character: {name}'\n"
-            f"  gh repo create username/{folder_name} --public --source=. --push"
+            f"  gh repo create username/{folder_name} --public --source=. --push\n\n"
+            f"Add GitHub topics for auto-discovery by autolab_recruit:\n"
+            f"{topic_cmds}"
         )
 
     return "\n".join(output_lines)
