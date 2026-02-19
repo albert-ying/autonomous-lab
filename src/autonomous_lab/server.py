@@ -971,6 +971,27 @@ async def autolab_next(
     except FileNotFoundError as e:
         return f"ERROR: {e}"
 
+    # --- Phase-aware routing for multi-character recruitment ---
+    # Phase: recruiting — PI turn 0
+    if state.get("phase") == "recruiting" and state.get("iteration", 0) == 0:
+        idea = load_idea(project_directory)
+        dc = get_domain_config(project_directory)
+        from .lab.prompts import build_recruiting_prompt
+        return build_recruiting_prompt(idea=idea, domain_config=dc)
+
+    # Phase: recruiting but iteration > 0 — check readiness
+    if state.get("phase") == "recruiting":
+        from .lab.state import check_recruitment_ready
+        if check_recruitment_ready(project_directory):
+            state = load_state(project_directory)  # reload after phase change
+        else:
+            return (
+                "## Recruiting Phase — Waiting\n\n"
+                "Some required skills are still being learned. "
+                "Call `autolab_skill_status` to check progress.\n\n"
+                "Once all required skills are certified, the loop will begin automatically."
+            )
+
     # --- Multi-agent orchestration (opt-in) ---
     # If orchestration: multi is set, delegate to dedicated agent subprocesses.
     # Auto-detects Claude Code native agent teams for richer collaboration.
@@ -1196,6 +1217,29 @@ async def autolab_next(
             current_trainees=_sa_trainees,
         )
     else:
+        # Build skill context if character has certified skills
+        skill_context = ""
+        from pathlib import Path as _Path
+        from .lab.skills import build_skill_context
+
+        char_slug = state.get("next_role", "trainee")
+        char_dir = _Path(project_directory) / ".autolab" / "characters" / char_slug
+        skills_dir = char_dir if (char_dir / "skills").exists() else _Path(project_directory)
+
+        for char in state.get("recruitment", {}).get("characters", []):
+            if char.get("slug") == char_slug or char.get("role") == "trainee":
+                certified = [
+                    name for name, info in char.get("skills", {}).items()
+                    if info.get("status") == "certified"
+                ]
+                if certified:
+                    skill_context = build_skill_context(
+                        skills_dir=skills_dir,
+                        certified_skills=certified,
+                        pi_agenda=meeting_history,
+                    )
+                break
+
         prompt = build_trainee_prompt(
             idea=idea,
             profile=profile,
@@ -1205,6 +1249,7 @@ async def autolab_next(
             user_feedback=user_feedback,
             iteration=iteration,
             domain_config=dcfg,
+            skill_context=skill_context,
         )
 
     return (
@@ -1590,6 +1635,85 @@ async def autolab_consult(
         f"Do NOT call autolab_record for this consultation — it's part of the {senior}'s turn.\n"
         f"Continue with whatever the {senior} was doing before the consultation."
     )
+
+
+@mcp.tool()
+async def autolab_recruit(
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+    characters: Annotated[
+        str,
+        Field(
+            description="JSON array of character specs. Each: "
+            '{"slug": "bio-t", "role": "trainee", "name": "Dr. X", '
+            '"avatar": "bioinformatician", '
+            '"skills": [{"name": "scanpy", "required": true}]}'
+        ),
+    ] = "[]",
+) -> str:
+    """Recruit characters for the project team.
+
+    Called by PI during the recruiting phase (iteration 0).
+    Searches marketplace for matching characters, clones them,
+    and initiates skill learning for missing skills.
+    """
+    import json as _json
+    from autonomous_lab.lab.recruitment import execute_recruitment
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        specs = _json.loads(characters)
+    except _json.JSONDecodeError:
+        return "ERROR: Invalid JSON in characters parameter."
+
+    if not isinstance(specs, list) or not specs:
+        return "ERROR: characters must be a non-empty JSON array."
+
+    result = await execute_recruitment(project_directory, specs)
+
+    return (
+        result + "\n\n"
+        "## MANDATORY NEXT STEPS\n\n"
+        "1. Call `autolab_record` with role='pi', status='continue'\n"
+        "2. Then call `lab_meeting`\n"
+        "3. Then call `autolab_next` to continue\n"
+    )
+
+
+@mcp.tool()
+async def autolab_skill_status(
+    project_directory: Annotated[
+        str, Field(description="Project directory path")
+    ] = ".",
+) -> str:
+    """Return current skill certification status for all characters."""
+    from .lab.state import load_state
+
+    project_directory = os.path.abspath(project_directory)
+
+    try:
+        state = load_state(project_directory)
+    except FileNotFoundError as e:
+        return f"ERROR: {e}"
+
+    chars = state.get("recruitment", {}).get("characters", [])
+
+    if not chars:
+        return "No characters recruited yet."
+
+    lines = ["# Skill Status\n"]
+    for char in chars:
+        slug = char.get("slug", "?")
+        lines.append(f"## {slug} ({'READY' if char.get('ready') else 'NOT READY'})")
+        for skill_name, info in char.get("skills", {}).items():
+            status = info.get("status", "unknown")
+            req = " (required)" if info.get("required") else ""
+            lines.append(f"  - {skill_name}: **{status}**{req}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 @mcp.tool()
