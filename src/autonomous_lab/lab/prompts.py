@@ -626,6 +626,7 @@ def build_trainee_prompt(
     user_feedback: str,
     iteration: int,
     domain_config: dict | None = None,
+    skill_context: str = "",
 ) -> str:
     """
     Build the Trainee/Junior role prompt.
@@ -669,7 +670,16 @@ You are a dedicated, technically excellent {junior_label.lower()}. You implement
 
 {TRAINEE_RESOURCES}
 
-## Project Idea
+"""
+
+    if skill_context:
+        prompt += f"""## Your Certified Skills
+
+{skill_context}
+
+"""
+
+    prompt += f"""## Project Idea
 
 {idea}
 
@@ -1096,3 +1106,65 @@ def _format_paper_progress(paper_progress: dict) -> str:
         else:
             lines.append(f"- **{section}.tex**: not created")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Recruiting prompt builder (PI iteration 0)
+# ---------------------------------------------------------------------------
+def build_recruiting_prompt(
+    idea: str,
+    domain_config: dict | None = None,
+) -> str:
+    """Build the PI prompt for iteration 0: team recruitment."""
+    dc = domain_config or {}
+    senior_label = dc.get("senior_label", "Principal Investigator")
+    senior_short = dc.get("senior_short", "PI")
+
+    return f"""You are the **{senior_label} ({senior_short})** beginning a new project.
+
+## Research Idea
+
+{idea}
+
+## Your Task: Recruit Your Team
+
+Analyze the research idea and determine what technical skills are needed to execute it.
+Group related skills into character clusters — each character should have 3-6 complementary skills.
+
+**Call `autolab_recruit` with your team specification.** For each character provide:
+
+- **slug**: a descriptive identifier (e.g., "bioinfo-trainee", "stats-analyst")
+- **role**: "trainee" (or "collaborator" for advisory roles)
+- **name**: a character name (e.g., "Dr. Wei Zhang")
+- **avatar**: a sprite key matching their domain (bioinformatician, statistician, ml_engineer, etc.)
+- **skills**: array of skill objects, each with:
+  - `name`: the skill identifier (e.g., "scanpy", "statistical-analysis")
+  - `required`: true if the project cannot start without this skill
+
+Example:
+```json
+{{
+  "characters": [
+    {{
+      "slug": "bioinfo-trainee",
+      "role": "trainee",
+      "name": "Dr. Wei Zhang",
+      "avatar": "bioinformatician",
+      "skills": [
+        {{"name": "scanpy", "required": true}},
+        {{"name": "scvi-tools", "required": false}}
+      ]
+    }}
+  ]
+}}
+```
+
+Think carefully:
+1. What technical skills does this research demand?
+2. What is the minimum viable team? (1-3 characters typical)
+3. Which skills are required (blocking) vs nice-to-have (background)?
+
+The system will search the marketplace for matching characters, clone them,
+and learn any missing skills automatically. Required skills must be certified
+before the research loop begins; optional skills are learned in background.
+"""
