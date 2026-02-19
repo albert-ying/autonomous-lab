@@ -67,65 +67,84 @@
             </div>
         </section>
 
-        <!-- Right Column: Inventory + Paper -->
+        <!-- Right Column: Tabbed Panel -->
         <aside id="inventory-panel">
-            <div class="panel-header">
-                <span class="panel-icon">&#x1F4E6;</span>
-                <h2>Inventory</h2>
+            <div class="right-tab-bar">
+                <button class="right-tab active" data-tab="inventory">&#x1F4E6; Files</button>
+                <button class="right-tab" data-tab="skills">&#x1F3AF; Skills</button>
+                <button class="right-tab" data-tab="paper">&#x1F4C4; Paper</button>
             </div>
-            <div id="inventory-content">
-                <div class="inv-section" id="inv-data">
-                    <div class="inv-row">
-                        <span class="inv-icon">&#x1F4C1;</span>
-                        <span class="inv-name">data</span>
-                        <span class="inv-count">0</span>
-                    </div>
+
+            <!-- Inventory Tab -->
+            <div class="right-tab-content active" id="tab-inventory">
+                <div class="panel-header">
+                    <span class="panel-icon">&#x1F4E6;</span>
+                    <h2>Inventory</h2>
                 </div>
-                <div class="inv-section" id="inv-scripts">
-                    <div class="inv-row">
-                        <span class="inv-icon">&#x1F4C1;</span>
-                        <span class="inv-name">scripts</span>
-                        <span class="inv-count">0</span>
+                <div id="inventory-content">
+                    <div class="inv-section" id="inv-data">
+                        <div class="inv-row">
+                            <span class="inv-icon">&#x1F4C1;</span>
+                            <span class="inv-name">data</span>
+                            <span class="inv-count">0</span>
+                        </div>
                     </div>
-                </div>
-                <div class="inv-section" id="inv-figures">
-                    <div class="inv-row">
-                        <span class="inv-icon">&#x1F4C1;</span>
-                        <span class="inv-name">figures</span>
-                        <span class="inv-count">0</span>
+                    <div class="inv-section" id="inv-scripts">
+                        <div class="inv-row">
+                            <span class="inv-icon">&#x1F4C1;</span>
+                            <span class="inv-name">scripts</span>
+                            <span class="inv-count">0</span>
+                        </div>
                     </div>
-                </div>
-                <div class="inv-section" id="inv-results">
-                    <div class="inv-row">
-                        <span class="inv-icon">&#x1F4C1;</span>
-                        <span class="inv-name">results</span>
-                        <span class="inv-count">0</span>
+                    <div class="inv-section" id="inv-figures">
+                        <div class="inv-row">
+                            <span class="inv-icon">&#x1F4C1;</span>
+                            <span class="inv-name">figures</span>
+                            <span class="inv-count">0</span>
+                        </div>
                     </div>
-                </div>
-                <div class="inv-section" id="inv-paper">
-                    <div class="inv-row">
-                        <span class="inv-icon">&#x1F4C1;</span>
-                        <span class="inv-name">paper</span>
-                        <span class="inv-count">0</span>
+                    <div class="inv-section" id="inv-results">
+                        <div class="inv-row">
+                            <span class="inv-icon">&#x1F4C1;</span>
+                            <span class="inv-name">results</span>
+                            <span class="inv-count">0</span>
+                        </div>
+                    </div>
+                    <div class="inv-section" id="inv-paper">
+                        <div class="inv-row">
+                            <span class="inv-icon">&#x1F4C1;</span>
+                            <span class="inv-name">paper</span>
+                            <span class="inv-count">0</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="panel-header paper-header">
-                <span class="panel-icon">&#x1F4C4;</span>
-                <h2>Paper</h2>
-            </div>
-            <div id="paper-progress">
-                <div class="paper-bar" id="paper-bar">
-                    <div class="bar-fill" id="paper-bar-fill" style="width: 0%"></div>
-                    <span class="bar-label" id="paper-bar-label">0%</span>
+            <!-- Skills Tab -->
+            <div class="right-tab-content" id="tab-skills">
+                <div id="skills-content" style="padding: 8px 12px;">
+                    <p style="font-size:11px;color:var(--text-dim);">No characters recruited yet.</p>
                 </div>
-                <div class="paper-sections" id="paper-sections">
-                    <div class="paper-row"><span class="sec-name">abstract</span><span class="sec-words" id="sec-abstract">--</span></div>
-                    <div class="paper-row"><span class="sec-name">introduction</span><span class="sec-words" id="sec-introduction">--</span></div>
-                    <div class="paper-row"><span class="sec-name">methods</span><span class="sec-words" id="sec-methods">--</span></div>
-                    <div class="paper-row"><span class="sec-name">results</span><span class="sec-words" id="sec-results">--</span></div>
-                    <div class="paper-row"><span class="sec-name">discussion</span><span class="sec-words" id="sec-discussion">--</span></div>
+            </div>
+
+            <!-- Paper Tab -->
+            <div class="right-tab-content" id="tab-paper">
+                <div class="panel-header paper-header">
+                    <span class="panel-icon">&#x1F4C4;</span>
+                    <h2>Paper</h2>
+                </div>
+                <div id="paper-progress">
+                    <div class="paper-bar" id="paper-bar">
+                        <div class="bar-fill" id="paper-bar-fill" style="width: 0%"></div>
+                        <span class="bar-label" id="paper-bar-label">0%</span>
+                    </div>
+                    <div class="paper-sections" id="paper-sections">
+                        <div class="paper-row"><span class="sec-name">abstract</span><span class="sec-words" id="sec-abstract">--</span></div>
+                        <div class="paper-row"><span class="sec-name">introduction</span><span class="sec-words" id="sec-introduction">--</span></div>
+                        <div class="paper-row"><span class="sec-name">methods</span><span class="sec-words" id="sec-methods">--</span></div>
+                        <div class="paper-row"><span class="sec-name">results</span><span class="sec-words" id="sec-results">--</span></div>
+                        <div class="paper-row"><span class="sec-name">discussion</span><span class="sec-words" id="sec-discussion">--</span></div>
+                    </div>
                 </div>
             </div>
         </aside>

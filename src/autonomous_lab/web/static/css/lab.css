@@ -544,6 +544,40 @@ h1, h2, .badge-value, .char-name, .panel-icon {
     overflow-y: auto;
     min-height: 0;
 }
+
+/* ============================================================
+   RIGHT COLUMN TAB BAR
+   ============================================================ */
+.right-tab-bar {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-panel);
+    flex-shrink: 0;
+}
+
+.right-tab {
+    flex: 1;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 8px 4px;
+    text-align: center;
+    color: var(--text-dim);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.right-tab:hover { color: var(--text); }
+.right-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+}
+
+.right-tab-content { display: none; }
+.right-tab-content.active { display: block; }
+
 #inventory-content { padding: 8px 12px; }
 
 .inv-row {

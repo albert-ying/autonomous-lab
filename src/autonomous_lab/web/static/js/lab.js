@@ -254,6 +254,7 @@
         updateExperts(data);
         updateEditorDesk(data);
         renderRecruitingDashboard(data);
+        renderSkillsTab(data);
       }
     } catch (e) { console.warn("State fetch error:", e); }
   }
@@ -981,6 +982,66 @@
   }
 
   // ============================================================
+  // RIGHT COLUMN TABS
+  // ============================================================
+  function setupRightTabs() {
+    const tabs = document.querySelectorAll('.right-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.right-tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const targetId = 'tab-' + tab.dataset.tab;
+        const target = document.getElementById(targetId);
+        if (target) target.classList.add('active');
+      });
+    });
+  }
+
+  function renderSkillsTab(state) {
+    const container = document.getElementById('skills-content');
+    if (!container) return;
+
+    const chars = ((state.recruitment || {}).characters) || [];
+    if (!chars.length) {
+      container.innerHTML = '<p style="font-size:11px;color:var(--text-dim);">No characters recruited yet.</p>';
+      return;
+    }
+
+    let html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:8px;color:var(--gold);margin-bottom:8px;">TEAM SKILLS</div>';
+
+    for (const char of chars) {
+      for (const [name, info] of Object.entries(char.skills || {})) {
+        const status = info.status || 'unknown';
+        const colorMap = {certified: 'var(--green)', testing: 'var(--gold)', learning: 'var(--text-dim)', failed: 'var(--red)', queued: 'var(--text-muted)'};
+        const color = colorMap[status] || 'var(--text-dim)';
+        html += '<div style="background:var(--bg-panel-light, var(--bg-panel));border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:6px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+        html += '<span style="font-size:11px;color:var(--text);font-weight:600;">' + escapeHtmlSafe(name) + '</span>';
+        html += '<span style="font-family:\'Press Start 2P\',monospace;font-size:7px;color:' + color + ';">' + escapeHtmlSafe(status) + '</span>';
+        html += '</div>';
+        html += '<div style="font-size:10px;color:var(--text-dim);margin-top:4px;">Owner: ' + escapeHtmlSafe(char.slug || char.name || '?') + '</div>';
+        if (info.source) html += '<div style="font-size:10px;color:var(--text-dim);">Source: ' + escapeHtmlSafe(info.source) + '</div>';
+        if (info.tests_passed !== undefined) html += '<div style="font-size:10px;color:var(--text-dim);">Tests: ' + info.tests_passed + '/' + (info.tests_total || '?') + ' pass</div>';
+        html += '</div>';
+      }
+    }
+
+    let certified = 0, testing = 0, queued = 0;
+    chars.forEach(function(c) {
+      Object.values(c.skills || {}).forEach(function(i) {
+        if (i.status === 'certified') certified++;
+        else if (i.status === 'testing' || i.status === 'learning') testing++;
+        else queued++;
+      });
+    });
+    html += '<div style="font-size:10px;color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">';
+    html += certified + ' certified &nbsp; ' + testing + ' in-progress &nbsp; ' + queued + ' queued</div>';
+
+    container.innerHTML = html;
+  }
+
+  // ============================================================
   // HELPERS
   // ============================================================
   function escapeHtmlSafe(text) {
@@ -1500,6 +1561,7 @@
     setupInventory();
     setupModal();
     setupThoughtBubbles();
+    setupRightTabs();
     setupEditorDesk();
   });
 })();
