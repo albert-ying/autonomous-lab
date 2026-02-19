@@ -47,8 +47,9 @@ uv.lock
 .mcp_feedback_settings.json
 test_reports/
 
-# Temporary test files
-test_*.py
+# Temporary test files (top-level only, not in src/tests/)
+/test_*.py
+!src/autonomous_lab/tests/
 
 # User configuration files
 ui_settings.json

@@ -130,6 +130,13 @@ def init_project(
         "feedback_queue": [],  # accumulates messages until drained
         "progress": 0,
         "experts": [],
+        "phase": "recruiting",
+        "recruitment": {
+            "characters": [],
+            "started_at": now,
+            "ready_at": None,
+        },
+        "characters": [],
         "created_at": now,
         "last_updated": now,
     }
@@ -560,6 +567,78 @@ def get_editor_timeout_seconds(project_dir: str) -> int:
     cfg = load_config(project_dir)
     minutes = cfg.get("editor_timeout_minutes", 30)
     return max(0, int(minutes)) * 60
+
+
+# ---------------------------------------------------------------------------
+# Character roster and recruitment
+# ---------------------------------------------------------------------------
+def add_character(project_dir: str, char_data: dict) -> None:
+    """Add a character to the recruitment roster in state.json."""
+    state = load_state(project_dir)
+    roster = state.get("recruitment", {}).get("characters", [])
+    roster = [c for c in roster if c.get("slug") != char_data.get("slug")]
+    roster.append(char_data)
+    state["recruitment"]["characters"] = roster
+    save_state(project_dir, state)
+
+
+def update_skill_status(
+    project_dir: str, slug: str, skill: str, status: str, **meta
+) -> None:
+    """Update a skill's status for a character in the roster."""
+    state = load_state(project_dir)
+    for char in state.get("recruitment", {}).get("characters", []):
+        if char.get("slug") == slug:
+            if skill in char.get("skills", {}):
+                char["skills"][skill]["status"] = status
+                char["skills"][skill].update(meta)
+            break
+    save_state(project_dir, state)
+
+
+def check_recruitment_ready(project_dir: str) -> bool:
+    """Check if all required skills are certified. Transition phase if so."""
+    state = load_state(project_dir)
+    characters = state.get("recruitment", {}).get("characters", [])
+    if not characters:
+        return False
+    all_ready = True
+    for char in characters:
+        required_certified = all(
+            skill_info.get("status") == "certified"
+            for skill_info in char.get("skills", {}).values()
+            if skill_info.get("required", False)
+        )
+        char["ready"] = required_certified
+        if not required_certified:
+            all_ready = False
+    if all_ready:
+        state["phase"] = "active"
+        state["recruitment"]["ready_at"] = datetime.now(timezone.utc).isoformat()
+    save_state(project_dir, state)
+    return all_ready
+
+
+def get_active_characters(project_dir: str) -> list[dict]:
+    """Return all characters that are ready to participate in the loop."""
+    state = load_state(project_dir)
+    return [
+        c for c in state.get("recruitment", {}).get("characters", [])
+        if c.get("ready", False)
+    ]
+
+
+def load_character_profile(project_dir: str, slug: str) -> dict:
+    """Load a character's profile from .autolab/characters/{slug}/character.yaml."""
+    path = Path(project_dir) / AUTOLAB_DIR / "characters" / slug / "character.yaml"
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    state = load_state(project_dir)
+    for char in state.get("recruitment", {}).get("characters", []):
+        if char.get("slug") == slug:
+            return char
+    return DEFAULT_TRAINEE_PROFILE
 
 
 # ---------------------------------------------------------------------------
