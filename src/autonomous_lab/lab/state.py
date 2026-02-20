@@ -21,6 +21,7 @@ AUTOLAB_DIR = ".autolab"
 STATE_FILE = "state.json"
 MEETING_LOG = "meeting_log.md"
 MEETING_SUMMARIES = "meeting_summaries.md"
+MEETING_PREAMBLE = "meeting_preamble.md"
 IDEA_FILE = "idea.md"
 CONFIG_FILE = "config.yaml"
 PROFILES_DIR = "profiles"
@@ -256,39 +257,97 @@ def get_recent_meetings(project_dir: str, n: int = 3) -> str:
     return "\n---\n".join(recent)
 
 
-def get_meeting_summaries(project_dir: str, max_chars: int = 8000) -> str:
-    """Return compressed meeting summaries, capping at max_chars.
+def get_meeting_summaries(project_dir: str, max_chars: int = 4000) -> str:
+    """Return pinned project preamble + recent meeting summaries.
 
-    For very long sessions (50+ iterations), even the summaries file
-    can grow large. When it exceeds max_chars, only the most recent
-    entries are returned with a note about how many were truncated.
+    The preamble (~500 chars) captures the project origin, key decisions,
+    and current state so the model never loses the narrative thread.
+    The remaining budget is filled with the most recent summary entries.
     """
-    path = _autolab_path(project_dir) / MEETING_SUMMARIES
+    autolab = _autolab_path(project_dir)
+
+    # Load preamble (pinned context)
+    preamble_path = autolab / MEETING_PREAMBLE
+    preamble = ""
+    if preamble_path.exists():
+        preamble = preamble_path.read_text(encoding="utf-8").strip()
+
+    # Load summaries
+    path = autolab / MEETING_SUMMARIES
     if not path.exists():
+        if preamble:
+            return f"## Project Narrative\n{preamble}"
         return ""
     text = path.read_text(encoding="utf-8")
-    if len(text) <= max_chars:
-        return text
 
-    # Keep the header + most recent summaries within budget
-    lines = text.strip().split("\n")
-    header = lines[0] if lines else ""
-    entries = lines[1:]
-    kept = []
-    total_len = len(header) + 100  # buffer for truncation note
-    for line in reversed(entries):
-        if total_len + len(line) + 1 > max_chars:
+    # Budget: reserve space for preamble + section headers + buffer
+    preamble_overhead = len(preamble) + 60 if preamble else 0  # headers + newlines
+    summary_budget = max_chars - preamble_overhead
+
+    if len(text) <= summary_budget:
+        capped_summaries = text
+    else:
+        # Keep the header + most recent summaries within budget
+        lines = text.strip().split("\n")
+        header = lines[0] if lines else ""
+        entries = lines[1:]
+        kept = []
+        total_len = len(header) + 100  # buffer for truncation note
+        for line in reversed(entries):
+            if total_len + len(line) + 1 > summary_budget:
+                break
+            kept.insert(0, line)
+            total_len += len(line) + 1
+
+        truncated = len(entries) - len(kept)
+        note = (
+            f"\n*(Oldest {truncated} summary entries omitted for context budget)*\n\n"
+            if truncated > 0
+            else "\n"
+        )
+        capped_summaries = header + note + "\n".join(kept)
+
+    if preamble:
+        return f"## Project Narrative\n{preamble}\n\n## Recent History\n{capped_summaries}"
+    return capped_summaries
+
+
+def _generate_preamble(summaries_text: str, idea_text: str = "") -> str:
+    """Build a short project narrative from summaries for context retention.
+
+    Extracts project origin (first summary), key pivot/decision entries,
+    and current state (last summary) into a ~300-500 char block.
+    """
+    lines = [
+        ln.strip()
+        for ln in summaries_text.strip().split("\n")
+        if ln.strip().startswith("- **")
+    ]
+    if not lines:
+        return ""
+
+    # Project origin: first summary entry, truncated
+    origin = lines[0][:150]
+
+    # Key decisions: entries containing strategic keywords
+    decision_keywords = ("pivot", "strategic decision", "major revision", "restructur")
+    decisions = []
+    for ln in lines:
+        if any(kw in ln.lower() for kw in decision_keywords):
+            decisions.append(ln[:100])
+        if len(decisions) >= 3:
             break
-        kept.insert(0, line)
-        total_len += len(line) + 1
 
-    truncated = len(entries) - len(kept)
-    note = (
-        f"\n*(Oldest {truncated} summary entries omitted for context budget)*\n\n"
-        if truncated > 0
-        else "\n"
-    )
-    return header + note + "\n".join(kept)
+    # Current state: last entry
+    current = lines[-1][:150] if len(lines) > 1 else ""
+
+    parts = [f"**Project origin**: {origin}"]
+    if decisions:
+        parts.append("**Key decisions**: " + " | ".join(decisions))
+    if current:
+        parts.append(f"**Current state**: {current}")
+
+    return "\n".join(parts)
 
 
 def compress_old_meetings(project_dir: str, keep_recent: int = 3) -> None:
@@ -348,6 +407,14 @@ def compress_old_meetings(project_dir: str, keep_recent: int = 3) -> None:
         f.write(header)
         for entry in recent_entries:
             f.write(f"\n---\n{entry}")
+
+    # Generate/update the meeting preamble for context retention
+    preamble_path = _autolab_path(project_dir) / MEETING_PREAMBLE
+    idea_text = load_idea(project_dir)
+    all_summaries = summaries_path.read_text(encoding="utf-8") if summaries_path.exists() else ""
+    preamble = _generate_preamble(all_summaries, idea_text)
+    if preamble:
+        preamble_path.write_text(preamble + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
