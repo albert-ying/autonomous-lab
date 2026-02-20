@@ -26,7 +26,7 @@
         "Collaborative: bridges wet lab and dry lab teams effectively"
       ],
       "github": "albert-ying/autolab-char-compbio-pi",
-      "stars": 342,
+      "stars": 0,
       "official": true
     },
     {
@@ -54,7 +54,7 @@
         "Proactive: identifies additional analyses that strengthen the narrative"
       ],
       "github": "albert-ying/autolab-char-bioinfo-trainee",
-      "stars": 256,
+      "stars": 0,
       "official": true
     },
     {
@@ -81,7 +81,7 @@
         "Publication-savvy: structures work for high-impact medicinal chemistry journals"
       ],
       "github": "albert-ying/autolab-char-medchem-pi",
-      "stars": 189,
+      "stars": 0,
       "official": false
     },
     {
@@ -108,7 +108,7 @@
         "Clear communicator: documents architecture decisions and trade-offs"
       ],
       "github": "albert-ying/autolab-char-ml-engineer",
-      "stars": 198,
+      "stars": 0,
       "official": false
     },
     {
@@ -134,7 +134,7 @@
         "Translational: connects statistical findings to clinical implications"
       ],
       "github": "albert-ying/autolab-char-clinical-epi",
-      "stars": 145,
+      "stars": 0,
       "official": false
     },
     {
@@ -161,7 +161,7 @@
         "Conservative: prefers well-validated methods over trendy approaches"
       ],
       "github": "albert-ying/autolab-char-biostatistician",
-      "stars": 267,
+      "stars": 0,
       "official": true
     }
   ]
