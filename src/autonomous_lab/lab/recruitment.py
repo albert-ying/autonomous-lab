@@ -5,9 +5,15 @@ Orchestrates the recruiting pipeline: marketplace search,
 character resolution, and background skill learning.
 """
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from autonomous_lab.integrations.tooluniverse import (
+    search_tools as search_tu_tools,
+    get_tool_spec,
+    generate_skill_md,
+)
 from autonomous_lab.lab.state import (
     add_character,
     update_skill_status,
@@ -20,6 +26,8 @@ from autonomous_lab.integrations.github import (
     fetch_skill_files,
 )
 from autonomous_lab.lab.skills import run_validation, load_skill_meta
+
+logger = logging.getLogger(__name__)
 
 
 SCORE_FULL_MATCH = 0.8
@@ -109,6 +117,31 @@ async def execute_recruitment(
             char_dir.mkdir(parents=True, exist_ok=True)
             source = "fresh"
 
+        # ── ToolUniverse fallback for missing skills ──
+        tu_resolved: dict[str, str] = {}  # skill_name -> generated SKILL.md content
+        if strategy.missing_skills:
+            for missing_skill in strategy.missing_skills:
+                try:
+                    tu_matches = search_tu_tools(missing_skill, limit=3)
+                    if tu_matches:
+                        best_name = tu_matches[0].get("name", missing_skill)
+                        tool_spec = get_tool_spec(best_name)
+                        if tool_spec is None:
+                            tool_spec = tu_matches[0]
+                        skill_md = generate_skill_md(tool_spec)
+                        # Save SKILL.md to character's skills dir
+                        skill_dir = char_dir / "skills" / missing_skill
+                        skill_dir.mkdir(parents=True, exist_ok=True)
+                        (skill_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
+                        # Write meta.yaml for content-only validation
+                        (skill_dir / "meta.yaml").write_text(
+                            "validation_type: content-only\nsource: tooluniverse\n",
+                            encoding="utf-8",
+                        )
+                        tu_resolved[missing_skill] = skill_md
+                except Exception as exc:
+                    logger.warning("ToolUniverse lookup failed for %s: %s", missing_skill, exc)
+
         skills_status = {}
         for skill_name in needed_names:
             skill_path = char_dir / "skills" / skill_name
@@ -135,6 +168,15 @@ async def execute_recruitment(
                             "source": "marketplace",
                         }
                         continue
+
+                # Check if ToolUniverse resolved this skill
+                if skill_name in tu_resolved:
+                    skills_status[skill_name] = {
+                        "status": "certified",
+                        "required": required_map.get(skill_name, False),
+                        "source": "tooluniverse",
+                    }
+                    continue
 
                 skills_status[skill_name] = {
                     "status": "queued",
