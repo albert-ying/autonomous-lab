@@ -513,11 +513,19 @@ For each deliverable (figures, artifacts, outputs), evaluate against this checkl
 - [ ] Value formats are correct (IDs, units, precision)
 - [ ] Result scope matches what you asked for (filtered vs. complete)
 - [ ] Figures: readable at print size, labeled axes, legend present, 600 DPI
-Score 1-10 based on how many checks pass. For each, list:
+
+**Verification (do not skip):** Re-read the original task description in `idea.md`.
+If the task specifies a particular output format, expected scope, or example row,
+open the actual result file(s) and compare. Load the file in Python if needed —
+print the shape, column names, and a few sample rows. Compare against what the
+specification asks for. A common failure mode is returning all results instead
+of the filtered subset the task requires.
+
+Score 1-10 based on how many checks pass. For each deliverable, list:
 - Score (1-10)
 - Specific issues (reference checklist items that failed)
 - Required fixes
-If any critical check fails, set STATUS: continue.
+If any critical check fails (especially scope mismatch), set STATUS: continue.
 If no deliverables exist yet, state "No deliverables to evaluate."
 
 ### 2b. CITATION QA
