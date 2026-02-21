@@ -909,6 +909,11 @@ Verify every key numeric claim against the figures and tables.
 {idea if idea else "(Not provided)"}
 
 When evaluating the manuscript, verify that the work actually addresses this research question.
+Specifically: open the result files in `results/` and check whether the output format, scope,
+and content match what the original question asks for. If the question asks for a filtered
+subset and the output contains unfiltered complete results, note this as a significant concern
+in your review. Deliverable compliance with the original specification is as important as
+methodological quality.
 
 ### Cover Letter from PI
 
