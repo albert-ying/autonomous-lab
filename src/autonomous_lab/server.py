@@ -23,6 +23,7 @@ MCP Feedback Enhanced 伺服器主要模組
 重構: 模塊化設計
 """
 
+import asyncio
 import base64
 import io
 import json
@@ -995,91 +996,109 @@ async def autolab_next(
     # --- Multi-agent orchestration (opt-in) ---
     # If orchestration: multi is set, delegate to dedicated agent subprocesses.
     # Auto-detects Claude Code native agent teams for richer collaboration.
-    # On any failure, falls through to the single-agent path below.
+    # On any failure or timeout, falls through to the single-agent path below.
     _orchestration_fallback_notice = ""
     from .lab.state import load_config as _load_config
 
     _config = _load_config(project_directory)
+
+    async def _try_orchestrated_turn(
+        _proj_dir: str, _state: dict, _cfg: dict
+    ) -> str | None:
+        """Attempt multi-agent orchestration. Returns result string or None to fall through."""
+        _ma_role = _state["next_role"]
+        if _ma_role not in ("pi", "trainee"):
+            return None
+
+        from .lab.orchestrator import Orchestrator
+
+        _orch = Orchestrator(_proj_dir)
+
+        if _ma_role == "pi":
+            if _orch.is_available("pi"):
+                _summary = await _orch.run_pi_turn()
+                _dcfg = get_domain_config(_proj_dir)
+                return (
+                    f"[AUTOLAB MULTI-AGENT] {_dcfg['senior_label']} turn completed.\n\n"
+                    f"**Summary:** {_summary}"
+                )
+
+        elif _ma_role == "trainee":
+            from .lab.team_builder import TeamBuilder, is_agent_team_available
+
+            if is_agent_team_available(_cfg):
+                _tb = TeamBuilder(_proj_dir)
+                _meetings = get_recent_meetings(_proj_dir, n=1)
+                _team_prompt = _tb.build_team_prompt(
+                    pi_agenda=_meetings,
+                    idea=load_idea(_proj_dir),
+                    file_listings=scan_project_files(_proj_dir),
+                    iteration=_state["iteration"],
+                )
+                from .lab.event_log import log_event as _log_ev
+                _log_ev(
+                    _proj_dir,
+                    "agent_team_mode",
+                    iteration=_state["iteration"],
+                )
+                return _team_prompt
+
+            elif _orch.is_available("trainee"):
+                _summary = await _orch.run_trainee_turn()
+                _dcfg = get_domain_config(_proj_dir)
+                return (
+                    f"[AUTOLAB MULTI-AGENT] {_dcfg['junior_label']} turn completed.\n\n"
+                    f"**Summary:** {_summary}"
+                )
+
+        return None  # Fall through to single-agent
+
     if _config.get("orchestration") == "multi":
-        _ma_role = state["next_role"]
-        if _ma_role in ("pi", "trainee"):
-            try:
-                from .lab.orchestrator import Orchestrator
-
-                _orch = Orchestrator(project_directory)
-
-                if _ma_role == "pi":
-                    # PI turn: always run via CLI subprocess
-                    if _orch.is_available("pi"):
-                        _summary = await _orch.run_pi_turn()
-                        _dcfg = get_domain_config(project_directory)
-                        return (
-                            f"[AUTOLAB MULTI-AGENT] {_dcfg['senior_label']} turn completed.\n\n"
-                            f"**Summary:** {_summary}"
-                            + _LOOP_INSTRUCTION
-                        )
-
-                elif _ma_role == "trainee":
-                    # Trainee turn: try agent-team mode first, fall back to CLI
-                    from .lab.team_builder import TeamBuilder, is_agent_team_available
-
-                    if is_agent_team_available(_config):
-                        # Claude Code native teams: return team-building prompt
-                        _tb = TeamBuilder(project_directory)
-                        # Get the last PI meeting entry as the agenda
-                        _meetings = get_recent_meetings(project_directory, n=1)
-                        _team_prompt = _tb.build_team_prompt(
-                            pi_agenda=_meetings,
-                            idea=load_idea(project_directory),
-                            file_listings=scan_project_files(project_directory),
-                            iteration=state["iteration"],
-                        )
-                        from .lab.event_log import log_event as _log_ev
-                        _log_ev(
-                            project_directory,
-                            "agent_team_mode",
-                            iteration=state["iteration"],
-                        )
-                        return _team_prompt
-
-                    elif _orch.is_available("trainee"):
-                        # CLI subprocess: run trainee(s), possibly in parallel
-                        _summary = await _orch.run_trainee_turn()
-                        _dcfg = get_domain_config(project_directory)
-                        return (
-                            f"[AUTOLAB MULTI-AGENT] {_dcfg['junior_label']} turn completed.\n\n"
-                            f"**Summary:** {_summary}"
-                            + _LOOP_INSTRUCTION
-                        )
-
-                # If we reach here, agent not available — log and fall through
-                from .lab.event_log import log_event as _log_ev
-                _log_ev(
-                    project_directory,
-                    "orchestrator_fallback",
-                    role=_ma_role,
-                    reason="agent_not_available",
-                )
-                _orchestration_fallback_notice = (
-                    "[NOTICE] Multi-agent orchestration is configured but the "
-                    f"{_ma_role} agent is not available. "
-                    "Falling back to single-agent mode for this turn.\n\n"
-                )
-
-            except Exception as _ma_err:
-                from .lab.event_log import log_event as _log_ev
-
-                _log_ev(
-                    project_directory,
-                    "orchestrator_error",
-                    role=_ma_role,
-                    error=str(_ma_err),
-                )
-                _orchestration_fallback_notice = (
-                    "[NOTICE] Multi-agent orchestration failed "
-                    f"({_ma_err}). "
-                    "Falling back to single-agent mode for this turn.\n\n"
-                )
+        _orch_timeout = _config.get("orchestrator_timeout", 900)
+        try:
+            _orch_result = await asyncio.wait_for(
+                _try_orchestrated_turn(project_directory, state, _config),
+                timeout=_orch_timeout,
+            )
+            if _orch_result is not None:
+                return _orch_result + _LOOP_INSTRUCTION
+            # None means fall through to single-agent
+            from .lab.event_log import log_event as _log_ev
+            _log_ev(
+                project_directory,
+                "orchestrator_fallback",
+                role=state["next_role"],
+                reason="agent_not_available",
+            )
+            _orchestration_fallback_notice = (
+                "[NOTICE] Multi-agent orchestration is configured but the "
+                f"{state['next_role']} agent is not available. "
+                "Falling back to single-agent mode for this turn.\n\n"
+            )
+        except asyncio.TimeoutError:
+            from .lab.event_log import log_event as _log_ev
+            _log_ev(
+                project_directory,
+                "orchestrator_timeout",
+                role=state["next_role"],
+                timeout=_orch_timeout,
+            )
+            _orchestration_fallback_notice = (
+                f"[NOTICE] Multi-agent orchestration timed out after {_orch_timeout}s. "
+                "Falling back to single-agent mode for this turn.\n\n"
+            )
+        except Exception as _ma_err:
+            from .lab.event_log import log_event as _log_ev
+            _log_ev(
+                project_directory,
+                "orchestrator_error",
+                role=state["next_role"],
+                error=str(_ma_err),
+            )
+            _orchestration_fallback_notice = (
+                f"[NOTICE] Multi-agent orchestration failed ({_ma_err}). "
+                "Falling back to single-agent mode for this turn.\n\n"
+            )
 
     idea = load_idea(project_directory)
     role = state["next_role"]
