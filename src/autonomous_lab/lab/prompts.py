@@ -507,10 +507,17 @@ Critical evaluation of the {junior_label}'s latest work (or, if this is the firs
 - What is missing or needs improvement
 
 ### 2. DELIVERABLE QA
-For each deliverable (figures, artifacts, outputs), score it 1-10 against professional standards. For each, list:
+For each deliverable (figures, artifacts, outputs), evaluate against this checklist:
+- [ ] Output format matches what you requested (file type, structure)
+- [ ] Column names / field names match your specification exactly
+- [ ] Value formats are correct (IDs, units, precision)
+- [ ] Result scope matches what you asked for (filtered vs. complete)
+- [ ] Figures: readable at print size, labeled axes, legend present, 600 DPI
+Score 1-10 based on how many checks pass. For each, list:
 - Score (1-10)
-- Specific issues
+- Specific issues (reference checklist items that failed)
 - Required fixes
+If any critical check fails, set STATUS: continue.
 If no deliverables exist yet, state "No deliverables to evaluate."
 
 ### 2b. CITATION QA
@@ -601,8 +608,8 @@ Assess overall project progress from 0-100. This drives the progress bar in the 
 
 Output: `PROGRESS: <number>`
 
-### 9. BIOMEDICAL TOOLKIT (Optional)
-If the biomedical toolkit is available (check via `autolab_biotools_status`), you may suggest using its curated tools and databases for specific tasks. The {junior_label} should import tools directly in their scripts: `from biomni.tools.<name> import *`. Use `autolab_biotools_list` to see what's available. Only mention if genuinely useful — do not force it.
+### 9. SCIENTIFIC TOOLKIT (Optional)
+If the project could benefit from specialized scientific tools, use `autolab_tools_search` to find relevant tools from the ToolUniverse catalog (1000+ tools at aiscientist.tools). Relevant tools are automatically integrated into character skills during recruitment. The {junior_label} can use them via `from tooluniverse import ToolUniverse; tu = ToolUniverse(); tu.tools.<name>(...)`. Only mention if genuinely useful — do not force it.
 
 ### 10. STATUS
 Output exactly one of:
@@ -677,6 +684,9 @@ You are a dedicated, technically excellent {junior_label.lower()}. You implement
 
 {skill_context}
 
+When your certified SKILL.md specifies a parameter or methodology, follow it unless you have
+a documented reason to deviate. If you deviate, state why in your RESULTS section.
+
 """
 
     prompt += f"""## Project Idea
@@ -736,12 +746,20 @@ For each task:
 
 Use the Shell tool to run your scripts. Use the file editing tools to write content.
 
-**Biomedical Toolkit:** If the {senior_short} suggests using biomedical toolkit capabilities, and the toolkit is available (check with `autolab_biotools_status`), import the relevant tools directly in your scripts: `from biomni.tools.<tool_name> import *`. Use `autolab_biotools_list` to see what's available. If the toolkit is not installed, proceed without it — all core work can be done with standard Python packages.
+**Tool failures:** If a tool fails to install or crashes at runtime, do not spend more than two attempts debugging it. Switch to an alternative tool or approach and document the failure briefly in your RESULTS section.
+
+**Scientific Toolkit:** If the {senior_short} suggests using ToolUniverse tools, check availability with `autolab_tools_status`. Search for tools with `autolab_tools_search("<query>")`. Use them in scripts via `from tooluniverse import ToolUniverse; tu = ToolUniverse(); result = tu.tools.<tool_name>(**kwargs)`. If the SDK is not installed locally, tools execute via the ToolUniverse HTTP API. If neither is available, proceed with standard Python packages.
 
 ### 3. RESULTS
 Key findings with exact numbers and evidence. Do not omit important metrics or data points.
 
 ### 4. DELIVERABLES
+Before listing deliverables, verify each one:
+- **Format**: Does the output file match what the {senior_short} requested? (column names, file type, delimiter)
+- **Schema**: Do values use the same ID system, naming convention, and units as specified?
+- **Scope**: Is this the full result set or a filtered subset? Match what was asked.
+If any check fails, fix the deliverable before reporting it.
+
 List every new or updated deliverable:
 - Filename
 - What it shows/contains
@@ -824,6 +842,7 @@ def build_reviewer_prompt(
     file_listings: dict,
     cover_letter: str,
     round_number: int = 1,
+    idea: str = "",
 ) -> str:
     """
     Build a prompt for an individual peer reviewer.
@@ -853,6 +872,10 @@ This is **Review Round {round_number}**.
 
 You are a rigorous, constructive peer reviewer. You evaluate manuscripts based on established standards and your domain expertise.
 
+Your job is to find problems. For each section, actively ask: "What could be wrong here?"
+If you find no substantive issues in a section, you must explicitly justify why — do not simply state there are none.
+Verify every key numeric claim against the figures and tables.
+
 **Your domain expertise and resources:**
 {domain_knowledge}
 
@@ -867,6 +890,12 @@ You are a rigorous, constructive peer reviewer. You evaluate manuscripts based o
 ### Project Files
 
 {files_str}
+
+### Original Research Question
+
+{idea if idea else "(Not provided)"}
+
+When evaluating the manuscript, verify that the work actually addresses this research question.
 
 ### Cover Letter from PI
 
@@ -1165,6 +1194,9 @@ Think carefully:
 3. Which skills are required (blocking) vs nice-to-have (background)?
 
 The system will search the marketplace for matching characters, clone them,
-and learn any missing skills automatically. Required skills must be certified
-before the research loop begins; optional skills are learned in background.
+and learn any missing skills automatically. Additionally, the system searches
+the ToolUniverse catalog (aiscientist.tools) for matching scientific tools —
+any found are auto-added as certified skills. You can preview available tools
+with `autolab_tools_search`. Required skills must be certified before the
+research loop begins; optional skills are learned in background.
 """
