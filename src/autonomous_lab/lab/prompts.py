@@ -765,7 +765,12 @@ Key findings with exact numbers and evidence. Do not omit important metrics or d
 Before listing deliverables, verify each one:
 - **Format**: Does the output file match what the {senior_short} requested? (column names, file type, delimiter)
 - **Schema**: Do values use the same ID system, naming convention, and units as specified?
-- **Scope**: Is this the full result set or a filtered subset? Match what was asked.
+- **Scope**: Re-read the original task description in `idea.md` and compare your
+  output's scope to what was requested. If the task asks for a filtered subset
+  (e.g., significant results, shared items, top-N), verify that you applied
+  the filter. Print the row/item count of your output and sanity-check it
+  against what the specification implies. Returning unfiltered complete results
+  when a filtered subset was requested is a common error — catch it here.
 If any check fails, fix the deliverable before reporting it.
 
 List every new or updated deliverable:
