@@ -1,0 +1,6 @@
+domain: research
+editor_timeout_minutes: 1
+max_iterations: 50
+orchestration: multi
+target_venue: Nature
+title: 'Single-cell RNA-seq: Skeletal Muscle Exercise Response'

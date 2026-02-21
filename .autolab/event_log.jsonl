@@ -1,0 +1,8 @@
+{"ts": "2026-02-20T18:00:45.454226+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
+{"ts": "2026-02-20T18:01:30.589499+00:00", "event": "agent_team_mode", "iteration": 1}
+{"ts": "2026-02-20T18:37:33.501706+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
+{"ts": "2026-02-20T18:51:43.513580+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
+{"ts": "2026-02-20T18:52:14.335247+00:00", "event": "agent_team_mode", "iteration": 2}
+{"ts": "2026-02-20T19:03:57.082602+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
+{"ts": "2026-02-21T17:11:48.049935+00:00", "event": "agent_team_mode", "iteration": 1}
+{"ts": "2026-02-21T17:12:09.495945+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}

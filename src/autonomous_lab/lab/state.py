@@ -8,6 +8,7 @@ file scanning, and meeting summary compression.
 import importlib.resources
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -123,6 +124,7 @@ def init_project(
     # Initialize state
     now = datetime.now(timezone.utc).isoformat()
     state = {
+        "run_id": str(uuid.uuid4()),
         "title": title_str,
         "iteration": 0,
         "next_role": "pi",
@@ -669,6 +671,16 @@ def check_recruitment_ready(project_dir: str) -> bool:
     characters = state.get("recruitment", {}).get("characters", [])
     if not characters:
         return False
+
+    # Auto-promote queued skills that have a valid SKILL.md on disk
+    skills_dir = Path(project_dir) / AUTOLAB_DIR / "acquired_skills"
+    for char in characters:
+        for skill_name, skill_info in char.get("skills", {}).items():
+            if skill_info.get("status") == "queued":
+                skill_md = skills_dir / skill_name / "SKILL.md"
+                if skill_md.exists() and skill_md.stat().st_size > 100:
+                    skill_info["status"] = "certified"
+
     all_ready = True
     for char in characters:
         required_certified = all(
