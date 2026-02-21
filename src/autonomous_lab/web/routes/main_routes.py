@@ -1140,12 +1140,12 @@ def setup_routes(manager: "WebUIManager"):
 
             figures = file_listings.get("figures", [])
 
-            # Biomedical toolkit integration status (lightweight check)
-            biotools_info = {"installed": False}
+            # ToolUniverse integration status (lightweight check)
+            tools_info = {"installed": False}
             try:
-                from ...integrations.biomni import get_status
+                from ...integrations.tooluniverse import get_status
 
-                biotools_info = get_status(project_dir)
+                tools_info = get_status(project_dir)
             except Exception:
                 pass
 
@@ -1213,7 +1213,7 @@ def setup_routes(manager: "WebUIManager"):
                     "paper_progress": paper_progress,
                     "file_counts": {k: len(v) for k, v in file_listings.items()},
                     "files": file_listings,
-                    "biotools": biotools_info,
+                    "tools": tools_info,
                     "domain_config": domain_config,
                     "orchestration": orch_mode,
                     "trainees": dynamic_trainees,

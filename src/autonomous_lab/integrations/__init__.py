@@ -7,5 +7,9 @@ Each integration follows a detect → install → use pattern:
   2. If user opts in, install from source at runtime.
   3. Expose capabilities via the MCP tool layer.
 
+Integrations:
+  - tooluniverse: 1000+ scientific tools from aiscientist.tools
+  - github: Character marketplace search and cloning
+
 No third-party code is bundled. Everything is fetched live.
 """

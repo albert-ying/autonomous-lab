@@ -3163,6 +3163,38 @@ async def autolab_acquire_skill(
                 f".autolab/characters/{best.get('id', 'char')}\n"
             )
 
+    # Step 2b: Try ToolUniverse catalog
+    if not matches and not skill_md_path.exists():
+        try:
+            from autonomous_lab.integrations.tooluniverse import (
+                search_tools, get_tool_spec, generate_skill_md,
+            )
+            tu_results = search_tools(skill_name, limit=3)
+            if tu_results:
+                best_tool = tu_results[0]
+                spec = get_tool_spec(best_tool["name"]) or best_tool
+                skill_content = generate_skill_md(spec)
+
+                # Save locally
+                acquired_dir.mkdir(parents=True, exist_ok=True)
+                skill_md_path.write_text(skill_content, encoding="utf-8")
+                # Write meta.yaml
+                (acquired_dir / "meta.yaml").write_text(
+                    "validation_type: content-only\nsource: tooluniverse\n",
+                    encoding="utf-8",
+                )
+
+                output.append(
+                    f"Found in ToolUniverse catalog: {best_tool.get('name', '')}\n"
+                    f"  Description: {best_tool.get('description', '')}\n\n"
+                    f"Generated SKILL.md → {skill_md_path}\n\n"
+                    f"--- SKILL.md ---\n{skill_content}\n--- End ---\n\n"
+                    f"Skill acquired from ToolUniverse. Read and follow the instructions above."
+                )
+                return "\n".join(output)
+        except Exception as e:
+            output.append(f"ToolUniverse search failed: {e}\n")
+
     # Step 4: Not found — provide instructions to create
     if not matches:
         output.append(f"No marketplace character found with skill '{skill_name}'.\n")
