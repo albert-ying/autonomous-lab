@@ -19,12 +19,15 @@ from .state import load_config, load_idea, load_state, scan_project_files
 logger = logging.getLogger(__name__)
 
 
-def is_agent_team_available() -> bool:
-    """Check if Claude Code's native agent teams feature is available.
+def is_agent_team_available(config: dict | None = None) -> bool:
+    """Check if native agent teams are explicitly enabled.
 
-    Detects via environment variable set by Claude Code.
+    Requires explicit opt-in via team_mode: native in config.yaml.
+    Environment variable alone is no longer sufficient.
     """
-    return os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1"
+    if config and config.get("team_mode") == "native":
+        return os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1"
+    return False
 
 
 class TeamBuilder:

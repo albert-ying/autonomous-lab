@@ -1023,7 +1023,7 @@ async def autolab_next(
                     # Trainee turn: try agent-team mode first, fall back to CLI
                     from .lab.team_builder import TeamBuilder, is_agent_team_available
 
-                    if is_agent_team_available():
+                    if is_agent_team_available(_config):
                         # Claude Code native teams: return team-building prompt
                         _tb = TeamBuilder(project_directory)
                         # Get the last PI meeting entry as the agenda
