@@ -996,6 +996,7 @@ async def autolab_next(
     # If orchestration: multi is set, delegate to dedicated agent subprocesses.
     # Auto-detects Claude Code native agent teams for richer collaboration.
     # On any failure, falls through to the single-agent path below.
+    _orchestration_fallback_notice = ""
     from .lab.state import load_config as _load_config
 
     _config = _load_config(project_directory)
@@ -1059,6 +1060,11 @@ async def autolab_next(
                     role=_ma_role,
                     reason="agent_not_available",
                 )
+                _orchestration_fallback_notice = (
+                    "[NOTICE] Multi-agent orchestration is configured but the "
+                    f"{_ma_role} agent is not available. "
+                    "Falling back to single-agent mode for this turn.\n\n"
+                )
 
             except Exception as _ma_err:
                 from .lab.event_log import log_event as _log_ev
@@ -1069,7 +1075,11 @@ async def autolab_next(
                     role=_ma_role,
                     error=str(_ma_err),
                 )
-                # Fall through to single-agent
+                _orchestration_fallback_notice = (
+                    "[NOTICE] Multi-agent orchestration failed "
+                    f"({_ma_err}). "
+                    "Falling back to single-agent mode for this turn.\n\n"
+                )
 
     idea = load_idea(project_directory)
     role = state["next_role"]
@@ -1140,6 +1150,7 @@ async def autolab_next(
             file_listings=file_listings,
             cover_letter=cover_letter,
             round_number=round_num,
+            idea=load_idea(project_directory),
         )
         return (
             f"[AUTOLAB] REVIEWER TURN -- {reviewer['name']} ({reviewer['role']})\n"
@@ -1253,6 +1264,7 @@ async def autolab_next(
         )
 
     return (
+        f"{_orchestration_fallback_notice}"
         f"[AUTOLAB] {role_label.upper()} TURN -- Iteration {iteration}\n\n"
         f"{prompt}\n\n"
         f"After completing your actions as {role_label}, call autolab_record, then follow the MANDATORY NEXT STEPS."
@@ -2323,30 +2335,25 @@ async def autolab_status(
     return report
 
 
-# ===== Biomedical Toolkit Integration =====
-# Wraps the optional Biomni package (snap-stanford/Biomni) behind
-# generic tool names so the Autonomous Lab API stays vendor-neutral.
+# ===== ToolUniverse Integration =====
+# Replaces the former Biomni biotools section.
+# ToolUniverse (aiscientist.tools) provides 1000+ scientific tools.
 
 
 @mcp.tool()
-async def autolab_biotools_status(
+async def autolab_tools_status(
     project_directory: Annotated[
         str, Field(description="Project directory path")
     ] = ".",
 ) -> str:
-    """Check whether the optional biomedical toolkit is installed and enabled.
+    """Check whether the ToolUniverse SDK is installed and available.
 
-    The biomedical toolkit provides 100+ curated tools and databases for
-    life-science research (ADMET prediction, scRNA-seq analysis, CRISPR
-    screen planning, pathway enrichment, etc.).
+    ToolUniverse provides 1000+ scientific tools (ML models, datasets,
+    APIs, analysis packages) from https://aiscientist.tools.
 
-    It is NOT bundled with Autonomous Lab — users opt in by calling
-    autolab_biotools_install. Once installed, the Trainee can import
-    individual functions directly in Python scripts.
-
-    Returns JSON with: installed (bool), version, enabled, datalake path.
+    Returns JSON with: installed (bool), version, enabled, api_url.
     """
-    from .integrations.biomni import get_status
+    from .integrations.tooluniverse import get_status
 
     project_directory = os.path.abspath(project_directory)
     status = get_status(project_directory)
@@ -2354,26 +2361,20 @@ async def autolab_biotools_status(
 
 
 @mcp.tool()
-async def autolab_biotools_install(
+async def autolab_tools_install(
     from_source: Annotated[
         bool,
-        Field(
-            description="Install latest from GitHub (True) or stable from PyPI (False)"
-        ),
-    ] = True,
+        Field(description="Install from GitHub (True) or PyPI (False)"),
+    ] = False,
 ) -> str:
-    """Install the biomedical toolkit (one-time setup).
+    """Install the ToolUniverse SDK (one-time setup).
 
-    Downloads and installs the package at runtime.
-    Apache 2.0 licensed core; some integrated tools may carry
-    more restrictive licenses — review before commercial use.
-
-    The full datalake (~11 GB) downloads on first use.
-    Set skip_datalake=True via autolab_biotools_configure to skip it.
+    Installs the tooluniverse Python package for local tool execution.
+    Without it, tools still work via the HTTP API at aiscientist.tools.
     """
-    from .integrations.biomni import install_biomni
+    from .integrations.tooluniverse import install_sdk
 
-    result = install_biomni(from_source=from_source)
+    result = install_sdk(from_source=from_source)
     if result["success"]:
         return f"SUCCESS: {result['message']}"
     else:
@@ -2381,106 +2382,83 @@ async def autolab_biotools_install(
 
 
 @mcp.tool()
-async def autolab_biotools_configure(
+async def autolab_tools_configure(
     project_directory: Annotated[
         str, Field(description="Project directory path")
     ] = ".",
     enabled: Annotated[
-        bool, Field(description="Enable biomedical toolkit for this project")
+        bool, Field(description="Enable ToolUniverse for this project")
     ] = True,
-    data_path: Annotated[
-        str, Field(description="Path for toolkit datalake")
-    ] = "./data",
-    skip_datalake: Annotated[
-        bool, Field(description="Skip downloading the 11GB datalake")
-    ] = False,
+    prefer_local: Annotated[
+        bool, Field(description="Prefer local SDK over HTTP API")
+    ] = True,
+    api_url: Annotated[
+        str, Field(description="ToolUniverse API URL")
+    ] = "https://aiscientist.tools",
+    api_key: Annotated[
+        str, Field(description="Optional API key")
+    ] = "",
 ) -> str:
-    """Configure the biomedical toolkit for this project.
+    """Configure ToolUniverse for this project.
 
-    Saves settings to .autolab/biotools_config.json.
-    The toolkit must be installed first (autolab_biotools_install).
-
-    NOTE: The toolkit is used as a library only — we do NOT instantiate
-    any external LLM agent or pipeline.
+    Saves settings to .autolab/tools_config.json.
     """
-    from .integrations.biomni import save_biomni_config
+    from .integrations.tooluniverse import save_config
 
     project_directory = os.path.abspath(project_directory)
-    cfg = save_biomni_config(
+    cfg = save_config(
         project_directory,
         enabled=enabled,
-        data_path=data_path,
-        skip_datalake=skip_datalake,
+        prefer_local=prefer_local,
+        api_url=api_url,
+        api_key=api_key or None,
     )
-    return f"Biotools config saved:\n{json.dumps(cfg, indent=2)}"
+    return f"ToolUniverse config saved:\n{json.dumps(cfg, indent=2)}"
 
 
 @mcp.tool()
-async def autolab_biotools_list(
+async def autolab_tools_search(
+    query: Annotated[
+        str,
+        Field(description="Natural language search query (e.g., 'protein docking', "
+              "'gene expression analysis', 'drug-target interaction')"),
+    ] = "",
+    limit: Annotated[
+        int, Field(description="Maximum results to return")
+    ] = 10,
     project_directory: Annotated[
         str, Field(description="Project directory path")
     ] = ".",
 ) -> str:
-    """List available biomedical tools and databases.
+    """Search ToolUniverse for scientific tools matching a query.
 
-    Returns curated tools (ADMET prediction, scRNA-seq analysis,
-    CRISPR screen planning, etc.) and database connectors that the
-    Trainee can import directly in Python scripts.
+    Searches the catalog of 1000+ scientific tools including ML models,
+    datasets, APIs, and analysis packages. Works with local SDK or
+    via the HTTP API at aiscientist.tools.
 
-    Use this when the PI or Trainee needs to discover what analysis
-    capabilities are available beyond standard Python packages.
+    Use this to discover tools during research planning or when
+    the PI/Trainee needs specialized capabilities.
     """
-    from .integrations.biomni import (
-        is_biomni_available,
-        list_available_databases,
-        list_available_tools,
-    )
+    from .integrations.tooluniverse import search_tools
 
-    if not is_biomni_available():
-        return (
-            "Biomedical toolkit is not installed.\n"
-            "Install with: autolab_biotools_install()\n"
-        )
-    tools = list_available_tools()
-    dbs = list_available_databases()
+    if not query:
+        return "ERROR: query is required (e.g., 'protein structure prediction')"
 
-    lines = ["## Available Biomedical Tools\n"]
-    if tools:
-        for t in tools:
-            desc = f" — {t['description']}" if t.get("description") else ""
-            lines.append(f"  - **{t['name']}** (`{t['module']}`){desc}")
-    else:
-        lines.append("  (no tools detected)")
+    results = search_tools(query.strip(), limit=limit)
+    if not results:
+        return f"No tools found matching '{query}'. Try a broader query."
 
-    lines.append("\n## Available Databases\n")
-    if dbs:
-        for d in dbs:
-            desc = f" — {d['description']}" if d.get("description") else ""
-            lines.append(f"  - **{d['name']}** (`{d['module']}`){desc}")
-    else:
-        lines.append("  (no databases detected)")
+    lines = [f"## ToolUniverse Search: '{query}'\n"]
+    for i, tool in enumerate(results, 1):
+        name = tool.get("name", "unknown")
+        desc = tool.get("description", "")
+        lines.append(f"{i}. **{name}** — {desc}")
 
     lines.append(
-        "\n## Usage\n"
-        "Import tools directly in analysis scripts:\n"
-        "```python\n"
-        "from biomni.tools.<tool_name> import *\n"
-        "```"
+        f"\n*{len(results)} tool(s) found. "
+        "Tools are automatically integrated during character recruitment.*"
     )
     return "\n".join(lines)
-
-
-@mcp.tool()
-async def autolab_biotools_env() -> str:
-    """Check biomedical toolkit environment details.
-
-    Shows available sub-packages, active Python environment,
-    datalake status, and paths.
-    """
-    from .integrations.biomni import check_environment
-
-    env = check_environment()
-    return json.dumps(env, indent=2)
 
 
 # ===== Character Creation =====
@@ -3083,7 +3061,11 @@ async def autolab_acquire_skill(
             registry = json.loads(resp.read().decode("utf-8"))
 
         for char in registry.get("characters", []):
-            char_skills = [s.lower() for s in char.get("skills", [])]
+            raw_skills = char.get("skills", [])
+            if isinstance(raw_skills, dict):
+                char_skills = [s.lower() for s in raw_skills.keys()]
+            else:
+                char_skills = [s.lower() for s in raw_skills]
             # Exact match or substring match
             if skill_name in char_skills or any(
                 skill_name in s or s in skill_name for s in char_skills
