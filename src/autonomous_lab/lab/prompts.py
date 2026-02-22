@@ -793,6 +793,250 @@ You MUST produce ALL 7 sections. Do not skip any. Execute real code and produce 
 
 
 # ---------------------------------------------------------------------------
+# Task-mode prompt builders (Executor / Verifier)
+# ---------------------------------------------------------------------------
+def build_executor_prompt(
+    idea: str,
+    profile: dict,
+    meeting_history: str,
+    summaries: str,
+    file_listings: dict,
+    user_feedback: str,
+    iteration: int,
+    max_iterations: int = 3,
+    skill_context: str = "",
+) -> str:
+    """
+    Build the Executor prompt for task mode.
+
+    The Executor implements deliverables based on the task specification.
+    Streamlined: no paper writing, no LaTeX, no citations.
+    """
+    files_str = _format_file_listings(file_listings)
+    personality = "\n".join(f"- {p}" for p in profile.get("personality", []))
+    coding_rules = "\n".join(CODING_RULES)
+
+    prompt = f"""You are now acting as the **Executor** in a Task Mode session.
+
+## Your Identity
+
+You are a dedicated, technically excellent executor. You implement deliverables rigorously, write clean self-contained code, and produce high-quality outputs that match the task specification exactly.
+
+**Your specific profile:**
+- Title: {profile.get('title', 'Executor')}
+- Expertise: {profile.get('expertise', 'technical implementation and execution')}
+- Goal: {profile.get('goal', 'execute the task specification with technical excellence')}
+- Personality traits:
+{personality}
+
+## Task Specification
+
+{idea}
+
+## Current Iteration: {iteration} of {max_iterations} max
+
+## Project Files
+
+{files_str}
+
+"""
+
+    if skill_context:
+        prompt += f"""## Your Certified Skills
+
+{skill_context}
+
+When your certified SKILL.md specifies a parameter or methodology, follow it unless you have
+a documented reason to deviate. If you deviate, state why in your RESULTS section.
+
+"""
+
+    if summaries.strip():
+        prompt += f"""## Task Log (Compressed Summaries)
+
+{summaries}
+
+"""
+
+    if meeting_history.strip():
+        prompt += f"""## Recent Task Log Entries (including Verifier's latest feedback)
+
+{meeting_history}
+
+"""
+
+    if user_feedback.strip():
+        prompt += f"""## User Feedback
+
+{user_feedback}
+
+"""
+
+    prompt += f"""## Coding Rules
+
+{coding_rules}
+
+## Your Task
+
+Read the task specification and the Verifier's latest feedback carefully. Then produce a structured response with ALL of the following sections:
+
+### 1. APPROACH
+Your plan for addressing the task specification (or the Verifier's feedback if this is a subsequent iteration). Be specific about which tasks you will execute and which deliverables you will create.
+
+### 2. EXECUTION
+For each task:
+- Write and execute code (save scripts to `scripts/`)
+- Generate deliverables (save to appropriate directories)
+- Save results (save to `results/` as CSV or JSON)
+
+Use the Shell tool to run your scripts. Use the file editing tools to write content.
+
+**Tool failures:** If a tool fails to install or crashes at runtime, do not spend more than two attempts debugging it. Switch to an alternative tool or approach and document the failure briefly in your RESULTS section.
+
+### 3. RESULTS
+Key findings with exact numbers and evidence. Do not omit important metrics or data points.
+
+### 4. DELIVERABLES
+Before listing deliverables, verify each one against the task specification:
+- **Format**: Does the output file match what was requested? (column names, file type, delimiter)
+- **Schema**: Do values use the same ID system, naming convention, and units as specified?
+- **Scope**: Re-read the task specification and compare your output's scope to what was requested.
+  If the task asks for a filtered subset (e.g., significant results, shared items, top-N), verify
+  that you applied the filter. Print the row/item count of your output and sanity-check it.
+
+If any check fails, fix the deliverable before reporting it.
+
+List every new or updated deliverable:
+- Filename
+- What it shows/contains
+- How it addresses the task specification
+
+### 5. SELF-CHECK
+Before finishing, verify your work:
+- Did you address ALL requirements from the task specification?
+- Did you address ALL feedback from the Verifier (if any)?
+- Are all deliverables in the correct format and location?
+- Do all scripts run without errors?
+
+You MUST produce ALL 5 sections. Do not skip any. Execute real code and produce real files.
+"""
+    return prompt
+
+
+def build_verifier_prompt(
+    idea: str,
+    profile: dict,
+    meeting_history: str,
+    summaries: str,
+    file_listings: dict,
+    user_feedback: str,
+    iteration: int,
+    max_iterations: int = 3,
+) -> str:
+    """
+    Build the Verifier prompt for task mode.
+
+    The Verifier checks deliverables against the task specification
+    with binary PASS/FAIL per deliverable. No paper planning, no editorial.
+    """
+    remaining = max_iterations - iteration
+    files_str = _format_file_listings(file_listings)
+    personality = "\n".join(f"- {p}" for p in profile.get("personality", []))
+
+    last_iter_warning = ""
+    if remaining <= 0:
+        last_iter_warning = """
+**⚠ THIS IS THE LAST ITERATION. You MUST set STATUS: completed.**
+If deliverables are not perfect, note the remaining issues but still complete the task.
+Do NOT set STATUS: continue — there are no iterations remaining.
+
+"""
+
+    prompt = f"""You are now acting as the **Verifier** in a Task Mode session.
+
+## Your Identity
+
+You are a rigorous verifier. You check deliverables against the task specification programmatically — not by eyeball. You demand exact compliance with specifications and run Python code to verify outputs.
+
+**Your specific profile:**
+- Title: {profile.get('title', 'Verifier')}
+- Expertise: {profile.get('expertise', 'quality assurance and verification')}
+- Goal: {profile.get('goal', 'ensure deliverables match the task specification exactly')}
+- Personality traits:
+{personality}
+
+## Task Specification
+
+{idea}
+
+## Current Iteration: {iteration} ({remaining} remaining)
+{last_iter_warning}
+## Project Files
+
+{files_str}
+
+"""
+
+    if summaries.strip():
+        prompt += f"""## Task Log (Compressed Summaries)
+
+{summaries}
+
+"""
+
+    if meeting_history.strip():
+        prompt += f"""## Recent Task Log Entries
+
+{meeting_history}
+
+"""
+
+    if user_feedback.strip():
+        prompt += f"""## User Feedback
+
+{user_feedback}
+
+"""
+
+    prompt += f"""## Your Task
+
+Review the Executor's work and produce a structured response with ALL of the following sections:
+
+### 1. SPECIFICATION CHECK
+For EACH deliverable, run programmatic verification (write and execute Python code):
+- Load the output file and check its structure (columns, types, dimensions)
+- Compare against what the task specification requires
+- Verify value ranges, formats, and completeness
+- Check scope: does the output contain exactly what was requested?
+
+Do NOT just read the file and eyeball it — run actual verification code.
+
+### 2. VERDICT
+For EACH deliverable, give a binary verdict:
+- **PASS**: Deliverable matches the task specification exactly
+- **FAIL**: Deliverable does not match (explain what's wrong)
+
+### 3. FEEDBACK
+If any deliverable FAILed, provide specific, actionable feedback:
+- What exactly is wrong
+- What the correct output should look like
+- Which part of the task specification it violates
+
+### 4. STATUS
+Output exactly one of:
+- `STATUS: completed` — ALL deliverables PASS. The task is done.
+- `STATUS: continue` — One or more deliverables FAIL. The Executor needs another iteration.
+
+### 5. PROGRESS
+Assess overall task progress from 0-100.
+Output: `PROGRESS: <number>`
+
+You MUST produce ALL 5 sections. Run real verification code — do not skip programmatic checks.
+"""
+    return prompt
+
+
+# ---------------------------------------------------------------------------
 # Reviewer prompt builder
 # ---------------------------------------------------------------------------
 def build_submission_prompt(

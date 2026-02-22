@@ -83,7 +83,8 @@ def init_project(
 
     # Create directory structure
     (autolab / PROFILES_DIR).mkdir(parents=True, exist_ok=True)
-    for d in ("data", "scripts", "figures", "results"):
+    task_dirs = ("data", "scripts", "results") if domain == "task" else ("data", "scripts", "figures", "results")
+    for d in task_dirs:
         (base / d).mkdir(exist_ok=True)
 
     # Write idea
@@ -101,10 +102,12 @@ def init_project(
     domain_cfg = DOMAIN_CONFIGS.get(domain, DOMAIN_CONFIGS["research"])
     default_cfg = {
         "domain": domain,
-        "max_iterations": 50,
+        "max_iterations": 3 if domain == "task" else 50,
         "target_venue": domain_cfg.get("target_venue", "Nature"),
         "editor_timeout_minutes": 30,  # 0 = no timeout (wait forever)
     }
+    if domain == "task":
+        default_cfg["skip_editorial"] = True
     if config:
         default_cfg.update(config)
     with open(autolab / CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -133,11 +136,11 @@ def init_project(
         "feedback_queue": [],  # accumulates messages until drained
         "progress": 0,
         "experts": [],
-        "phase": "recruiting",
+        "phase": "active" if domain == "task" else "recruiting",
         "recruitment": {
             "characters": [],
             "started_at": now,
-            "ready_at": None,
+            "ready_at": now if domain == "task" else None,
         },
         "characters": [],
         "created_at": now,
@@ -610,6 +613,22 @@ DOMAIN_CONFIGS = {
         "decisions": ["Approve", "Polish", "Rework", "Scrap"],
         "target_venue": "Client Presentation",
     },
+    "task": {
+        "senior_label": "Verifier",
+        "senior_short": "Verifier",
+        "junior_label": "Executor",
+        "junior_short": "Executor",
+        "overseer_label": "Verifier",
+        "reviewer_label": "Verifier",
+        "artifact": "Deliverable",
+        "artifact_plural": "Deliverables",
+        "workspace": "Task",
+        "meeting_log_name": "Task Log",
+        "review_process": "Verification",
+        "consultant_label": "Advisor",
+        "decisions": ["PASS", "FAIL"],
+        "target_venue": "Completion",
+    },
 }
 
 
@@ -629,6 +648,11 @@ def get_domain_id(project_dir: str) -> str:
     """Get the domain ID for a project (default: 'research')."""
     cfg = load_config(project_dir)
     return cfg.get("domain", "research")
+
+
+def is_task_mode(project_dir: str) -> bool:
+    """Check if the project is running in task mode."""
+    return get_domain_id(project_dir) == "task"
 
 
 def get_editor_timeout_seconds(project_dir: str) -> int:

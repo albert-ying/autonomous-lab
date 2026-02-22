@@ -703,6 +703,7 @@ async def autolab_init(
         "legal",
         "medical",
         "creative",
+        "task",
     )
     if domain not in valid_domains:
         return f"ERROR: Invalid domain '{domain}'. Must be one of: {', '.join(valid_domains)}"
@@ -712,7 +713,8 @@ async def autolab_init(
             project_directory, idea, domain=domain,
             config={"title": title},
         )
-        create_paper_structure(project_directory, title)
+        if domain != "task":
+            create_paper_structure(project_directory, title)
 
         # Start the monitoring web UI (non-blocking)
         lab_url = ""
@@ -729,14 +731,21 @@ async def autolab_init(
 
         dcfg = get_domain_config(project_directory)
 
+        if domain == "task":
+            dirs_line = "  scripts/, results/, data/ -- working directories"
+        else:
+            dirs_line = (
+                f"  paper/ -- LaTeX template ({title})\n"
+                f"  scripts/, figures/, results/ -- working directories"
+            )
+
         return (
             f"Autonomous Lab initialized in {project_directory}\n\n"
             f"Domain: {domain} — roles: {dcfg['senior_label']}, {dcfg['junior_label']}, {dcfg['overseer_label']}\n"
             f"Artifact: {dcfg['artifact']}\n\n"
             f"Created:\n"
             f"  .autolab/ -- state, profiles, meeting log\n"
-            f"  paper/ -- LaTeX template ({title})\n"
-            f"  scripts/, figures/, results/ -- working directories\n\n"
+            f"{dirs_line}\n\n"
             f"State: iteration={state['iteration']}, next_role={state['next_role']}\n"
             f"Monitoring UI: {lab_url}" + _LOOP_INSTRUCTION
         )
@@ -876,7 +885,9 @@ async def autolab_resume(
         role_display = role  # reviewer_N etc.
 
     # Determine the right instruction based on current state
-    if status in ("submitted_to_editor", "reviews_complete"):
+    if status == "completed":
+        next_instruction = "\n\n---\nTask COMPLETED. No further action needed."
+    elif status in ("submitted_to_editor", "reviews_complete"):
         next_instruction = _EDITORIAL_INSTRUCTION
     else:
         next_instruction = _LOOP_INSTRUCTION
@@ -991,6 +1002,88 @@ async def autolab_next(
                 "Some required skills are still being learned. "
                 "Call `autolab_skill_status` to check progress.\n\n"
                 "Once all required skills are certified, the loop will begin automatically."
+            )
+
+    # --- Task mode: simplified routing ---
+    from .lab.state import is_task_mode, load_config as _load_config_tm
+
+    if is_task_mode(project_directory):
+        from .lab.prompts import build_executor_prompt, build_verifier_prompt
+
+        if state.get("status") == "completed":
+            return (
+                "[AUTOLAB] TASK COMPLETED\n\n"
+                "All deliverables have been verified and the task is done.\n"
+                "Inform the user the task is complete."
+            )
+
+        _tm_config = _load_config_tm(project_directory)
+        _tm_max_iter = _tm_config.get("max_iterations", 3)
+        role = state["next_role"]
+        iteration = state["iteration"]
+        dcfg = get_domain_config(project_directory)
+        from .lab.state import drain_feedback_queue as _drain_fb_tm
+        user_feedback = _drain_fb_tm(project_directory)
+        meeting_history = get_recent_meetings(project_directory, n=3)
+        summaries = get_meeting_summaries(project_directory)
+        file_listings = scan_project_files(project_directory)
+        profile = load_profile(project_directory, role)
+
+        if role == "pi":  # Verifier turn
+            prompt = build_verifier_prompt(
+                idea=load_idea(project_directory),
+                profile=profile,
+                meeting_history=meeting_history,
+                summaries=summaries,
+                file_listings=file_listings,
+                user_feedback=user_feedback,
+                iteration=iteration,
+                max_iterations=_tm_max_iter,
+            )
+            return (
+                f"[AUTOLAB] VERIFIER TURN -- Iteration {iteration}\n\n"
+                f"{prompt}\n\n"
+                f"After completing your verification, call autolab_record, then follow the MANDATORY NEXT STEPS."
+            )
+        else:  # Executor turn
+            # Build skill context if character has certified skills
+            skill_context = ""
+            from pathlib import Path as _Path
+            from .lab.skills import build_skill_context
+
+            char_slug = state.get("next_role", "trainee")
+            char_dir = _Path(project_directory) / ".autolab" / "characters" / char_slug
+            skills_dir = char_dir if (char_dir / "skills").exists() else _Path(project_directory)
+
+            for char in state.get("recruitment", {}).get("characters", []):
+                if char.get("slug") == char_slug or char.get("role") == "trainee":
+                    certified = [
+                        name for name, info in char.get("skills", {}).items()
+                        if info.get("status") == "certified"
+                    ]
+                    if certified:
+                        skill_context = build_skill_context(
+                            skills_dir=skills_dir,
+                            certified_skills=certified,
+                            pi_agenda=meeting_history,
+                        )
+                    break
+
+            prompt = build_executor_prompt(
+                idea=load_idea(project_directory),
+                profile=profile,
+                meeting_history=meeting_history,
+                summaries=summaries,
+                file_listings=file_listings,
+                user_feedback=user_feedback,
+                iteration=iteration,
+                max_iterations=_tm_max_iter,
+                skill_context=skill_context,
+            )
+            return (
+                f"[AUTOLAB] EXECUTOR TURN -- Iteration {iteration}\n\n"
+                f"{prompt}\n\n"
+                f"After completing your actions as Executor, call autolab_record, then follow the MANDATORY NEXT STEPS."
             )
 
     # --- Multi-agent orchestration (opt-in) ---
@@ -1353,10 +1446,14 @@ async def autolab_record(
 
     project_directory = os.path.abspath(project_directory)
 
+    # Normalize task-mode role aliases
+    role_aliases = {"executor": "trainee", "verifier": "pi"}
+    role = role_aliases.get(role, role)
+
     # Validate role — allow pi, trainee, and reviewer_N
     valid_roles = role in ("pi", "trainee") or role.startswith("reviewer_")
     if not valid_roles:
-        return "ERROR: role must be 'pi', 'trainee', or 'reviewer_N'"
+        return "ERROR: role must be 'pi', 'trainee', 'executor', 'verifier', or 'reviewer_N'"
 
     try:
         state = load_state(project_directory)
@@ -1426,6 +1523,65 @@ async def autolab_record(
                 f"The {dcfg['overseer_label']} (user) will now make a final decision."
                 + _EDITORIAL_INSTRUCTION
             )
+
+    # --- Task mode special handling ---
+    from .lab.state import is_task_mode as _is_task_mode_rec
+
+    if _is_task_mode_rec(project_directory):
+        if status == "ready_for_review":
+            return "ERROR: Task mode does not support editorial. Use status='completed' or 'continue'."
+
+        if status == "completed":
+            # Verifier says all deliverables PASS — task is done
+            state = load_state(project_directory)
+            state["status"] = "completed"
+            if progress >= 0:
+                state["progress"] = max(0, min(100, progress))
+            save_state(project_directory, state)
+            append_meeting_log(project_directory, role, iteration, summary, content)
+            return (
+                "Task COMPLETED. All deliverables verified.\n\n"
+                "Inform the user the task is done."
+            )
+
+        # Normal continue — flip roles, check iteration cap
+        next_role = "trainee" if role == "pi" else "pi"
+        new_iteration = iteration + (1 if role == "trainee" else 0)
+        state = load_state(project_directory)
+        from .lab.state import load_config as _load_cfg_task
+        _task_cfg = _load_cfg_task(project_directory)
+        _max_iter = _task_cfg.get("max_iterations", 3)
+
+        if role == "trainee" and new_iteration >= _max_iter:
+            # Cap reached after executor turn — force one final verifier pass
+            state["iteration"] = new_iteration
+            state["next_role"] = "pi"
+            state["status"] = "active"
+            if progress >= 0:
+                state["progress"] = max(0, min(100, progress))
+            save_state(project_directory, state)
+            if new_iteration > 0 and new_iteration % COMPRESS_EVERY == 0:
+                compress_old_meetings(project_directory)
+            return (
+                f"Turn recorded. Iteration {new_iteration} (MAX REACHED).\n"
+                f"Final Verifier pass will run next."
+                + _LOOP_INSTRUCTION
+            )
+
+        state["iteration"] = new_iteration
+        state["next_role"] = next_role
+        state["status"] = "active"
+        if progress >= 0 and role == "pi":
+            state["progress"] = max(0, min(100, progress))
+        save_state(project_directory, state)
+        if new_iteration > 0 and new_iteration % COMPRESS_EVERY == 0:
+            compress_old_meetings(project_directory)
+
+        next_role_label = dcfg["junior_label"] if role == "pi" else dcfg["senior_label"]
+        return (
+            f"Turn recorded. Iteration {new_iteration}, next: {next_role_label.upper()}."
+            + _LOOP_INSTRUCTION
+        )
 
     # --- Senior submission handling ---
     if role == "pi" and status == "ready_for_review":
@@ -1915,9 +2071,12 @@ async def autolab_editorial(
     """
     import asyncio
 
-    from .lab.state import load_state, get_domain_config, get_editor_timeout_seconds
+    from .lab.state import load_state, get_domain_config, get_editor_timeout_seconds, is_task_mode
 
     project_directory = os.path.abspath(project_directory)
+
+    if is_task_mode(project_directory):
+        return "ERROR: Task mode does not use editorial review."
 
     # Ensure the web UI is running — the user needs it to make editorial decisions
     _ensure_lab_ui(project_directory)
