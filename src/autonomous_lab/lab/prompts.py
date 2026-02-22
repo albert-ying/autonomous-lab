@@ -876,18 +876,50 @@ a documented reason to deviate. If you deviate, state why in your RESULTS sectio
 
 {coding_rules}
 
+## Scope Constraint Rules (CRITICAL)
+
+The task specification is a STRICT requirement, not a suggestion. Before writing any code:
+
+1. **Extract every scope constraint** from the specification. Look for:
+   - "shared" / "common" / "overlapping" → output must be an intersection, NOT a union
+   - "significant" / "adjusted p < X" / "FDR < X" → output must be filtered by that threshold
+   - "top N" / "top-N" / "highest" / "lowest" → output must have exactly N (or ≤ N) rows
+   - "identify" / "find" / "select" → implies a filtered subset, NOT the full dataset
+   - Any explicit row-count or max-rows constraint
+
+2. **Apply filters explicitly in code.** Do not rely on upstream tools to filter for you.
+   After computing results, apply the filter as a separate, visible step:
+   ```python
+   # WRONG: hope DESeq2 only returns significant genes
+   # RIGHT: filter explicitly
+   df_filtered = df[df["padj"] < 0.05]
+   ```
+
+3. **Print row counts after filtering.** Every script that produces a result file must print:
+   ```python
+   print(f"Rows before filter: {{len(df)}}")
+   print(f"Rows after filter: {{len(df_filtered)}}")
+   ```
+
+4. **Sanity-check output size.** If filtering language is present in the spec and your output
+   has > 500 rows, STOP and verify the filter is working. Most filtered outputs are 10-200 rows.
+
 ## Your Task
 
 Read the task specification and the Verifier's latest feedback carefully. Then produce a structured response with ALL of the following sections:
 
 ### 1. APPROACH
-Your plan for addressing the task specification (or the Verifier's feedback if this is a subsequent iteration). Be specific about which tasks you will execute and which deliverables you will create.
+Your plan for addressing the task specification. Be specific about:
+- Which tasks you will execute and which deliverables you will create
+- **What scope constraints you identified** (list them explicitly: thresholds, filters, subsets)
+- How you will enforce each constraint in code
 
 ### 2. EXECUTION
 For each task:
 - Write and execute code (save scripts to `scripts/`)
 - Generate deliverables (save to appropriate directories)
 - Save results (save to `results/` as CSV or JSON)
+- **Print row/item counts before and after any filtering step**
 
 Use the Shell tool to run your scripts. Use the file editing tools to write content.
 
@@ -900,21 +932,31 @@ Key findings with exact numbers and evidence. Do not omit important metrics or d
 Before listing deliverables, verify each one against the task specification:
 - **Format**: Does the output file match what was requested? (column names, file type, delimiter)
 - **Schema**: Do values use the same ID system, naming convention, and units as specified?
-- **Scope**: Re-read the task specification and compare your output's scope to what was requested.
-  If the task asks for a filtered subset (e.g., significant results, shared items, top-N), verify
-  that you applied the filter. Print the row/item count of your output and sanity-check it.
+- **Scope**: Re-read the task specification. For each scope constraint you identified in APPROACH,
+  verify it holds on the actual output file. Run verification code:
+  ```python
+  df = pd.read_csv("results/output.csv")
+  print(f"Row count: {{len(df)}}")
+  # For threshold filters:
+  assert (df["padj"] < 0.05).all(), "Unfiltered rows found"
+  # For intersection/shared:
+  assert set(df["id"]).issubset(shared_ids), "Non-shared items found"
+  # For top-N:
+  assert len(df) <= N, f"Too many rows: {{len(df)}} > {{N}}"
+  ```
 
-If any check fails, fix the deliverable before reporting it.
+If any check fails, **fix the deliverable before reporting it**.
 
 List every new or updated deliverable:
-- Filename
-- What it shows/contains
-- How it addresses the task specification
+- Filename and row count
+- Scope constraints applied (threshold, filter, intersection)
+- Spec compliance: YES / NO
 
 ### 5. SELF-CHECK
 Before finishing, verify your work:
 - Did you address ALL requirements from the task specification?
 - Did you address ALL feedback from the Verifier (if any)?
+- **Are all scope constraints satisfied?** (re-check each one)
 - Are all deliverables in the correct format and location?
 - Do all scripts run without errors?
 
@@ -1003,29 +1045,82 @@ You are a rigorous verifier. You check deliverables against the task specificati
 Review the Executor's work and produce a structured response with ALL of the following sections:
 
 ### 1. SPECIFICATION CHECK
-For EACH deliverable, run programmatic verification (write and execute Python code):
-- Load the output file and check its structure (columns, types, dimensions)
-- Compare against what the task specification requires
-- Verify value ranges, formats, and completeness
-- Check scope: does the output contain exactly what was requested?
+For EACH deliverable, write and execute a Python verification script. This is NOT optional.
 
-Do NOT just read the file and eyeball it — run actual verification code.
+**Step 1 — Parse scope constraints from the specification.**
+Re-read the Task Specification above. Extract every scope constraint. Common patterns:
+- "shared" / "common" / "overlapping" → output must be an intersection, not a union
+- "significant" / "adjusted p < X" / "FDR < X" → output must be filtered by that threshold
+- "top N" / "top-N" / "highest" / "lowest" → output must have exactly N rows (or ≤ N)
+- "identify" / "find" / "select" → implies a filtered subset, NOT the full dataset
+- Row-count bounds: if the spec implies ~10 items, 1000 rows is wrong
+
+**Step 2 — Run hard programmatic checks (mandatory code).**
+Write and execute a script like this for EACH result file:
+
+```python
+import pandas as pd, json, sys
+
+# Load
+df = pd.read_csv("results/<file>")   # or json.load(...)
+print(f"Shape: {{df.shape}}")
+print(f"Columns: {{list(df.columns)}}")
+print(df.head(3).to_string())
+
+# --- Column check ---
+expected_cols = [...]  # from spec
+actual_cols = list(df.columns)
+if actual_cols != expected_cols:
+    print(f"FAIL: Column mismatch. Got {{actual_cols}}, expected {{expected_cols}}")
+
+# --- Scope / filter checks ---
+# For "shared" semantics: verify the result is an intersection
+# For "significant" semantics: verify ALL rows pass the threshold
+if "adj_pvalue" in df.columns:
+    threshold = 0.05  # or whatever the spec states
+    violations = (df["adj_pvalue"] >= threshold).sum()
+    if violations > 0:
+        print(f"FAIL: {{violations}} rows have adj_pvalue >= {{threshold}}")
+
+# For "top N" semantics: verify row count
+max_rows = ...  # from spec (e.g., 10, 20, 50)
+if len(df) > max_rows:
+    print(f"FAIL: Expected ≤ {{max_rows}} rows, got {{len(df)}}")
+
+# For "shared" / "intersection" semantics: verify items appear in ALL required sources
+# (load source files and check membership)
+```
+
+Adapt the checks to the actual task. The point is: **run the filter/threshold/intersection
+logic yourself on the output file and confirm it holds**. Do not trust the Executor's
+self-report — verify independently.
+
+**Step 3 — Scope-size sanity check.**
+If the specification uses filtering language ("shared", "significant", "top", "identify",
+"find", "select", "overlapping", "common") and the output contains more than 500 rows,
+this is almost certainly a scope violation. Flag it as FAIL unless the spec explicitly
+expects a large result set.
 
 ### 2. VERDICT
 For EACH deliverable, give a binary verdict:
-- **PASS**: Deliverable matches the task specification exactly
-- **FAIL**: Deliverable does not match (explain what's wrong)
+- **PASS**: All programmatic checks passed — columns, types, scope, thresholds, row count
+- **FAIL**: One or more checks failed (list each failure with the check that caught it)
+
+**Scope violations are automatic FAIL.** Do not PASS a deliverable with unfiltered results
+when the spec requires filtering, even if the format and columns are correct.
 
 ### 3. FEEDBACK
 If any deliverable FAILed, provide specific, actionable feedback:
-- What exactly is wrong
-- What the correct output should look like
-- Which part of the task specification it violates
+- Which check failed and what the output showed
+- What the correct output should look like (expected row count, threshold, filter)
+- The exact fix needed (e.g., "filter df to rows where adj_pvalue < 0.05")
 
 ### 4. STATUS
 Output exactly one of:
-- `STATUS: completed` — ALL deliverables PASS. The task is done.
+- `STATUS: completed` — ALL deliverables PASS all programmatic checks. The task is done.
 - `STATUS: continue` — One or more deliverables FAIL. The Executor needs another iteration.
+
+**If ANY scope check fails, you MUST set STATUS: continue** (unless this is the last iteration).
 
 ### 5. PROGRESS
 Assess overall task progress from 0-100.

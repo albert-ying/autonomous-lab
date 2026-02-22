@@ -1552,8 +1552,9 @@ async def autolab_record(
         _task_cfg = _load_cfg_task(project_directory)
         _max_iter = _task_cfg.get("max_iterations", 3)
 
+        # --- Strict cap enforcement ---
+        # After executor turn: if new_iteration >= max, allow ONE final verifier
         if role == "trainee" and new_iteration >= _max_iter:
-            # Cap reached after executor turn — force one final verifier pass
             state["iteration"] = new_iteration
             state["next_role"] = "pi"
             state["status"] = "active"
@@ -1566,6 +1567,17 @@ async def autolab_record(
                 f"Turn recorded. Iteration {new_iteration} (MAX REACHED).\n"
                 f"Final Verifier pass will run next."
                 + _LOOP_INSTRUCTION
+            )
+
+        # After verifier turn: if at or past cap, force-complete — no more executor turns
+        if role == "pi" and iteration >= _max_iter:
+            state["status"] = "completed"
+            if progress >= 0:
+                state["progress"] = max(0, min(100, progress))
+            save_state(project_directory, state)
+            return (
+                f"Turn recorded. Iteration cap ({_max_iter}) reached — task force-completed.\n\n"
+                "Inform the user the task is done (iteration limit reached)."
             )
 
         state["iteration"] = new_iteration
