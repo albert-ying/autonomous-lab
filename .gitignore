@@ -86,3 +86,6 @@ yarn.lock
 # Temporary build files
 *.tmp
 *.temp
+
+# Git worktrees
+.worktrees/
