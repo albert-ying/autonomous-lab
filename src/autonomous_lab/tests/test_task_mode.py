@@ -1,6 +1,6 @@
 """
 Tests for task mode — domain config, init, prompts, state machine,
-scope correctness, and iteration cap enforcement.
+scope correctness, iteration cap enforcement, and compliance review gate.
 """
 
 import json
@@ -433,3 +433,136 @@ class TestIterationCapEnforcement:
         reloaded = load_state(task_project)
         assert reloaded["iteration"] == 3
         # This is at the cap — no more executor turns should be allowed
+
+
+# ---------------------------------------------------------------------------
+# TestComplianceReviewGate — compliance gate in verifier prompt
+# ---------------------------------------------------------------------------
+class TestComplianceReviewGate:
+    """Verify the Compliance Review Gate is present and enforces structured checks."""
+
+    def test_compliance_gate_section_exists(self, default_profile):
+        """The verifier prompt must contain the COMPLIANCE REVIEW GATE section."""
+        prompt = build_verifier_prompt(
+            idea="Build a CSV parser",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        assert "COMPLIANCE REVIEW GATE" in prompt
+
+    def test_constraint_table_structure(self, default_profile):
+        """The gate must instruct building a constraint table with type and ambiguity columns."""
+        prompt = build_verifier_prompt(
+            idea="Find top 10 pathways",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        assert "Constraint Text" in prompt
+        assert "Type" in prompt
+        assert "Ambiguous?" in prompt
+
+    def test_ambiguity_handling_protocol(self, default_profile):
+        """The gate must require explicit assumptions for ambiguous constraints."""
+        prompt = build_verifier_prompt(
+            idea="Find significant genes",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        assert "ambiguous" in prompt.lower()
+        assert "assumption" in prompt.lower()
+        # Must specify that missing assumptions = FAIL
+        assert "FAIL" in prompt
+
+    def test_explicit_unmet_constraint_forces_fail(self, default_profile):
+        """If spec says 'top 10' and output has more, it must be auto-FAIL."""
+        prompt = build_verifier_prompt(
+            idea="Return top 10 enriched pathways",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        assert "Explicit unmet constraints are automatic FAIL" in prompt
+
+    def test_gate_decision_all_must_hold(self, default_profile):
+        """The gate must require ALL conditions to hold for PASS."""
+        prompt = build_verifier_prompt(
+            idea="Build output",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        assert "Gate PASSES only if ALL" in prompt or "gate FAILS" in prompt.lower()
+        assert "MUST NOT issue a PASS" in prompt
+
+    def test_subset_required_full_output_must_fail(self, default_profile):
+        """When spec requires a subset, the prompt must enforce subset checking."""
+        prompt = build_verifier_prompt(
+            idea="Identify the top 20 differentially expressed genes from the RNA-seq dataset",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        # The prompt must contain instructions that would cause a full-dataset
+        # output to FAIL: row bound check + filtering language
+        assert "row_bound" in prompt or "row bound" in prompt.lower()
+        assert "filtered subset" in prompt.lower()
+        # The scope-size sanity gate must catch >500 rows
+        assert "500" in prompt
+
+    def test_no_subset_required_can_pass(self, default_profile):
+        """When spec has no filtering language, schema/value checks suffice for PASS."""
+        prompt = build_verifier_prompt(
+            idea="Convert all CSV files in data/ to JSON format",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        # Schema check must still be present
+        assert "schema" in prompt.lower()
+        # But the prompt doesn't force-fail on row count when no filtering is specified
+        # (the 500-row gate only triggers when filtering language is present)
+        assert "filtering language" in prompt.lower()
+
+    def test_alzheimer_shared_significant_prompt(self, default_profile):
+        """Alzheimer-like prompt with 'shared' + 'significant' triggers both checks."""
+        prompt = build_verifier_prompt(
+            idea="Identify shared significantly differentially expressed genes (adjusted p < 0.01) between Alzheimer's disease cortex and hippocampus datasets",
+            profile=default_profile,
+            meeting_history="",
+            summaries="",
+            file_listings={},
+            user_feedback="",
+            iteration=1,
+        )
+        # Must have intersection check instructions
+        assert "intersection" in prompt.lower()
+        # Must have threshold check instructions
+        assert "threshold" in prompt.lower()
+        # Must have the constraint table approach
+        assert "COMPLIANCE REVIEW GATE" in prompt
+        # Scope violations auto-FAIL
+        assert "Scope violations are automatic FAIL" in prompt

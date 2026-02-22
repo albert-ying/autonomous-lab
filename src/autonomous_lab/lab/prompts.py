@@ -22,6 +22,10 @@ CODING_RULES = (
     "8. Follow the workspace CLAUDE.md visualization rules for all plots.",
     "9. Include error handling for file I/O operations.",
     "10. Add docstrings and inline comments explaining the analysis logic.",
+    "11. Apply all filters and thresholds BEFORE saving results. "
+    "Never save unfiltered output with the intent to filter later. "
+    "Setting pvalueCutoff=1.0 or FDR=1.0 'to filter later' is a bug — "
+    "apply the correct threshold in the script that produces the output.",
 )
 
 PAPER_WRITING_RULES = (
@@ -514,12 +518,17 @@ For each deliverable (figures, artifacts, outputs), evaluate against this checkl
 - [ ] Result scope matches what you asked for (filtered vs. complete)
 - [ ] Figures: readable at print size, labeled axes, legend present, 600 DPI
 
-**Verification (do not skip):** Re-read the original task description in `idea.md`.
-If the task specifies a particular output format, expected scope, or example row,
-open the actual result file(s) and compare. Load the file in Python if needed —
-print the shape, column names, and a few sample rows. Compare against what the
-specification asks for. A common failure mode is returning all results instead
-of the filtered subset the task requires.
+**Verification (mandatory — run code, do not eyeball):**
+Write and run a short Python script that, for each file in `results/`:
+1. Loads the file and prints its shape (rows, columns) and column names
+2. Prints the first 3 rows
+3. Re-reads `idea.md` and compares the row count against what the task implies
+   (e.g., "identify significant genes" → far fewer rows than total gene count;
+   "top-N pathways" → exactly N rows; "quantify expression" → only expressed items)
+4. Flags any file where rows > 10x the expected count as **SCOPE MISMATCH**
+If any SCOPE MISMATCH is found, set STATUS: continue and include filtering
+instructions in your AGENDA. Do not approve deliverables you have not
+programmatically inspected.
 
 Score 1-10 based on how many checks pass. For each deliverable, list:
 - Score (1-10)
@@ -758,25 +767,39 @@ Use the Shell tool to run your scripts. Use the file editing tools to write cont
 
 **Scientific Toolkit:** If the {senior_short} suggests using ToolUniverse tools, check availability with `autolab_tools_status`. Search for tools with `autolab_tools_search("<query>")`. Use them in scripts via `from tooluniverse import ToolUniverse; tu = ToolUniverse(); result = tu.tools.<tool_name>(**kwargs)`. If the SDK is not installed locally, tools execute via the ToolUniverse HTTP API. If neither is available, proceed with standard Python packages.
 
+**Scope inference (mandatory before saving any result file):**
+Before writing results to disk, determine the expected output scope:
+1. Re-read `idea.md`. Find scope-defining language: "identify," "find," "determine,"
+   "which," "top-N," "significant," "shared," "overlapping." These verbs imply a
+   FILTERED subset, not a complete dump.
+2. If the task provides example rows or expected output format, count how many items
+   the example implies. Your output row count should be in the same order of magnitude.
+3. If your output has >10x more rows than the implied scope, you almost certainly
+   forgot to filter. Stop and add the missing filter before saving.
+
 ### 3. RESULTS
 Key findings with exact numbers and evidence. Do not omit important metrics or data points.
 
 ### 4. DELIVERABLES
-Before listing deliverables, verify each one:
-- **Format**: Does the output file match what the {senior_short} requested? (column names, file type, delimiter)
-- **Schema**: Do values use the same ID system, naming convention, and units as specified?
-- **Scope**: Re-read the original task description in `idea.md` and compare your
-  output's scope to what was requested. If the task asks for a filtered subset
-  (e.g., significant results, shared items, top-N), verify that you applied
-  the filter. Print the row/item count of your output and sanity-check it
-  against what the specification implies. Returning unfiltered complete results
-  when a filtered subset was requested is a common error — catch it here.
-If any check fails, fix the deliverable before reporting it.
+For EACH result file saved to `results/`, run this in Python and paste the output:
+```python
+import pandas as pd
+df = pd.read_csv("results/<filename>")
+print(f"Rows: {{len(df)}}, Columns: {{list(df.columns)}}")
+print(df.head(3).to_string())
+```
 
-List every new or updated deliverable:
-- Filename
-- What it shows/contains
-- How it addresses the {senior_short}'s agenda
+Then fill in this template per file:
+- **File:** `results/<filename>`
+- **Rows x Columns:** <from the Python output above>
+- **First 3 rows:** <paste>
+- **Expected scope (from idea.md):** <what the task says this output should contain>
+- **Scope match:** YES / NO — if NO, fix the output before continuing
+- **Filtering applied:** <describe filters: thresholds, subsets, criteria used>
+
+If Scope match is NO, go back and fix the deliverable. Do not proceed with an unresolved scope mismatch.
+
+For figures: report filename, what it shows, axes/units, number of data points plotted.
 
 ### 5. INTERPRETATION
 What do the results mean for the project? How do they support or change the direction?
@@ -1044,89 +1067,123 @@ You are a rigorous verifier. You check deliverables against the task specificati
 
 Review the Executor's work and produce a structured response with ALL of the following sections:
 
-### 1. SPECIFICATION CHECK
-For EACH deliverable, write and execute a Python verification script. This is NOT optional.
+### 1. COMPLIANCE REVIEW GATE (mandatory before any PASS verdict)
 
-**Step 1 — Parse scope constraints from the specification.**
-Re-read the Task Specification above. Extract every scope constraint. Common patterns:
-- "shared" / "common" / "overlapping" → output must be an intersection, not a union
-- "significant" / "adjusted p < X" / "FDR < X" → output must be filtered by that threshold
-- "top N" / "top-N" / "highest" / "lowest" → output must have exactly N rows (or ≤ N)
-- "identify" / "find" / "select" → implies a filtered subset, NOT the full dataset
-- Row-count bounds: if the spec implies ~10 items, 1000 rows is wrong
+Before evaluating deliverables, you MUST complete the Compliance Review Gate.
+This is a structured compliance check against the ORIGINAL task specification.
 
-**Step 2 — Run hard programmatic checks (mandatory code).**
-Write and execute a script like this for EACH result file:
+**Step 1 — Extract machine-checkable constraints.**
+Re-read the Task Specification above word by word. Build a constraint table with EVERY
+testable requirement. For each constraint, classify its type:
+
+| # | Constraint Text (quote from spec) | Type | Check | Ambiguous? |
+|---|-----------------------------------|------|-------|------------|
+| 1 | "shared pathways" | subset/intersection | output ⊆ intersection of sources | No |
+| 2 | "adjusted p < 0.05" | threshold | all rows pass filter | No |
+| 3 | "top 10" | top-N / row bound | len(df) ≤ 10 | No |
+| 4 | "significant genes" | significant | threshold filter applied | Yes — threshold not specified |
+
+Constraint types to look for:
+- **subset/intersection**: "shared" / "common" / "overlapping" → output must be an intersection, not a union
+- **threshold**: "adjusted p < X" / "FDR < X" / "significant" with explicit cutoff → all rows must pass
+- **top-N / row bound**: "top N" / "top-N" / "highest" / "lowest" → output ≤ N rows
+- **significant**: "significant" / "differentially expressed" without explicit threshold → filtered subset required
+- **schema**: column names, file format, ID system, units → must match exactly
+- **row bound (implicit)**: "identify" / "find" / "select" → implies filtered subset, NOT full dataset
+
+**Step 2 — Handle ambiguous constraints.**
+If ANY constraint is marked "Ambiguous?" = Yes:
+- The Executor MUST have stated explicit assumptions for that constraint in their output
+  (e.g., "I used padj < 0.05 as the significance threshold since the spec did not specify one")
+- If the Executor did NOT state assumptions for an ambiguous constraint, this is a FAIL —
+  the deliverable cannot be verified without knowing what threshold/filter was applied
+- Record each ambiguous constraint and whether the Executor provided an explicit assumption
+
+**Step 3 — Run hard programmatic checks (mandatory code).**
+For EACH constraint in your table, write and execute verification code. This is NOT optional.
 
 ```python
 import pandas as pd, json, sys
 
-# Load
+# Load the deliverable
 df = pd.read_csv("results/<file>")   # or json.load(...)
 print(f"Shape: {{df.shape}}")
 print(f"Columns: {{list(df.columns)}}")
 print(df.head(3).to_string())
 
-# --- Column check ---
+# --- Schema check ---
 expected_cols = [...]  # from spec
 actual_cols = list(df.columns)
 if actual_cols != expected_cols:
-    print(f"FAIL: Column mismatch. Got {{actual_cols}}, expected {{expected_cols}}")
+    print(f"FAIL [schema]: Column mismatch. Got {{actual_cols}}, expected {{expected_cols}}")
 
-# --- Scope / filter checks ---
-# For "shared" semantics: verify the result is an intersection
-# For "significant" semantics: verify ALL rows pass the threshold
+# --- Threshold check ---
 if "adj_pvalue" in df.columns:
-    threshold = 0.05  # or whatever the spec states
+    threshold = 0.05  # from spec or Executor's stated assumption
     violations = (df["adj_pvalue"] >= threshold).sum()
     if violations > 0:
-        print(f"FAIL: {{violations}} rows have adj_pvalue >= {{threshold}}")
+        print(f"FAIL [threshold]: {{violations}} rows have adj_pvalue >= {{threshold}}")
 
-# For "top N" semantics: verify row count
+# --- Row-bound check ---
 max_rows = ...  # from spec (e.g., 10, 20, 50)
 if len(df) > max_rows:
-    print(f"FAIL: Expected ≤ {{max_rows}} rows, got {{len(df)}}")
+    print(f"FAIL [row_bound]: Expected ≤ {{max_rows}} rows, got {{len(df)}}")
 
-# For "shared" / "intersection" semantics: verify items appear in ALL required sources
-# (load source files and check membership)
+# --- Intersection/shared check ---
+# Load source datasets and verify output is subset of intersection
+# set(df["id"]).issubset(intersection_ids)
 ```
 
-Adapt the checks to the actual task. The point is: **run the filter/threshold/intersection
-logic yourself on the output file and confirm it holds**. Do not trust the Executor's
-self-report — verify independently.
+Adapt checks to the actual task. **Run the filter/threshold/intersection logic yourself
+on the output file.** Do not trust the Executor's self-report — verify independently.
 
-**Step 3 — Scope-size sanity check.**
+**Step 4 — Scope-size sanity gate.**
 If the specification uses filtering language ("shared", "significant", "top", "identify",
 "find", "select", "overlapping", "common") and the output contains more than 500 rows,
 this is almost certainly a scope violation. Flag it as FAIL unless the spec explicitly
 expects a large result set.
 
+**Step 5 — Gate decision.**
+The Compliance Review Gate PASSES only if ALL of the following hold:
+- Every explicit constraint has a corresponding programmatic check that passed
+- Every ambiguous constraint has an explicit assumption stated by the Executor
+- No scope-size sanity violations
+- Schema matches specification
+
+If the gate FAILS, you MUST NOT issue a PASS verdict for the deliverable, regardless of
+how close the output appears to be.
+
 ### 2. VERDICT
 For EACH deliverable, give a binary verdict:
-- **PASS**: All programmatic checks passed — columns, types, scope, thresholds, row count
-- **FAIL**: One or more checks failed (list each failure with the check that caught it)
+- **PASS**: Compliance Review Gate passed — all constraints verified programmatically
+- **FAIL**: Gate failed (list each failed constraint with the check that caught it)
 
 **Scope violations are automatic FAIL.** Do not PASS a deliverable with unfiltered results
 when the spec requires filtering, even if the format and columns are correct.
 
+**Explicit unmet constraints are automatic FAIL.** If the spec says "top 10" and the output
+has 50 rows, this is FAIL regardless of other qualities.
+
 ### 3. FEEDBACK
 If any deliverable FAILed, provide specific, actionable feedback:
-- Which check failed and what the output showed
-- What the correct output should look like (expected row count, threshold, filter)
+- Which constraint failed (reference constraint # from your table)
+- What the check showed vs. what was expected
 - The exact fix needed (e.g., "filter df to rows where adj_pvalue < 0.05")
+- For ambiguity failures: "State your assumption for [constraint] explicitly"
 
 ### 4. STATUS
 Output exactly one of:
-- `STATUS: completed` — ALL deliverables PASS all programmatic checks. The task is done.
-- `STATUS: continue` — One or more deliverables FAIL. The Executor needs another iteration.
+- `STATUS: completed` — ALL deliverables PASS the Compliance Review Gate. The task is done.
+- `STATUS: continue` — One or more deliverables FAIL the gate. The Executor needs another iteration.
 
-**If ANY scope check fails, you MUST set STATUS: continue** (unless this is the last iteration).
+**If ANY constraint check fails, you MUST set STATUS: continue** (unless this is the last iteration).
 
 ### 5. PROGRESS
 Assess overall task progress from 0-100.
 Output: `PROGRESS: <number>`
 
 You MUST produce ALL 5 sections. Run real verification code — do not skip programmatic checks.
+The Compliance Review Gate is non-negotiable: no deliverable can PASS without it.
 """
     return prompt
 
@@ -1249,12 +1306,14 @@ original research question in scope and format — do not assume prior reviews v
 
 {idea if idea else "(Not provided)"}
 
-When evaluating the manuscript, verify that the work actually addresses this research question.
-Specifically: open the result files in `results/` and check whether the output format, scope,
-and content match what the original question asks for. If the question asks for a filtered
-subset and the output contains unfiltered complete results, note this as a significant concern
-in your review. Deliverable compliance with the original specification is as important as
-methodological quality.
+**Mandatory pre-review: Scope Audit** (do this FIRST, before reading the paper)
+1. Open `idea.md` and extract the expected output: what format, how many items, what filters.
+2. Open every file in `results/` and count rows (`wc -l` or load in Python).
+3. Compare actual vs. expected. If actual rows > 10x expected, flag as SCOPE MISMATCH.
+4. Report scope audit results at the TOP of your MAJOR CONCERNS section.
+   Example: "SCOPE MISMATCH: idea.md asks for top 10 enriched pathways, but
+   results/enrichment.csv contains 356 rows (all pathways, unfiltered)."
+A scope mismatch is always a Major Concern, regardless of methodological quality.
 
 ### Cover Letter from PI
 
