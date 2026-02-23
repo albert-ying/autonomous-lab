@@ -3242,6 +3242,7 @@ async def autolab_acquire_skill(
 
     # Step 1: Fetch the character registry
     matches = []
+    registry = {}
     try:
         req = urllib.request.Request(_REGISTRY_URL, headers={
             "User-Agent": "AutonomousLab/0.5",
@@ -3265,6 +3266,52 @@ async def autolab_acquire_skill(
                 matches.append(char)
     except Exception as e:
         output.append(f"Registry fetch failed ({e}), trying GitHub search...\n")
+
+    # Step 1b: No exact match — suggest closest available skills
+    if not matches and registry:
+        all_skills: dict[str, list[str]] = {}  # skill -> [char names]
+        for char in registry.get("characters", []):
+            raw_sk = char.get("skills", [])
+            if isinstance(raw_sk, dict):
+                sk_names = [s.lower() for s in raw_sk.keys()]
+            elif raw_sk and isinstance(raw_sk[0], dict):
+                sk_names = [s.get("name", "").lower() for s in raw_sk]
+            else:
+                sk_names = [s.lower() for s in raw_sk]
+            for s in sk_names:
+                all_skills.setdefault(s, []).append(char.get("name", char.get("id", "?")))
+
+        # Score by keyword overlap between requested skill and available names
+        def _score(available: str, query: str) -> int:
+            q_words = set(query.replace("-", " ").replace("_", " ").split())
+            a_words = set(available.replace("-", " ").replace("_", " ").split())
+            return len(q_words & a_words) * 3 + (
+                2 if query in available or available in query else 0
+            )
+
+        scored = [(s, _score(s, skill_name)) for s in all_skills]
+        scored.sort(key=lambda x: -x[1])
+        suggestions = [(s, sc) for s, sc in scored if sc > 0][:5]
+
+        if suggestions:
+            lines = [f"No exact match for '{skill_name}'. Similar available skills:"]
+            for s, _ in suggestions:
+                owners = ", ".join(all_skills[s][:2])
+                lines.append(f"  - {s}  (characters: {owners})")
+            lines.append(
+                f"\nCall autolab_acquire_skill with one of these exact names "
+                f"to download the SKILL.md."
+            )
+            output.append("\n".join(lines) + "\n")
+            return "\n".join(output)
+        else:
+            # No keyword overlap — list all available skills
+            output.append(
+                f"No match for '{skill_name}'. Available skills in registry:\n"
+                f"  {', '.join(sorted(all_skills.keys()))}\n"
+                f"\nCall autolab_acquire_skill with one of these exact names.\n"
+            )
+            return "\n".join(output)
 
     # Step 2: Try GitHub search as fallback
     if not matches:
