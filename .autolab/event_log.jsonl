@@ -6,3 +6,8 @@
 {"ts": "2026-02-20T19:03:57.082602+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
 {"ts": "2026-02-21T17:11:48.049935+00:00", "event": "agent_team_mode", "iteration": 1}
 {"ts": "2026-02-21T17:12:09.495945+00:00", "event": "orchestrator_error", "role": "pi", "error": "claude agent timed out after 600s"}
+{"ts": "2026-02-21T22:23:12.209091+00:00", "event": "orchestrator_timeout", "role": "trainee", "timeout": 900}
+{"ts": "2026-02-21T22:42:22.033018+00:00", "event": "orchestrator_timeout", "role": "pi", "timeout": 900}
+{"ts": "2026-02-21T22:44:23.234185+00:00", "event": "orchestrator_fallback", "role": "reviewer_1", "reason": "agent_not_available"}
+{"ts": "2026-02-21T22:45:03.340379+00:00", "event": "orchestrator_fallback", "role": "reviewer_2", "reason": "agent_not_available"}
+{"ts": "2026-02-21T22:45:36.113054+00:00", "event": "orchestrator_fallback", "role": "reviewer_3", "reason": "agent_not_available"}

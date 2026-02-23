@@ -3254,6 +3254,8 @@ async def autolab_acquire_skill(
             raw_skills = char.get("skills", [])
             if isinstance(raw_skills, dict):
                 char_skills = [s.lower() for s in raw_skills.keys()]
+            elif raw_skills and isinstance(raw_skills[0], dict):
+                char_skills = [s.get("name", "").lower() for s in raw_skills]
             else:
                 char_skills = [s.lower() for s in raw_skills]
             # Exact match or substring match

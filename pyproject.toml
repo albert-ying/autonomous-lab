@@ -1,6 +1,6 @@
 [project]
 name = "autonomous-lab"
-version = "0.7.3"
+version = "0.7.4"
 description = "MCP server that turns any Senior-Junior workflow into an autonomous loop with a human decision maker. Seamless integration with Cursor, Claude Code, Codex, and any MCP client."
 readme = "README.md"
 requires-python = ">=3.11"

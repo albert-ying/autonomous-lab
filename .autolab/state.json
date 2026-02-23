@@ -1,64 +1,20 @@
 {
-  "run_id": "3a7586fc-1201-465c-b833-1e84e18f29d0",
-  "title": "Transcript Quantification (Simulated RNA-Seq)",
-  "iteration": 1,
-  "next_role": "trainee",
-  "status": "continue",
+  "run_id": "6d9ca2f3-e5ac-45fe-b762-7ef8b66d485a",
+  "title": "RNA-Seq Differential Expression (DESeq2)",
+  "iteration": 4,
+  "next_role": "pi",
+  "status": "completed",
   "user_feedback": "",
   "feedback_queue": [],
-  "progress": 5,
+  "progress": 100,
   "experts": [],
   "phase": "active",
   "recruitment": {
-    "characters": [
-      {
-        "slug": "rna-seq-analyst",
-        "role": "trainee",
-        "name": "Dr. Lin Chen",
-        "avatar": "bioinformatician",
-        "source": "fresh",
-        "repo": "",
-        "skills": {
-          "salmon": {
-            "status": "certified",
-            "required": true,
-            "source": "created"
-          },
-          "kallisto": {
-            "status": "certified",
-            "required": false,
-            "source": "created"
-          }
-        },
-        "ready": true
-      }
-    ],
-    "started_at": "2026-02-21T17:00:21.944114+00:00",
-    "ready_at": "2026-02-21T17:01:56.005500+00:00"
+    "characters": [],
+    "started_at": "2026-02-22T04:24:51.213855+00:00",
+    "ready_at": "2026-02-22T04:24:51.213855+00:00"
   },
-  "characters": [
-    {
-      "slug": "rna-seq-analyst",
-      "role": "trainee",
-      "name": "Dr. Lin Chen",
-      "avatar": "bioinformatician",
-      "source": "fresh",
-      "repo": "",
-      "skills": {
-        "salmon": {
-          "status": "certified",
-          "required": true,
-          "source": "created"
-        },
-        "kallisto": {
-          "status": "certified",
-          "required": false,
-          "source": "created"
-        }
-      },
-      "ready": true
-    }
-  ],
-  "created_at": "2026-02-21T17:00:21.944114+00:00",
-  "last_updated": "2026-02-21T17:12:09.496789+00:00"
+  "characters": [],
+  "created_at": "2026-02-22T04:24:51.213855+00:00",
+  "last_updated": "2026-02-22T06:18:51.939427+00:00"
 }

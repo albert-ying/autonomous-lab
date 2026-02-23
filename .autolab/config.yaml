@@ -1,6 +1,6 @@
-domain: research
-editor_timeout_minutes: 1
-max_iterations: 50
-orchestration: multi
-target_venue: Nature
-title: 'Single-cell RNA-seq: Skeletal Muscle Exercise Response'
+domain: task
+editor_timeout_minutes: 30
+max_iterations: 3
+skip_editorial: true
+target_venue: Completion
+title: RNA-Seq Differential Expression (DESeq2)
