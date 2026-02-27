@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated": "2026-02-19",
+  "updated": "2026-02-27",
   "characters": [
     {
       "id": "maria-chen",
@@ -44,9 +44,13 @@
         {"name": "matplotlib", "certified": true},
         {"name": "seaborn", "certified": true},
         {"name": "scikit-learn", "certified": true},
-        {"name": "deeptools", "certified": true}
+        {"name": "deeptools", "certified": true},
+        {"name": "metagenomics", "certified": true},
+        {"name": "viral-metagenomics", "certified": true},
+        {"name": "single-cell-rnaseq", "certified": true},
+        {"name": "variant-calling", "certified": true}
       ],
-      "tags": ["biology", "bioinformatics", "NGS", "RNA-seq", "pipelines"],
+      "tags": ["biology", "bioinformatics", "NGS", "RNA-seq", "pipelines", "metagenomics", "variant-calling", "single-cell"],
       "topics": ["autolab-character", "autolab-skill-scanpy", "autolab-skill-pydeseq2"],
       "personality": [
         "Dedicated: completes tasks thoroughly with comprehensive documentation",
